@@ -61,7 +61,26 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 **常用组合配方**（翻译成中文语义）：
 1. **请求→工具匹配**：分词多关键词 OR 检索 `tool_name`/`function`；注意命名模式（`deg_*`/`de_*`=差异、`wgcna*`=共表达、`*survival`/`km_*`/`cox_*`=生存、`*enrichment`=富集、`*cellchat`=细胞通讯、`tmb_*`=突变负荷）。
 2. **链路组装+验链**：逐环节核对上一工具 `output`/`semantic_output` 与下一工具 `input` 的 format 交集；缺口如实报（"图谱缺：<环节>，期望输入 <format>；建议 <可补工具或说明>"），**绝不虚构不存在的工具**。
-3. **数据选择**：队列（`tumor_type`/`study_accession`）→ 首步输入格式的 T1 文件 → 中间结果复用（T2 已有现成 VCF/MAF/BAM 则标注"复用"，跳过上游重复计算）→ 样本约束（`tissue_type`、`specimen_type`、`gender`、配对需求用 `find_paired_tumor_normal_samples`）。
+3. **数据选择（注意英文词表与 T2 现成矩阵）**：
+   - 队列：`tumor_type` 是**英文**（`Liver Cancer`/`Glioma`/`Melanoma`/`Esophageal Cancer`…），用 `toLower(s.tumor_type) CONTAINS 'liver'` 等英文关键词；中文查不到。
+   - **现成表达矩阵在 T2**（文件名含 `Genes`，如 `HRA001272-Genes-TPM-1.0.tsv`），不在 T1；T1 是原始 FASTQ。格式字段：`semantic_format`（语义格式，如 `TABULAR_BIO_DATA`）≠ `format`/`file_format`（字面格式）。
+   - 中间结果复用：T2 已有现成 VCF/MAF/BAM 则标注"复用"，跳过上游重复计算；样本约束用 `tissue_type`/`specimen_type`/`gender`，配对需求用 `find_paired_tumor_normal_samples`。
+
+## 执行纪律（步数优化，必须遵守）
+
+目标：**工具调用 ≤ 3 轮（每轮 ≤ 2 条查询），总查询 ≤ 6 条**；证据充分立即输出，不反复核实。
+
+1. **禁止 `get_schema`**：图谱模型、标签、关键关系已在本手册列出，不需要整库 schema；需要具体字段时用定向查询。
+2. **一次查全，禁止零碎查询**：优先用合并查询，例如"候选队列 + 每队列 T1/T2 文件清单"一条语句带回：
+   ```cypher
+   MATCH (s:study) WHERE toLower(s.tumor_type) CONTAINS 'liver'
+   OPTIONAL MATCH (f:T1)-[:in_study]->(s) RETURN s.study_accession, s.sample_count,
+     collect(DISTINCT f.format) AS t1_formats LIMIT 10
+   ```
+3. **查过即用，不重复核实**：同一工具契约/同一队列只查一次；后续步骤引用已查结果，不再重复发相同查询。
+4. **先想后查**：每次查询前明确"这条要回答什么问题、用什么配方"；想不清楚就先按配方走，不要自由发挥新查询。
+5. **按配方优先**：15 条模板能覆盖的查询直接用模板，不要自行改写结构。
+6. **收敛**：证据足够（工具确定 + 数据现状清楚）即停止查询，直接输出 Plan；若查询结果为空，先检查关键词语言（中文/英文）与目标表（T1/T2），不要重复同一失败查询。
 
 ## 规划流程（5 步）
 
@@ -69,7 +88,7 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 2. **匹配**（配方 1）：候选工具 + 函数 + 格式；判定业务 pipeline vs atomic 链（见目录规则）。
 3. **组装验链**（配方 2）：数据→预处理→比对→定量/变异→下游；每步标注工具、输入格式、输出格式、验证点；缺口如实列出。
 4. **选数据**（配方 3）：队列 + 格式 + 样本约束 + 配对；给出文件数量、来源、`file_path`、可用性标记。
-5. **输出**：按需给"可读 plan"（下表）或 **tool-chain/v2 JSON**（下节）。
+5. **输出**：按需给"可读 plan"（下表）或 **tool-chain/v2 JSON**（下节）。**全程工具调用控制在 ≤3 轮（见执行纪律）**。
 
 ## tool-chain/v2 输出契约（前端真源 = bio-pipeline-kg-matcher 的 pipeline_router）
 
