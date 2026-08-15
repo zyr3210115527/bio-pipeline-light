@@ -130,12 +130,17 @@ if __name__ == "__main__":
     open(LOG,"w").close()
     mcp = MCPClient()
     log("MCP connected")
-    queries = [
-        ("免疫浸润", "我想看肝癌样本里的免疫细胞组成，比如 T 细胞、B 细胞和巨噬细胞比例。"),
-        ("TMB生存", "我有食管癌的 MAF 文件，想分析肿瘤突变负荷和生存的关系。"),
-        ("开放问题", "比较两个肝癌队列的差异表达基因，并对差异基因做 GO 与 KEGG 通路富集。"),
-        ("非生信拒绝", "雅思口语怎么准备？"),
-    ]
+    queries_json = os.environ.get("QUERIES_JSON")
+    if queries_json:
+        items = json.load(open(queries_json))
+        queries = [(c["case_id"], c["query"]) for c in items]
+    else:
+        queries = [
+            ("免疫浸润", "我想看肝癌样本里的免疫细胞组成，比如 T 细胞、B 细胞和巨噬细胞比例。"),
+            ("TMB生存", "我有食管癌的 MAF 文件，想分析肿瘤突变负荷和生存的关系。"),
+            ("开放问题", "比较两个肝癌队列的差异表达基因，并对差异基因做 GO 与 KEGG 通路富集。"),
+            ("非生信拒绝", "雅思口语怎么准备？"),
+        ]
     results = []
     for label, q in queries:
         log(f"=== {label}: {q[:36]}")

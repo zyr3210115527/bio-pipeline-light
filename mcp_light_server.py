@@ -3,19 +3,22 @@
 """
 mcp_light_server.py — 轻架构 stdio MCP server（无第三方依赖）
 
-给前端 agent（Claude Code / Codex / 自研 MCP 客户端，同机 stdio）提供：
-  - health_check:           Neo4j 连通与图谱规模
-  - plan_bio_analysis:      自然语言生信问题 → tool-chain/v2 plan（轻架构规则面）
-  - 生信相关性门：与生信无关的问题直接拒绝（fail-closed）
+交付形态 = skill + MCP：**推理留给调用方的模型**，本 server 只提供知识与校验：
 
-用法：
-  export NEO4J_USER=neo4j NEO4J_PASSWORD=<你的密码>
-  python3 mcp_light_server.py
+  get_planning_guide()      → 返回 SKILL.md 全文（调用方模型自己读、自己规划）
+  read_cypher(query)        → 数据面：通用只读 Cypher 查询（有只读守卫）
+  validate_atomic_chain(chain) → 确定性闭集校验（11 个 atomic 工具 + 图内 next_tool 邻接）
+  health_check()            → Neo4j 连通与图谱规模
 
-协议：MCP stdio（newline-delimited JSON-RPC），与前端 agent 直接对接。
+兼容/对照臂（明确标注，非推荐路径）：
+  rule_baseline_plan(query) → 关键词基线规划，仅供与模型路径对照，不用于生产
+
+目录数据（tool_catalog.csv）启动时从 skill/references/ 读取，不内嵌拷贝。
+用法：export NEO4J_USER=neo4j NEO4J_PASSWORD=<密码> && python3 mcp_light_server.py
 """
 from __future__ import annotations
 
+import csv
 import json
 import os
 import re
@@ -23,30 +26,63 @@ import subprocess
 import sys
 import tempfile
 
+HERE = os.path.dirname(os.path.abspath(__file__))
 NEO4J_URL = os.environ.get("NEO4J_URL", "http://127.0.0.1:7474/db/neo4j/tx/commit")
 NEO4J_USER = os.environ.get("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "")
+SKILL_REF = os.environ.get("BIO_SKILL_REF", os.path.join(HERE, "skill", "references"))
+SKILL_MD = os.environ.get("BIO_SKILL_MD", os.path.join(os.path.dirname(SKILL_REF), "SKILL.md"))
+_SAFE_TOKEN = re.compile(r"^[a-zA-Z0-9_\-\u4e00-\u9fff ]+$")
 
-# ---------- 生信相关性门（fail-closed） ----------
+# ---------- 目录加载（从 skill/references/tool_catalog.csv，不内嵌） ----------
+ATOMIC_IDS: set[str] = set()
+CATALOG: dict[str, dict] = {}
+
+def load_catalog() -> None:
+    global ATOMIC_IDS, CATALOG
+    path = os.path.join(SKILL_REF, "tool_catalog.csv")
+    if not os.path.exists(path):
+        return
+    with open(path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            tid = (row.get("tool_id") or "").replace("tool_id:", "")
+            kind = row.get("tool_kind") or ""
+            if not tid:
+                continue
+            CATALOG[tid] = {
+                "tool_id": tid,
+                "catalog_id": row.get("catalog_id") or "",
+                "tool_kind": kind,
+                "tool_name": row.get("tool_name") or tid,
+                "description": (row.get("description") or "").strip(),
+                "input_format": row.get("input_format") or "",
+                "output_format": row.get("output_format") or "",
+                "omics": row.get("omics") or "",
+            }
+            if kind == "atomic" and tid != "multiqc":
+                ATOMIC_IDS.add(tid)
+
+load_catalog()
+
+# ---------- 生信相关性门（仅 rule_baseline_plan 使用） ----------
 BIO_TERMS = [
-    "生信", "生物信息", "测序", "fastq", "fq.gz", "bam", "vcf", "maf", "tsv", "bam文件",
-    "基因", "表达", "转录组", "rna-seq", "rna seq", "wes", "wgs", "scrna", "sc-rna", "单细胞",
-    "突变", "变异", "snp", "indel", "体细胞", "胚系", "germline", "somatic",
-    "质控", "比对", "注释", "定量", "count", "tpm", "fpkm", "差异表达", "deg", "差异基因",
-    "富集", "go分析", "kegg", "reactome", "gsea", "通路",
-    "生存", "kaplan", "km曲线", "log-rank", "cox", "pfs", "os生存",
-    "免疫浸润", "免疫细胞", "cibersort", "肿瘤微环境",
-    "聚类", "分型", "亚型", "wgcna", "共表达", "hub基因", "hub 基因",
-    "细胞通讯", "cellchat", "cellranger", "barcode", "umi", "seurat", "scanpy", "h5ad",
+    "生信", "生物信息", "测序", "fastq", "fq.gz", "bam", "vcf", "maf", "tsv",
+    "基因", "表达", "转录组", "rna-seq", "wes", "wgs", "scrna", "单细胞",
+    "突变", "变异", "体细胞", "somatic", "质控", "比对", "注释", "定量",
+    "count", "tpm", "fpkm", "差异表达", "deg", "差异基因", "富集", "kegg", "reactome", "gsea",
+    "生存", "kaplan", "cox", "pfs", "免疫浸润", "免疫细胞", "cibersort",
+    "聚类", "分型", "亚型", "wgcna", "共表达", "hub", "细胞通讯", "cellchat",
+    "cellranger", "barcode", "umi", "seurat", "scanpy", "h5ad",
     "肿瘤", "癌症", "癌", "队列", "样本", "病人", "患者", "oncoplot", "tmb", "her2", "erbb2", "egfr",
-    "参考基因组", "注释文件", "gtf", "star", "hisat", "bwa", "gatk", "mutect", "snpeff", "bcftools",
-    "文库", "接头", "引物", "reads", "read group", "ubam", "uBAM", "染色体", "位点",
+    "参考基因组", "gtf", "star", "hisat", "bwa", "gatk", "mutect", "snpeff", "bcftools",
+    "reads", "read group", "ubam", "染色体", "位点",
 ]
 NON_BIO_TERMS = [
-    "雅思", "托福", "口语", "写作", "听力", "阅读机经", "签证", "留学", "申请文书", "高考", "考研",
-    "租房", "搬家", "健身", "菜谱", "股票", "基金", "税务", "理财",
-    "写代码", "前端", "后端", "react", "vue", "css", "html", "bug", "debug", "部署", "docker",
-    "怎么写", "论文", "语法", "翻译", "简历", "面试",
+    "雅思", "托福", "口语", "写作", "听力", "签证", "留学", "高考", "考研",
+    "租房", "搬家", "健身", "菜谱", "股票", "基金", "税务",
+    "写代码", "前端", "后端", "react", "vue", "css", "html", "bug", "部署", "docker",
+    "语法", "翻译", "简历", "面试",
 ]
 
 def _hits(q, terms):
@@ -54,7 +90,6 @@ def _hits(q, terms):
     out = []
     for t in terms:
         tl = t.lower()
-        # 纯字母/数字词用词边界匹配，避免 "react" 误伤 "Reactome"
         if re.fullmatch(r"[a-z0-9]+", tl):
             if re.search(rf"\b{re.escape(tl)}\b", low):
                 out.append(t)
@@ -62,20 +97,92 @@ def _hits(q, terms):
             out.append(t)
     return out
 
-def check_relevance(query: str) -> dict:
-    """fail-closed：有生信信号才放行；明显非生信或无法确认 → 拒绝。"""
+def check_relevance(query):
     bio = _hits(query, BIO_TERMS)
     non_bio = _hits(query, NON_BIO_TERMS)
-    is_bio = bool(bio)
-    if is_bio and not non_bio:
-        return {"is_bio": True, "reason": "ok", "bio_hits": bio, "non_bio_hits": non_bio}
+    if bio and not non_bio:
+        return {"is_bio": True, "reason": "ok", "bio_hits": bio, "non_bio_hits": []}
     if non_bio and not bio:
-        return {"is_bio": False, "reason": "rejected: 非生信问题", "bio_hits": bio, "non_bio_hits": non_bio}
+        return {"is_bio": False, "reason": "rejected: 非生信问题", "bio_hits": [], "non_bio_hits": non_bio}
     if bio and non_bio:
-        return {"is_bio": False, "reason": "rejected: 问题同时包含生信与非生信信号，无法确认意图", "bio_hits": bio, "non_bio_hits": non_bio}
-    return {"is_bio": False, "reason": "rejected: 未检测到生信相关信号（fail-closed）", "bio_hits": bio, "non_bio_hits": non_bio}
+        return {"is_bio": False, "reason": "rejected: 生信与非生信信号并存，无法确认意图", "bio_hits": bio, "non_bio_hits": non_bio}
+    return {"is_bio": False, "reason": "rejected: 未检测到生信信号（fail-closed）", "bio_hits": [], "non_bio_hits": []}
 
-# ---------- 语义判别（轻架构规则面，源自 96 例评测） ----------
+# ---------- Neo4j 数据面（curl，只读守卫） ----------
+_WRITE_RE = re.compile(
+    r"\b(CREATE|MERGE|DELETE|SET\s|REMOVE|DROP|DETACH|FOREACH)\b|CALL\s+dbms\.|db\.create",
+    re.IGNORECASE)
+
+def _assert_read_only(query):
+    if _WRITE_RE.search(query):
+        raise ValueError("read_cypher 只允许只读查询（检测到写入语句）")
+
+def neo4j_q(statements):
+    if not NEO4J_PASSWORD:
+        raise RuntimeError("set NEO4J_PASSWORD (and optionally NEO4J_USER)")
+    payload = json.dumps({"statements": [{"statement": s} for s in statements]})
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        f.write(payload)
+        tmp = f.name
+    try:
+        r = subprocess.run(
+            ["curl", "-s", "--max-time", "20", "-u", f"{NEO4J_USER}:{NEO4J_PASSWORD}",
+             "-X", "POST", "-H", "Content-Type: application/json", "-d", "@" + tmp, NEO4J_URL],
+            capture_output=True, text=True)
+        d = json.loads(r.stdout)
+        if d.get("errors"):
+            raise RuntimeError("; ".join(e.get("message", "") for e in d["errors"])[:500])
+        return [[row["row"] for row in res.get("data", [])] for res in d.get("results", [])]
+    finally:
+        os.unlink(tmp)
+
+# ---------- 工具 ----------
+def tool_get_planning_guide(args):
+    try:
+        text = open(SKILL_MD, encoding="utf-8").read()
+        return {"status": "ok", "skill": text, "source": SKILL_MD}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+def tool_read_cypher(args):
+    query = (args.get("query") or "").strip()
+    if not query:
+        return {"status": "error", "detail": "query 不能为空"}
+    try:
+        _assert_read_only(query)
+        rows = neo4j_q([query])
+        return {"status": "ok", "columns_unknown": True, "rows": rows[0] if rows else []}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)[:500]}
+
+def tool_validate_atomic_chain(args):
+    chain = args.get("chain") or []
+    if not isinstance(chain, list) or not chain:
+        return {"status": "error", "detail": "chain 必须是非空 tool_id 列表"}
+    unknown = [t for t in chain if t not in CATALOG]
+    non_atomic = [t for t in chain if t in CATALOG and CATALOG[t]["tool_kind"] != "atomic"]
+    violations = []
+    if unknown:
+        violations.append(f"未知工具: {unknown}")
+    if non_atomic:
+        violations.append(f"非 atomic（闭集外）: {non_atomic}")
+    # 图内 next_tool 邻接校验（图节点无 tool_id，用 toLower(tool_name) 匹配；入参过白名单）
+    adjacency_ok = []
+    for a, b in zip(chain[:-1], chain[1:]):
+        if not (_SAFE_TOKEN.fullmatch(str(a)) and _SAFE_TOKEN.fullmatch(str(b))):
+            violations.append(f"非法 tool_id 字符: {a}->{b}")
+            continue
+        rows = neo4j_q([f"MATCH (a:tool)-[:next_tool]->(b:tool) WHERE toLower(a.tool_name) = '{str(a).lower()}' AND toLower(b.tool_name) = '{str(b).lower()}' RETURN count(*) AS c"])
+        if rows and rows[0] and rows[0][0][0] > 0:
+            adjacency_ok.append((a, b))
+    missing_edges = [(a, b) for a, b in zip(chain[:-1], chain[1:]) if (a, b) not in adjacency_ok]
+    if missing_edges:
+        violations.append(f"图谱中无 next_tool 边: {missing_edges}")
+    return {"status": "valid" if not violations else "invalid",
+            "chain": chain, "violations": violations, "adjacency_ok": adjacency_ok,
+            "atomic_closed_set_size": len(ATOMIC_IDS)}
+
+# 关键词基线（对照臂，非推荐路径）
 RULES = [
     (["10x", "cellranger", "CellRanger", "单细胞", "barcode", "Seurat", "Scanpy"], "cellranger_workflow", 3),
     (["uBAM", "unmapped bam", "未比对", "read group"], "paired_fastq_to_unmapped_bam", 3),
@@ -94,47 +201,7 @@ RULES = [
     (["差异表达", "差异基因", "表达不同", "表达差异", "上调", "下调", "deg", "DEG", "limma", "功能"], "diff_expr_go", 1),
 ]
 
-# 闭集目录（14 个业务 pipeline/task 的关键字段，来自 skill/references/tool_catalog.csv）
-CATALOG = {
-    "cellranger_workflow": ("单细胞 RNA-seq 完整流程（CellRanger）", ["fq.gz", "bam"], ["count_matrix", "qc"]),
-    "diff_expr_go": ("差异表达 + GO 富集（limma + clusterProfiler）", ["tsv"], ["deg_list", "go_table", "plot"]),
-    "diff_expr_kegg": ("差异表达 + Reactome/KEGG 通路富集", ["tsv"], ["deg_list", "pathway_table", "plot"]),
-    "driver_gene_gender_analysis": ("驱动基因突变频率性别分层分析", ["maf", "xls", "xlsx"], ["stat_table", "plot"]),
-    "her2_pfs_survival": ("HER2/ERBB2 表达分层与无进展生存（PFS）分析", ["tsv", "xls", "xlsx"], ["km_curve", "logrank", "table"]),
-    "immune_infiltration_iobr": ("免疫浸润分析（IOBR CIBERSORT）", ["tsv", "xls", "xlsx"], ["immune_fraction", "plot"]),
-    "paired_fastq_to_unmapped_bam": ("双端 FASTQ 转 uBAM（GATK 起始）", ["fq.gz"], ["ubam"]),
-    "rnaseq_singletask": ("RNA-seq 单任务完整上游流程", ["fq.gz"], ["bam", "count_matrix", "expression", "qc"]),
-    "rnaseq_unsupervised_cluster": ("表达矩阵无监督聚类/分型（GMM）", ["tsv"], ["cluster", "bic", "plot"]),
-    "survival_analysis": ("基因突变状态与 PFS 生存分析（EGFR 等）", ["maf", "xlsx"], ["km_curve", "cox", "table"]),
-    "tmb_survival_analysis": ("TMB 计算与生存分析", ["maf", "xlsx"], ["tmb", "km_curve", "table"]),
-    "wes_somatic_maf_landscape": ("WES 体细胞突变景观（Oncoplot）", ["maf"], ["oncoplot", "frequency_table"]),
-    "wes_somatic_pair": ("配对 tumor-normal WES 体细胞变异检测", ["fq.gz"], ["vcf", "bam", "qc"]),
-    "wgcna": ("WGCNA 加权基因共表达网络", ["tsv", "xls", "xlsx"], ["modules", "hub_genes", "plot"]),
-}
-DISEASE_MAP = [("肝癌", "liver"), ("肝", "liver"), ("胶质瘤", "glioma"), ("黑色素瘤", "melanoma"),
-               ("食管癌", "esoph"), ("肺癌", "lung"), ("乳腺癌", "breast"), ("肠癌", "colorect")]
-
-# ---------- Neo4j（read-cypher 等价，curl） ----------
-def neo4j_q(statements):
-    if not NEO4J_PASSWORD:
-        return None
-    payload = json.dumps({"statements": [{"statement": s} for s in statements]})
-    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-        f.write(payload)
-        tmp = f.name
-    try:
-        r = subprocess.run(
-            ["curl", "-s", "--max-time", "20", "-u", f"{NEO4J_USER}:{NEO4J_PASSWORD}",
-             "-X", "POST", "-H", "Content-Type: application/json", "-d", "@" + tmp, NEO4J_URL],
-            capture_output=True, text=True)
-        d = json.loads(r.stdout)
-        return [[row["row"] for row in res.get("data", [])] for res in d.get("results", [])]
-    except Exception:
-        return None
-    finally:
-        os.unlink(tmp)
-
-def predict_tool(query):
+def _predict_baseline(query):
     scores = {}
     for terms, pid, w in RULES:
         if any(t.lower() in query.lower() for t in terms):
@@ -149,78 +216,49 @@ def predict_tool(query):
             scores.pop("diff_expr_go", None)
     return [pid for pid, _ in sorted(scores.items(), key=lambda kv: -kv[1])][:3]
 
-# ---------- Plan 组装 ----------
-def build_plan(query):
-    intent = {"query_text": query, "source": "rule", "ambiguous": False}
-    top = predict_tool(query)
-    if not top:
-        return {"schema_version": "tool-chain/v2", "selection_status": "no_candidate",
-                "candidate_count": 0, "candidates": [], "recommendation_count": 0,
-                "recommendations": [], "intent": intent,
-                "unsupported_reason": "未匹配到图谱内工具；请补充数据格式/分析类型描述。"}
-    pid = top[0]
-    name, inputs, outputs = CATALOG.get(pid, (pid, [], []))
-    study_candidates, format_counts = [], {}
-    disease = next((d for d, _ in DISEASE_MAP if d in query), None)
-    if disease:
-        kw = dict(DISEASE_MAP)[disease]
-        rows = neo4j_q([f"MATCH (s:study) WHERE toLower(s.tumor_type) CONTAINS '{kw}' RETURN s.study_accession, s.title, s.sample_count, s.tumor_type LIMIT 5"])
-        if rows:
-            study_candidates = [{"study_accession": r[0], "title": r[1], "sample_count": r[2], "tumor_type": r[3]} for r in rows[0]]
-    for fmt in inputs:
-        rows = neo4j_q([f"MATCH (n:T1)-[:in_format]->(f:format) WHERE toLower(f.format) = toLower('{fmt}') RETURN count(n) AS c",
-                        f"MATCH (n:T2)-[:in_format]->(f:format) WHERE toLower(f.format) = toLower('{fmt}') RETURN count(n) AS c"])
-        if rows and rows[0] and rows[1]:
-            format_counts[fmt] = {"T1": rows[0][0][0], "T2": rows[1][0][0]}
-    return {
-        "schema_version": "tool-chain/v2",
-        "selection_status": "information",
-        "candidate_count": 0, "candidates": [],
-        "recommendation_count": 1,
-        "recommendations": [{
-            "rank": 1, "match_id": f"recommendation-{pid[:16]}",
-            "pipeline_id": pid, "match_note": f"语义规则匹配：{name}",
-            "tool": {"tool_id": pid, "name": name, "inputs": inputs, "outputs": outputs},
-            "data": {"status": "available" if format_counts else "information",
-                     "source": "neo4j",
-                     "study_candidates": study_candidates,
-                     "format_file_counts": format_counts},
-            "source": "deterministic_rule+neo4j", "reference_case_id": None,
-        }],
-        "intent": intent,
-        "planner_metadata": {"used": False, "status": "force_rule", "calls": 0, "stages": []},
-        "data_matcher_mode": "neo4j",
-    }
-
-# ---------- MCP 工具 ----------
-def tool_health_check(args):
-    rows = neo4j_q(["MATCH (n) RETURN count(n) AS nodes", "MATCH (n:tool) RETURN count(n) AS tools"])
-    if rows is None:
-        return {"status": "unavailable", "detail": "Neo4j 不可达（请检查 NEO4J_USER/NEO4J_PASSWORD/NEO4J_URL）"}
-    return {"status": "ok", "nodes": rows[0][0][0], "tools": rows[1][0][0]}
-
-def tool_plan_bio_analysis(args):
+def tool_rule_baseline_plan(args):
+    """对照臂：关键词基线。仅供与模型路径对比，不用于生产（见 README 三臂结论）。"""
     query = (args.get("query") or "").strip()
-    if not query:
-        return {"status": "rejected", "reason": "query 不能为空"}
     rel = check_relevance(query)
     if not rel["is_bio"]:
-        return {"status": "rejected", "reason": rel["reason"],
-                "bio_hits": rel["bio_hits"], "non_bio_hits": rel["non_bio_hits"]}
-    plan = build_plan(query)
-    plan["relevance"] = {"is_bio": True, "bio_hits": rel["bio_hits"], "non_bio_hits": []}
-    return {"status": "ok", "plan": plan}
+        return {"status": "rejected", "reason": rel["reason"], "bio_hits": rel["bio_hits"], "non_bio_hits": rel["non_bio_hits"]}
+    top = _predict_baseline(query)
+    return {"status": "ok", "baseline": True, "top_pipelines": top,
+            "note": "关键词基线（ceiling arm），非推荐路径；推理请用 get_planning_guide + read_cypher"}
+
+def tool_health_check(args):
+    try:
+        rows = neo4j_q(["MATCH (n) RETURN count(n) AS nodes", "MATCH (n:tool) RETURN count(n) AS tools"])
+        return {"status": "ok", "nodes": rows[0][0][0], "tools": rows[1][0][0],
+                "atomic_closed_set": sorted(ATOMIC_IDS)}
+    except Exception as e:
+        return {"status": "unavailable", "detail": str(e)[:300]}
 
 TOOLS = {
+    "get_planning_guide": {
+        "description": "返回生信链路规划 skill 全文（SKILL.md）。调用方模型应读取它后自行规划；本 server 不做推理。",
+        "inputSchema": {"type": "object", "properties": {}, "required": []},
+        "handler": tool_get_planning_guide,
+    },
+    "read_cypher": {
+        "description": "数据面：对 Neo4j 知识图谱执行只读 Cypher 查询（有只读守卫，写入语句会被拒）。",
+        "inputSchema": {"type": "object", "properties": {"query": {"type": "string", "description": "只读 Cypher，结果多时加 LIMIT"}}, "required": ["query"]},
+        "handler": tool_read_cypher,
+    },
+    "validate_atomic_chain": {
+        "description": "确定性闭集校验：给定 atomic 工具链，校验闭集成员 + 图内 next_tool 邻接。",
+        "inputSchema": {"type": "object", "properties": {"chain": {"type": "array", "items": {"type": "string"}, "description": "atomic tool_id 有序列表"}}, "required": ["chain"]},
+        "handler": tool_validate_atomic_chain,
+    },
+    "rule_baseline_plan": {
+        "description": "（对照臂，非推荐路径）关键词基线规划。仅用于与模型路径对比。",
+        "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
+        "handler": tool_rule_baseline_plan,
+    },
     "health_check": {
-        "description": "检查 Neo4j 后端连通性与图谱规模（只读）。",
+        "description": "检查 Neo4j 连通性、图谱规模与 atomic 闭集。",
         "inputSchema": {"type": "object", "properties": {}, "required": []},
         "handler": tool_health_check,
-    },
-    "plan_bio_analysis": {
-        "description": "输入生信分析需求（自然语言），返回 tool-chain/v2 工具链 Plan（含匹配工具、数据候选与格式文件数）。与生信无关的问题会被拒绝（fail-closed）。",
-        "inputSchema": {"type": "object", "properties": {"query": {"type": "string", "description": "生信分析需求，如：我想看肝癌样本里的免疫细胞组成"}}, "required": ["query"]},
-        "handler": tool_plan_bio_analysis,
     },
 }
 
@@ -243,7 +281,7 @@ def main():
             _send({"jsonrpc": "2.0", "id": msg.get("id"),
                    "result": {"protocolVersion": "2024-11-05",
                               "capabilities": {"tools": {"listChanged": False}},
-                              "serverInfo": {"name": "bio-pipeline-light", "version": "1.0.0"}}})
+                              "serverInfo": {"name": "bio-pipeline-light", "version": "2.0.0"}}})
         elif method == "notifications/initialized":
             pass
         elif method == "ping":

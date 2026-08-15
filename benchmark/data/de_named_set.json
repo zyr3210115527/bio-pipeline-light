@@ -1,0 +1,352 @@
+[
+ {
+  "case_id": "dn001",
+  "expected_pipeline_id": "cellranger_workflow",
+  "query": "Chromium 平台下机的双端测序文件，想拿到每个细胞在每个基因上的计数表"
+ },
+ {
+  "case_id": "dn002",
+  "expected_pipeline_id": "cellranger_workflow",
+  "query": "下机数据，希望输出带条码注释的每个细胞的基因表达定量结果，供后续做细胞分群"
+ },
+ {
+  "case_id": "dn003",
+  "expected_pipeline_id": "cellranger_workflow",
+  "query": "我的测序数据是 Chromium 平台产的，想要细胞级别的表达定量和质控摘要"
+ },
+ {
+  "case_id": "dn004",
+  "expected_pipeline_id": "cellranger_workflow",
+  "query": "拿到了测序的原始 reads，想知道这批样本里有多少个细胞、每个细胞表达哪些基因"
+ },
+ {
+  "case_id": "dn005",
+  "expected_pipeline_id": "cellranger_workflow",
+  "query": "需要把测序原始文件处理成能直接读的细胞-基因矩阵"
+ },
+ {
+  "case_id": "dn006",
+  "expected_pipeline_id": "diff_expr_go",
+  "query": "病例组和对照组的表达量数据，想知道两组之间哪些基因变化显著，这些基因各自参与了哪些细胞过程"
+ },
+ {
+  "case_id": "dn007",
+  "expected_pipeline_id": "diff_expr_go",
+  "query": "两组样本的基因表达谱，想看显著变化的基因集中在哪些生物学过程上"
+ },
+ {
+  "case_id": "dn008",
+  "expected_pipeline_id": "diff_expr_go",
+  "query": "比较两组样本的转录数据，把变化明显的基因按它们参与的细胞过程归类"
+ },
+ {
+  "case_id": "dn009",
+  "expected_pipeline_id": "diff_expr_go",
+  "query": "有两组样本的表达数据，想知道变化最大的基因主要参与哪些细胞活动"
+ },
+ {
+  "case_id": "dn010",
+  "expected_pipeline_id": "diff_expr_go",
+  "query": "筛选出两组之间表达量差别很大的基因，并按它们的注释分类"
+ },
+ {
+  "case_id": "dn011",
+  "expected_pipeline_id": "diff_expr_kegg",
+  "query": "两组样本的基因表达数据，想找显著变化的基因落在了哪些已知的代谢或信号传导链条上"
+ },
+ {
+  "case_id": "dn012",
+  "expected_pipeline_id": "diff_expr_kegg",
+  "query": "比较病例对照的转录结果，把这些显著变化的基因映射到已知的分子反应路径"
+ },
+ {
+  "case_id": "dn013",
+  "expected_pipeline_id": "diff_expr_kegg",
+  "query": "变化显著的基因主要参与了哪些已知的生化反应序列"
+ },
+ {
+  "case_id": "dn014",
+  "expected_pipeline_id": "diff_expr_kegg",
+  "query": "想知道显著变化的基因在已知的疾病相关分子通路上有没有富集"
+ },
+ {
+  "case_id": "dn015",
+  "expected_pipeline_id": "diff_expr_kegg",
+  "query": "两组表达数据对比后，想了解变化显著的基因牵涉哪些信号传导网络"
+ },
+ {
+  "case_id": "dn016",
+  "expected_pipeline_id": "driver_gene_gender_analysis",
+  "query": "肝癌患者中，某些已知致癌位点的变异频率在男性和女性之间是否有差别"
+ },
+ {
+  "case_id": "dn017",
+  "expected_pipeline_id": "driver_gene_gender_analysis",
+  "query": "想比较不同性别患者的已知致癌基因变异分布是否不同"
+ },
+ {
+  "case_id": "dn018",
+  "expected_pipeline_id": "driver_gene_gender_analysis",
+  "query": "男病人和女病人的变异数据，看有没有某些位点在性别间频率不同"
+ },
+ {
+  "case_id": "dn019",
+  "expected_pipeline_id": "driver_gene_gender_analysis",
+  "query": "按性别把患者分成两组，比较已知致癌基因的变异发生率"
+ },
+ {
+  "case_id": "dn020",
+  "expected_pipeline_id": "driver_gene_gender_analysis",
+  "query": "想检查常见的致癌驱动位点变异在男性患者和女性患者之间是否不对称"
+ },
+ {
+  "case_id": "dn021",
+  "expected_pipeline_id": "her2_pfs_survival",
+  "query": "想知道某个生长因子受体表达高的病人是不是活得更久"
+ },
+ {
+  "case_id": "dn022",
+  "expected_pipeline_id": "her2_pfs_survival",
+  "query": "按一个特定基因的表达量把患者分高/低两组，比较两组的无进展时间"
+ },
+ {
+  "case_id": "dn023",
+  "expected_pipeline_id": "her2_pfs_survival",
+  "query": "看某基因高表达组和低表达组的患者在疾病进展时间上有没有差别"
+ },
+ {
+  "case_id": "dn024",
+  "expected_pipeline_id": "her2_pfs_survival",
+  "query": "用表达数据把患者分层，比较分层后的生存时长差异"
+ },
+ {
+  "case_id": "dn025",
+  "expected_pipeline_id": "her2_pfs_survival",
+  "query": "想评估单个基因表达水平是否与患者的无进展生存相关"
+ },
+ {
+  "case_id": "dn026",
+  "expected_pipeline_id": "immune_infiltration_iobr",
+  "query": "肿瘤组织的转录数据，想知道里面各类免疫相关细胞的相对占比"
+ },
+ {
+  "case_id": "dn027",
+  "expected_pipeline_id": "immune_infiltration_iobr",
+  "query": "看这批肿瘤样本里 T 细胞、B 细胞、巨噬细胞各占多少"
+ },
+ {
+  "case_id": "dn028",
+  "expected_pipeline_id": "immune_infiltration_iobr",
+  "query": "想估计肿瘤微环境里各类细胞的组成比例"
+ },
+ {
+  "case_id": "dn029",
+  "expected_pipeline_id": "immune_infiltration_iobr",
+  "query": "从表达谱推断样本中各细胞亚群的丰度分布"
+ },
+ {
+  "case_id": "dn030",
+  "expected_pipeline_id": "immune_infiltration_iobr",
+  "query": "想知道不同样本之间各细胞亚群构成的差异"
+ },
+ {
+  "case_id": "dn031",
+  "expected_pipeline_id": "paired_fastq_to_unmapped_bam",
+  "query": "把下机的双端测序文件转成带样本信息的未对齐格式，给后续流程用"
+ },
+ {
+  "case_id": "dn032",
+  "expected_pipeline_id": "paired_fastq_to_unmapped_bam",
+  "query": "想把原始测序数据整理成标准的未对齐文件，并带上每条序列的来源标记"
+ },
+ {
+  "case_id": "dn033",
+  "expected_pipeline_id": "paired_fastq_to_unmapped_bam",
+  "query": "测序原始文件需要先转成统一的中间格式再进后续分析"
+ },
+ {
+  "case_id": "dn034",
+  "expected_pipeline_id": "paired_fastq_to_unmapped_bam",
+  "query": "需要把双端数据转成未对齐的标准格式并补全样本标签"
+ },
+ {
+  "case_id": "dn035",
+  "expected_pipeline_id": "paired_fastq_to_unmapped_bam",
+  "query": "想把原始测序数据归一化成后续变异分析能直接吃的起始格式"
+ },
+ {
+  "case_id": "dn036",
+  "expected_pipeline_id": "rnaseq_singletask",
+  "query": "从测序下机文件开始，一路处理到每个基因的计数结果"
+ },
+ {
+  "case_id": "dn037",
+  "expected_pipeline_id": "rnaseq_singletask",
+  "query": "双端测序原始文件，想得到完整的表达定量结果和过程质控"
+ },
+ {
+  "case_id": "dn038",
+  "expected_pipeline_id": "rnaseq_singletask",
+  "query": "把 RNA 测序原始数据处理到基因水平计数，中间步骤都要可靠"
+ },
+ {
+  "case_id": "dn039",
+  "expected_pipeline_id": "rnaseq_singletask",
+  "query": "想从原始测序数据出发完整走一遍到表达矩阵"
+ },
+ {
+  "case_id": "dn040",
+  "expected_pipeline_id": "rnaseq_singletask",
+  "query": "测序数据全流程处理：清洗、定位、定量一步到位"
+ },
+ {
+  "case_id": "dn041",
+  "expected_pipeline_id": "rnaseq_unsupervised_cluster",
+  "query": "看这批样本能不能按表达谱自然地分成几群"
+ },
+ {
+  "case_id": "dn042",
+  "expected_pipeline_id": "rnaseq_unsupervised_cluster",
+  "query": "想探索样本中是否存在不同的表达类别"
+ },
+ {
+  "case_id": "dn043",
+  "expected_pipeline_id": "rnaseq_unsupervised_cluster",
+  "query": "表达数据没有分组标签，想看样本之间自然的远近关系"
+ },
+ {
+  "case_id": "dn044",
+  "expected_pipeline_id": "rnaseq_unsupervised_cluster",
+  "query": "想找出表达谱相似的样本群体，并评估分群的稳定程度"
+ },
+ {
+  "case_id": "dn045",
+  "expected_pipeline_id": "rnaseq_unsupervised_cluster",
+  "query": "没有先验分组，想看看样本会不会自发形成几个类别"
+ },
+ {
+  "case_id": "dn046",
+  "expected_pipeline_id": "survival_analysis",
+  "query": "某个基因发生变异的患者和没变异的相比，生存时间有没有差别"
+ },
+ {
+  "case_id": "dn047",
+  "expected_pipeline_id": "survival_analysis",
+  "query": "想知道携带特定变异是否与更差的预后相关"
+ },
+ {
+  "case_id": "dn048",
+  "expected_pipeline_id": "survival_analysis",
+  "query": "按变异的有无分组，比较两组的生存曲线"
+ },
+ {
+  "case_id": "dn049",
+  "expected_pipeline_id": "survival_analysis",
+  "query": "变异状态不同的患者，存活时间是否显著不同"
+ },
+ {
+  "case_id": "dn050",
+  "expected_pipeline_id": "survival_analysis",
+  "query": "想评估某个位点突变对患者生存的影响"
+ },
+ {
+  "case_id": "dn051",
+  "expected_pipeline_id": "tmb_survival_analysis",
+  "query": "突变数量多的病人是不是比突变少的活得更久"
+ },
+ {
+  "case_id": "dn052",
+  "expected_pipeline_id": "tmb_survival_analysis",
+  "query": "把患者按突变负担高低分组，比较生存差异"
+ },
+ {
+  "case_id": "dn053",
+  "expected_pipeline_id": "tmb_survival_analysis",
+  "query": "想知道整体突变负荷高的患者预后是否更差"
+ },
+ {
+  "case_id": "dn054",
+  "expected_pipeline_id": "tmb_survival_analysis",
+  "query": "计算每个病人的突变总数，看它与存活时间的关系"
+ },
+ {
+  "case_id": "dn055",
+  "expected_pipeline_id": "tmb_survival_analysis",
+  "query": "按变异量把患者分成高低两组做生存比较"
+ },
+ {
+  "case_id": "dn056",
+  "expected_pipeline_id": "wes_somatic_maf_landscape",
+  "query": "想画一张图展示队列里最常突变的基因和各类突变的比例"
+ },
+ {
+  "case_id": "dn057",
+  "expected_pipeline_id": "wes_somatic_maf_landscape",
+  "query": "想知道这批肿瘤样本里哪些基因最常发生突变"
+ },
+ {
+  "case_id": "dn058",
+  "expected_pipeline_id": "wes_somatic_maf_landscape",
+  "query": "展示队列的突变全景：高频基因、各类变异形式分布"
+ },
+ {
+  "case_id": "dn059",
+  "expected_pipeline_id": "wes_somatic_maf_landscape",
+  "query": "把样本的变异数据汇总成一张总览图"
+ },
+ {
+  "case_id": "dn060",
+  "expected_pipeline_id": "wes_somatic_maf_landscape",
+  "query": "想统计队列中每个基因被多少个样本突变过并可视化"
+ },
+ {
+  "case_id": "dn061",
+  "expected_pipeline_id": "wes_somatic_pair",
+  "query": "同一病人的病变组织和健康组织样本各测了一份，想找出病变组织里特有的变异"
+ },
+ {
+  "case_id": "dn062",
+  "expected_pipeline_id": "wes_somatic_pair",
+  "query": "肿瘤和健康各一份的测序数据，想得到病变特异的变异位点清单"
+ },
+ {
+  "case_id": "dn063",
+  "expected_pipeline_id": "wes_somatic_pair",
+  "query": "想从成对样本中鉴定来自体细胞的变异"
+ },
+ {
+  "case_id": "dn064",
+  "expected_pipeline_id": "wes_somatic_pair",
+  "query": "病变组织和健康组织都测了，想找病变组织里新出现的变异"
+ },
+ {
+  "case_id": "dn065",
+  "expected_pipeline_id": "wes_somatic_pair",
+  "query": "需要一份肿瘤样本的变异列表，以健康样本为对照"
+ },
+ {
+  "case_id": "dn066",
+  "expected_pipeline_id": "wgcna",
+  "query": "想找一批表达总是同涨同落的基因，再把它们分成几个协同组"
+ },
+ {
+  "case_id": "dn067",
+  "expected_pipeline_id": "wgcna",
+  "query": "找出表达模式高度相关的基因集合，以及其中最核心的基因"
+ },
+ {
+  "case_id": "dn068",
+  "expected_pipeline_id": "wgcna",
+  "query": "想识别一起变化的基因网络，并找到网络中的关键节点"
+ },
+ {
+  "case_id": "dn069",
+  "expected_pipeline_id": "wgcna",
+  "query": "基因表达数据，想分组找出协同表达的基因群"
+ },
+ {
+  "case_id": "dn070",
+  "expected_pipeline_id": "wgcna",
+  "query": "想看看哪些基因的共变关系构成稳定网络，网络里哪些基因最重要"
+ }
+]

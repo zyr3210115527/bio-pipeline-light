@@ -6,10 +6,13 @@
 
 | 工具 | 作用 |
 |---|---|
-| `health_check` | Neo4j 连通性与图谱规模（只读） |
-| `plan_bio_analysis(query)` | 自然语言生信需求 → `tool-chain/v2` Plan（匹配工具 + 队列候选 + 格式文件数） |
+| `get_planning_guide()` | 返回 SKILL.md 全文（调用方模型自己读、自己规划——**本 server 不做推理**） |
+| `read_cypher(query)` | 数据面：通用只读 Cypher 查询（写入守卫拒绝写语句） |
+| `validate_atomic_chain(chain)` | 确定性闭集校验：11 个 atomic 工具 + 图内 next_tool 邻接 |
+| `rule_baseline_plan(query)` | **对照臂**：关键词基线，非推荐路径（仅与模型路径对比用） |
+| `health_check` | Neo4j 连通性、图谱规模、atomic 闭集 |
 
-**拒绝门（fail-closed）**：`plan_bio_analysis` 收到与生信无关的问题（雅思/签证/前端/股票/天气等）直接拒绝，返回：
+**拒绝门**：主路径的推理在调用方模型——由 SKILL.md 指导它对非生信问题直接拒绝；`rule_baseline_plan` 内置 fail-closed 相关性门（96 例回归 0 误杀）。
 
 ```json
 { "status": "rejected", "reason": "rejected: 非生信问题", "bio_hits": [], "non_bio_hits": ["雅思", "口语"] }

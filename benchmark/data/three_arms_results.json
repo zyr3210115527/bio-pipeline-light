@@ -1,0 +1,20 @@
+[
+ {
+  "arm": "floor(猜diff_expr_go)",
+  "cases": 70,
+  "hit": 5,
+  "accuracy": 0.0714
+ },
+ {
+  "arm": "ceiling(RULES)@原集",
+  "cases": 96,
+  "hit": 96,
+  "accuracy": 1.0
+ },
+ {
+  "arm": "ceiling(RULES)@去名集",
+  "cases": 70,
+  "hit": 1,
+  "accuracy": 0.0143
+ }
+]

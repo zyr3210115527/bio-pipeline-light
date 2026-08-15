@@ -11,12 +11,12 @@
 import json, subprocess, sys, tempfile, os
 from collections import Counter
 
-XLSX = sys.argv[1] if len(sys.argv) > 1 else "/Users/zhouyiran/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/wxid_g28u5bj9tazm32_13f8/msg/file/2026-07/96例问题-数据-工具对应表(1).xlsx"
+if len(sys.argv) < 2:
+    sys.exit("用法: python3 bench_light_96.py <96例问题-数据-工具对应表.xlsx>")
+XLSX = sys.argv[1]
 SKILL_REF = os.path.expanduser("~/.dsh/skills/bio-pipeline-planning/references")
 NEO4J_USER = os.environ.get("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "")
-if not NEO4J_PASSWORD:
-    sys.exit("set NEO4J_PASSWORD (and optionally NEO4J_USER) before running")
 NEO4J_AUTH = f"{NEO4J_USER}:{NEO4J_PASSWORD}"
 NEO4J_URL = "http://127.0.0.1:7474/db/neo4j/tx/commit"
 
@@ -39,9 +39,10 @@ RULES = [
     (["GO", "go 富集", "生物学功能", "生物过程"], "diff_expr_go", 2),
     (["差异表达", "差异基因", "表达不同", "表达差异", "上调", "下调", "deg", "DEG", "limma", "功能"], "diff_expr_go", 1),
 ]
-# 格式/模态提示 → 用目录 input_format 复检
+# 格式/模态提示 → 用目录 input_format 复检（predict_tool 中实现）
 FMT_HINTS = [("fastq", "fq.gz"), ("fq.gz", "fq.gz"), ("fpkm", "tsv"), ("tpm", "tsv"),
              ("counts", "tsv"), ("表达矩阵", "tsv"), ("maf", "maf"), ("MAF", "maf")]
+FORMAT_HINT_TO_FMT = {kw.lower(): fmt for kw, fmt in FMT_HINTS}
 
 def read_xlsx_rows(path):
     import openpyxl
@@ -58,31 +59,36 @@ def read_xlsx_rows(path):
         cases.append({"q": q, "data": files, "expected": t.strip()})
     return cases
 
+import csv as _csv
+
+CATALOG: dict = {}
+
 def load_catalog():
-    rows = []
-    with open(os.path.join(SKILL_REF, "tool_catalog.csv")) as f:
-        header = f.readline().strip().split(",")
-        for line in f:
-            # CSV 里 description 含引号换行，这里用简单解析：取前 4 列 + 后 4 列
-            parts = line.strip().split(",", 5)
-            if len(parts) < 4:
+    """用 csv 模块正经解析 tool_catalog.csv，返回 {tool_id: {...}}；模块级 CATALOG 供 predict_tool 复检。"""
+    global CATALOG
+    path = os.path.join(SKILL_REF, "tool_catalog.csv")
+    if not os.path.exists(path):
+        return {}
+    with open(path, newline="", encoding="utf-8") as f:
+        reader = _csv.DictReader(f)
+        for row in reader:
+            tid = (row.get("tool_id") or "").replace("tool_id:", "")
+            if not tid:
                 continue
-            tool_id = parts[0].replace("tool_id:", "")
-            tool_kind = parts[9] if len(parts) > 9 else ""
-            # 简化：只取关键列（identity, labels, catalog_id, catalog_source, description, input_format, omics, output_format, tool_id, tool_kind, tool_name）
-            cols = line.strip().split("\t") if "\t" in line else line.strip().split(",", 12)
-            rows.append({
-                "tool_id": tool_id,
-                "catalog_id": cols[2] if len(cols) > 2 else "",
-                "input_format": cols[5] if len(cols) > 5 else "",
-                "omics": cols[6] if len(cols) > 6 else "",
-                "output_format": cols[7] if len(cols) > 7 else "",
-                "tool_kind": cols[9] if len(cols) > 9 else "",
-                "tool_name": cols[10] if len(cols) > 10 else "",
-            })
-    return rows
+            CATALOG[tid] = {
+                "tool_id": tid,
+                "catalog_id": row.get("catalog_id") or "",
+                "input_format": row.get("input_format") or "",
+                "omics": row.get("omics") or "",
+                "output_format": row.get("output_format") or "",
+                "tool_kind": row.get("tool_kind") or "",
+                "tool_name": row.get("tool_name") or tid,
+            }
+    return CATALOG
 
 def neo4j_q(statements):
+    if not NEO4J_PASSWORD:
+        raise RuntimeError("set NEO4J_PASSWORD (and optionally NEO4J_USER) to query Neo4j")
     payload = json.dumps({"statements": [{"statement": s} for s in statements]})
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         f.write(payload)
@@ -113,27 +119,37 @@ def predict_tool(q):
         # 含"通路"且未提 GO → KEGG 胜出（互斥）
         if "GO" not in q and "kegg" not in q.lower() and "Reactome" not in q:
             scores.pop("diff_expr_go", None)
+    # 目录格式复检：问题里出现的格式提示，命中候选工具 input_format 则加权
+    q_low = q.lower()
+    fmt_hits = {fmt for kw, fmt in FMT_HINTS if kw.lower() in q_low}
+    if fmt_hits:
+        for pid in scores:
+            cat = CATALOG.get(pid)
+            if cat and any(f in (cat.get("input_format") or "").lower() for f in fmt_hits):
+                scores[pid] += 0.5
     ranked = sorted(scores.items(), key=lambda kv: -kv[1])
     top = [pid for pid, _ in ranked]
     return top[:3]
 
 def data_status(filename):
-    """配方 3：期望文件在图内是否可查（T1/T2 的 file_name 子串/全名匹配）。"""
+    """配方 3：期望文件图内可查性。先精确匹配（file_name 全等），再宽匹配（CONTAINS）回退。
+    返回 (exact_found, found)，两个数分开报：精确命中 vs 仅宽匹配命中。"""
     base = filename.split("(")[0].strip()  # 去掉 "(bytes)" 等后缀
     base = base.split("/")[-1]
     results = neo4j_q([
-        f'MATCH (n:T1) WHERE n.file_name CONTAINS "{base}" RETURN "T1" AS src, count(*) AS c',
-        f'MATCH (n:T2) WHERE n.file_name CONTAINS "{base}" RETURN "T2" AS src, count(*) AS c',
-        f'MATCH (n) WHERE n.file_name = "{base}" RETURN labels(n)[0] AS src, count(*) AS c',
+        f'MATCH (n:T1) WHERE n.file_name = "{base}" RETURN "T1" AS src, count(*) AS c',
+        f'MATCH (n:T2) WHERE n.file_name = "{base}" RETURN "T2" AS src, count(*) AS c',
+        f'MATCH (n) WHERE n.file_name CONTAINS "{base}" RETURN "T1orT2" AS src, count(*) AS c',
     ])
-    found = any(int(r[0][1]) > 0 for r in results if r)
-    return found
+    exact = any(int(r[0][1]) > 0 for r in results[:2] if r)
+    fuzzy = any(int(r[0][1]) > 0 for r in results[2:] if r)
+    return exact, (exact or fuzzy)
 
 def main():
     cases = read_xlsx_rows(XLSX)
     cat = load_catalog()
-    print(f"cases={len(cases)} unique_tools={len(set(c['expected'] for c in cases))}")
-    tool_top1 = tool_top3 = data_all = data_found_total = data_file_total = combined = 0
+    print(f"cases={len(cases)} unique_tools={len(set(c['expected'] for c in cases))} catalog={len(cat)}")
+    tool_top1 = tool_top3 = data_all = data_found_total = data_exact_total = data_file_total = combined = 0
     misses, per_tool = [], Counter()
     detail = []
     for idx, c in enumerate(cases, 1):
@@ -141,14 +157,15 @@ def main():
         exp = c["expected"]
         t1 = bool(pred) and pred[0] == exp
         t3 = exp in pred
-        # 数据面
+        # 数据面：精确 + 宽匹配分开计
         statuses = {f: data_status(f) for f in c["data"]}
-        all_found = all(statuses.values())
+        all_found = all(v[1] for v in statuses.values())
         tool_top1 += t1
         tool_top3 += t3
         if all_found:
             data_all += 1
-        data_found_total += sum(statuses.values())
+        data_found_total += sum(1 for v in statuses.values() if v[1])
+        data_exact_total += sum(1 for v in statuses.values() if v[0])
         data_file_total += len(c["data"])
         if t1 and all_found:
             combined += 1
@@ -156,7 +173,7 @@ def main():
         per_tool[(exp, "hit")] += 1 if t1 else 0
         if not (t1 and all_found):
             misses.append({"id": f"q{idx:03d}", "q": c["q"][:60], "expected": exp,
-                           "predicted": pred, "data": {k: v for k, v in statuses.items()}})
+                           "predicted": pred, "data": {k: (v[1], "exact" if v[0] else "fuzzy") for k, v in statuses.items()}})
         detail.append({"id": f"q{idx:03d}", "expected": exp, "predicted": pred, "tool_hit": t1,
                        "data_all_found": all_found, "data_status": statuses})
     n = len(cases)
@@ -165,8 +182,10 @@ def main():
         "tool_top1": tool_top1, "tool_top1_rate": round(tool_top1 / n, 4),
         "tool_top3": tool_top3, "tool_top3_rate": round(tool_top3 / n, 4),
         "data_all_found": data_all, "data_all_found_rate": round(data_all / n, 4),
-        "data_file_found": data_found_total, "data_file_total": data_file_total,
+        "data_file_found": data_found_total, "data_file_exact": data_exact_total,
+        "data_file_total": data_file_total,
         "data_file_found_rate": round(data_found_total / data_file_total, 4),
+        "data_file_exact_rate": round(data_exact_total / data_file_total, 4),
         "combined_top1_and_data": combined, "combined_rate": round(combined / n, 4),
         "misses": misses,
     }

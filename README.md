@@ -1,11 +1,13 @@
 # Bio Pipeline Light（轻架构生信链路规划）
 
-用 **DSH 原生 MCP + 一个 Skill** 替代重 MCP（[bio-pipeline-kg-matcher](https://github.com/zyr3210115527/bio-pipeline-kg-matcher)）的生信工具链规划能力：数据面走 `read-cypher`/`get-schema`，推理面走 Skill 手册，把 205MB + LLM 嵌套的重服务降为「1 个 skill + 2 个 MCP 工具」。
+用 **DSH 原生 MCP + 一个 Skill** 替代重 MCP（[bio-pipeline-kg-matcher](https://github.com/zyr3210115527/bio-pipeline-kg-matcher)）的生信工具链规划能力：**推理交给调用方的模型，MCP 只给知识与校验**。
+
+> **本仓库的真实论点**：205MB 重 MCP → 110KB（skill + read-cypher）。96 例上，一张 60 行关键词表即可与重服务打平——**该任务的工具选择本身是平凡的，重架构从未在此挣到收益**。真正需要模型智能的是"去名"的意图理解（见三臂评测）。
 
 ```
-轻架构 = neo4j-mcp（read-cypher / get-schema）   ← 数据面
-       + bio-pipeline-planning skill             ← 推理面（词汇表 + 配方 + tool-chain/v2 契约）
-       + bench_light_96.py                       ← 96 例评测（确定性规则面）
+轻架构 = skill（bio-pipeline-planning，推理手册）
+       + MCP（get_planning_guide / read_cypher / validate_atomic_chain）
+       + benchmark/（污染度检测、三臂评测、去名集、真实模型测试）
 ```
 
 ## 与重 MCP 的对照
@@ -21,27 +23,33 @@
 
 砍掉的部分：MCP 内嵌 LLM 调用（180s 超时/16k 输出）、双数据匹配器（CSV+Neo4j 对比）、113 个 CSV、157 个 audit 文件、16 个 demo cassettes。
 
-## 96 例评测结果
+## 评测方法论（先测污染，再上三臂）
 
-对照 `96例问题-数据-工具对应表(1).xlsx`（14 个工具 × 三档问法）：
+**改动一：污染度检测。** 96 例测试集中，**96/96 (100%) 的问题文本直接包含答案触发词**（78 词关键词表逐条命中）。在这套集子上拿 100% 不说明任何事——它就是"答案泄漏集"。
 
-| 指标 | 轻架构（规则面） | 重 MCP 官方基线 |
-|---|---|---|
-| 工具 top-1 | **96/96 (100%)** | 96/96 (100%) |
-| 工具 top-3 | 96/96 (100%) | — |
-| 期望数据文件图内可查 | 174/186 (93.5%) | 实时后端仅 6/96 全可用 |
-| 工具正确 + 数据齐全（联合） | 90/96 (93.8%) | — |
+**改动二：三臂评测**（`benchmark/bench_three_arms.py`）：
 
-- 14 个工具全部 100% 命中（`diff_expr_go/kegg`、`immune_infiltration_iobr`、`rnaseq_unsupervised_cluster`、`wes_somatic_maf_landscape`、`her2_pfs_survival`、`survival_analysis`、`wgcna`、`cellranger_workflow`、`wes_somatic_pair`、`tmb_survival_analysis`、`driver_gene_gender_analysis`、`paired_fastq_to_unmapped_bam`、`rnaseq_singletask`）
-- 剩余 6 例（q052–057）工具全对，期望数据（`NVM0598_*.fastq.gz`、`ENCSR142YZV_chr19only_10000_reads_*.fastq.gz`）是 **demo 测试文件，不在 Neo4j 图内**——轻架构以图为准如实报 `missing_from_graph`（重 MCP 靠本地 pipeline 仓库的 example_inputs fixture 才标"可用"）
-- 判据说明：工具面可比且打平；数据面轻架构是"期望文件名图内可查"（含多输入工具的 clinical/meta 全部文件），重 MCP 实时验证跑在 0812 交付图上且判据更严格，数字不可直接横比
+| 臂 | 是什么 | 原集 96 | 去名集 70 |
+|---|---|---|---|
+| floor | 永远猜最高频工具 | ~12.5% | **7.1%**（随机线） |
+| ceiling | 60 行关键词表（本仓库 RULES） | **100%** | **1.4%**（词表一拆就碎） |
+| SUT | skill + read-cypher + 真实模型 | — | 见 `benchmark/data/three_arms_results.json` |
+
+**改动三：去名集**（`benchmark/data/de_named_set.json`，14 工具 × 5 = 70 例）：只写意图、不出现任何规则触发词（已程序化验证**零重叠**）。ceiling 在去名集从 100% 崩到 1.4%，正说明原集的 100% 全是词表泄漏。
+
+**改动四：推理归模型。** MCP server 不内嵌 if-else 推理：`get_planning_guide` 给手册、`read_cypher` 给数据、`validate_atomic_chain` 给确定性校验；关键词表降级为 `rule_baseline_plan` 对照臂（非推荐路径）。
+
+**数据面**（96 例，已拆含水）：期望文件图内可查 174/186（93.5%），其中**精确命中 138/186（74.2%）**，仅宽匹配命中 36（19.4%）；6 例（q052–057）期望数据是 demo 文件（`NVM0598_*`、`ENCSR142YZV_chr19only_*`），不在 Neo4j 图内——以图为准如实报 `missing_from_graph`。
 
 ## 给前端 agent 的 MCP 接口（stdio，同机/局域网）
 
-仓库自带 `mcp_light_server.py`（无第三方依赖的 stdio MCP server），前端 agent 直接接：
+仓库自带 `mcp_light_server.py`（无第三方依赖的 stdio MCP server，v2），前端 agent 直接接。**推理留给调用方自己的模型**：
 
-- `health_check` —— Neo4j 连通与规模
-- `plan_bio_analysis(query)` —— 自然语言生信问题 → `tool-chain/v2` Plan；**与生信无关的问题直接拒绝**（fail-closed，96 例回归 0 误杀）
+- `get_planning_guide()` —— 返回 SKILL.md 全文，调用方模型读后自行规划
+- `read_cypher(query)` —— 数据面：通用只读查询（有写入守卫）
+- `validate_atomic_chain(chain)` —— 确定性闭集校验（11 个 atomic + 图内 next_tool 邻接）
+- `rule_baseline_plan(query)` —— **对照臂**：关键词基线，非推荐路径，仅供与模型路径对比
+- `health_check()` —— Neo4j 连通、规模、atomic 闭集
 
 ```json
 { "mcpServers": { "bio-pipeline-light": {
