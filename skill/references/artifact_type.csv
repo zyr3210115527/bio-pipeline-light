@@ -1,0 +1,44 @@
+identity,labels,artifact_type,description,is_generic
+artifact_type:aligned_bam,ArtifactType|artifact_type,aligned_bam,Aligned SAM/BAM,
+artifact_type:analysis_figure,artifact_type,analysis_figure,Analysis plot or PDF report,true
+artifact_type:analysis_summary,artifact_type,analysis_summary,Machine-readable or text analysis summary,true
+artifact_type:annotated_vcf,ArtifactType|artifact_type,annotated_vcf,Annotated VCF,
+artifact_type:binary_mutation_matrix,artifact_type,binary_mutation_matrix,Sample-by-gene binary mutation matrix,false
+artifact_type:clean_fastq_read,ArtifactType|artifact_type,clean_fastq_read,Clean FASTQ,
+artifact_type:clinical_survival_table,artifact_type,clinical_survival_table,Clinical table containing survival time and event status,false
+artifact_type:clinical_table,artifact_type,clinical_table,Patient clinical phenotype table,false
+artifact_type:cluster_assignment_table,artifact_type,cluster_assignment_table,Unsupervised sample cluster assignments,false
+artifact_type:cluster_stability_table,artifact_type,cluster_stability_table,Cluster bootstrap stability metrics,false
+artifact_type:differential_expression_table,artifact_type,differential_expression_table,Differential expression result table,false
+artifact_type:enrichment_result_table,artifact_type,enrichment_result_table,GO or Reactome enrichment result table,false
+artifact_type:expression_abundance_matrix,ArtifactType|artifact_type,expression_abundance_matrix,Gene-by-sample TPM or FPKM expression matrix,false
+artifact_type:expression_count_matrix,ArtifactType|artifact_type,expression_count_matrix,Gene-by-sample raw count matrix,false
+artifact_type:expression_tpm_matrix,artifact_type,expression_tpm_matrix,Gene-by-sample TPM expression matrix,false
+artifact_type:file_list,artifact_type,file_list,File-of-filenames or artifact list,false
+artifact_type:filtered_vcf,ArtifactType|artifact_type,filtered_vcf,Filtered (PASS) VCF,
+artifact_type:genome_annotation,ArtifactType|artifact_type,genome_annotation,Genome Annotation,
+artifact_type:hub_gene_table,artifact_type,hub_gene_table,WGCNA hub gene result table,false
+artifact_type:immune_fraction_matrix,artifact_type,immune_fraction_matrix,Estimated immune-cell fraction matrix,false
+artifact_type:mutation_statistics_table,artifact_type,mutation_statistics_table,Mutation frequency and statistical result table,false
+artifact_type:quality_control_report,ArtifactType|artifact_type,quality_control_report,Quality control reports and logs,true
+artifact_type:raw_fastq_read,ArtifactType|artifact_type,raw_fastq_read,One mate of paired-end raw FASTQ reads,false
+artifact_type:sample_metadata,ArtifactType|artifact_type,sample_metadata,Sample Metadata,
+artifact_type:sample_metainfo,artifact_type,sample_metainfo,Individual-sample-run accession mapping metadata,false
+artifact_type:somatic_maf,artifact_type,somatic_maf,Somatic mutation annotation format table,false
+artifact_type:sorted_dedup_bam,ArtifactType|artifact_type,sorted_dedup_bam,Sorted/Dedup BAM,
+artifact_type:survival_statistics,artifact_type,survival_statistics,Kaplan-Meier log-rank or Cox statistics,false
+artifact_type:tmb_table,artifact_type,tmb_table,Per-patient tumor mutational burden table,false
+artifact_type:transcriptome_bam,ArtifactType|artifact_type,transcriptome_bam,Transcriptome BAM,
+artifact_type:unfiltered_vcf,ArtifactType|artifact_type,unfiltered_vcf,Unfiltered VCF,
+artifact_type:unmapped_bam,ArtifactType|artifact_type,unmapped_bam,Unmapped BAM with read-group metadata,false
+artifact_type:wgcna_module_table,artifact_type,wgcna_module_table,WGCNA module and module-trait result table,false
+artifact_type:bai,ArtifactType|artifact_type,bai,BAM index,false
+artifact_type:interval_list,ArtifactType|artifact_type,interval_list,WES interval list,false
+artifact_type:vcf_index,ArtifactType|artifact_type,vcf_index,Tabix index for a compressed VCF,false
+artifact_type:somatic_cnv_table,ArtifactType|artifact_type,somatic_cnv_table,Somatic copy-number segment table,false
+artifact_type:splice_junction_table,ArtifactType|artifact_type,splice_junction_table,RNA splice junction table,false
+artifact_type:scrna_object,ArtifactType|artifact_type,scrna_object,Single-cell analysis object (Seurat RDS etc.),false
+artifact_type:scrna_matrix,ArtifactType|artifact_type,scrna_matrix,Single-cell expression matrix container,false
+artifact_type:bio_data_container,ArtifactType|artifact_type,bio_data_container,Generic serialized bioinformatics data container,true
+artifact_type:directory_bundle,ArtifactType|artifact_type,directory_bundle,Directory of related result files,true
+artifact_type:unclassified_data,ArtifactType|artifact_type,unclassified_data,Data whose semantic type is not yet classified,true

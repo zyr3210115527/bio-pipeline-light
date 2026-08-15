@@ -1,0 +1,346 @@
+{
+ "schema_version": "tool-chain/v2",
+ "selection_status": "information",
+ "candidate_count": 0,
+ "candidates": [],
+ "recommendation_count": 1,
+ "recommendations": [
+  {
+   "rank": 1,
+   "match_id": "recommendation-25fcb7e080f9cdd2",
+   "pipeline_id": "immune_infiltration_iobr",
+   "match_note": "命中 免疫细胞，适合免疫浸润分析。",
+   "tool": {
+    "tool_id": "immune_infiltration_iobr",
+    "catalog_id": null,
+    "tool_kind": "task_pipeline",
+    "name": "免疫浸润分析 (IOBR CIBERSORT)",
+    "description": "基于 IOBR 包的 CIBERSORT 算法进行免疫细胞浸润分析流程。\n输入基因表达 TPM 矩阵、临床信息和样本元数据，输出免疫细胞比例估计、可靠性评估及可视化图表。\n适用于批量 RNA-seq 数据的肿瘤微环境免疫细胞组成分析。",
+    "inputs": [
+     {
+      "name": "expression_tsv",
+      "type": "File",
+      "is_file": true,
+      "optional": false,
+      "artifact": "expression_tpm_matrix",
+      "formats": [
+       "tsv"
+      ],
+      "description": "基因表达 TPM 矩阵文件",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     },
+     {
+      "name": "clinical_xls",
+      "type": "File",
+      "is_file": true,
+      "optional": false,
+      "artifact": "clinical_survival_table",
+      "formats": [
+       "xls"
+      ],
+      "description": "临床注释表格文件",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     },
+     {
+      "name": "metainfo_xlsx",
+      "type": "File",
+      "is_file": true,
+      "optional": false,
+      "artifact": "sample_metainfo",
+      "formats": [
+       "xlsx"
+      ],
+      "description": "样本元数据工作簿",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     },
+     {
+      "name": "sample_ids",
+      "type": "array",
+      "is_file": false,
+      "optional": true,
+      "artifact": null,
+      "formats": [],
+      "description": "待分析的 run accession ID 列表（字符串数组）",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     },
+     {
+      "name": "arrays",
+      "type": "boolean",
+      "is_file": false,
+      "optional": true,
+      "artifact": null,
+      "formats": [],
+      "description": "是否使用 arrays 参数传递给 IOBR::deconvo_tme()",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     },
+     {
+      "name": "perm",
+      "type": "int",
+      "is_file": false,
+      "optional": true,
+      "artifact": null,
+      "formats": [],
+      "description": "CIBERSORT 置换次数",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     },
+     {
+      "name": "min_group_size",
+      "type": "int",
+      "is_file": false,
+      "optional": true,
+      "artifact": null,
+      "formats": [],
+      "description": "性别分组 Wilcoxon 检验前每组最小可靠样本数",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     },
+     {
+      "name": "max_group_ratio",
+      "type": "float",
+      "is_file": false,
+      "optional": true,
+      "artifact": null,
+      "formats": [],
+      "description": "性别分组 Wilcoxon 检验前允许的最大组间比例（大组/小组）",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     }
+    ],
+    "outputs": [
+     {
+      "name": "analysis_status_tsv",
+      "type": "File",
+      "is_file": false,
+      "optional": true,
+      "artifact": null,
+      "formats": [],
+      "description": "分析状态文件，记录流程执行状态",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     },
+     {
+      "name": "summary_json",
+      "type": "File",
+      "is_file": false,
+      "optional": true,
+      "artifact": null,
+      "formats": [],
+      "description": "分析摘要信息（JSON 格式）",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     },
+     {
+      "name": "summary_txt",
+      "type": "File",
+      "is_file": false,
+      "optional": true,
+      "artifact": null,
+      "formats": [],
+      "description": "分析摘要信息（文本格式）",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     },
+     {
+      "name": "warning_txt",
+      "type": "File",
+      "is_file": false,
+      "optional": true,
+      "artifact": null,
+      "formats": [],
+      "description": "警告信息文件",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     },
+     {
+      "name": "sample_manifest_tsv",
+      "type": "File",
+      "is_file": false,
+      "optional": true,
+      "artifact": null,
+      "formats": [],
+      "description": "样本清单文件，记录样本映射和筛选信息",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     },
+     {
+      "name": "expression_gene_symbol_tsv",
+      "type": "File",
+      "is_file": false,
+      "optional": true,
+      "artifact": null,
+      "formats": [],
+      "description": "转换为基因符号后的表达矩阵",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     },
+     {
+      "name": "cibersort_full_tsv",
+      "type": "File",
+      "is_file": false,
+      "optional": true,
+      "artifact": null,
+      "formats": [],
+      "description": "CIBERSORT 完整去卷积结果",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     },
+     {
+      "name": "immune_fraction_all_tsv",
+      "type": "File",
+      "is_file": false,
+      "optional": true,
+      "artifact": null,
+      "formats": [],
+      "description": "所有样本的免疫细胞比例",
+      "dimension": "",
+      "dimension_value": "",
+      "variant": "",
+      "variant_alias_for": ""
+     }
+    ]
+   },
+   "data": {
+    "status": "available",
+    "source": "neo4j",
+    "assets": [
+     {
+      "name": "HRA001272-Genes-TPM-1.0.tsv",
+      "graph_status": "available",
+      "source": "EXAMPLE",
+      "t2_id": null,
+      "file_id": "HRA001272-Genes-TPM-1.0.tsv",
+      "file_name": "HRA001272-Genes-TPM-1.0.tsv",
+      "files": "HRA001272-Genes-TPM-1.0.tsv",
+      "format": "tsv",
+      "strategy": "",
+      "data_level": "example",
+      "study_accession": "HRA001272",
+      "sample_accession": "",
+      "run_accession": "",
+      "individual_accession": null,
+      "individual_name": "",
+      "sample_name": "",
+      "specimen_types": "",
+      "read_pair": null,
+      "file_path": "/hpcdisk1/cbb_group/data/analysis/HRA001272/RNAseq/HRA001272-Genes-TPM-1.0.tsv",
+      "match_reason": "癌种/队列匹配; 格式匹配 tsv; 命中 pipeline example_inputs 示例文件; 示例文件属于当前推荐 pipeline; 文件语义匹配: TPM",
+      "input_role": "expression"
+     },
+     {
+      "name": "HRA001272-Clinical-1.0.xls",
+      "graph_status": "available",
+      "source": "EXAMPLE",
+      "t2_id": null,
+      "file_id": "HRA001272-Clinical-1.0.xls",
+      "file_name": "HRA001272-Clinical-1.0.xls",
+      "files": "HRA001272-Clinical-1.0.xls",
+      "format": "xls",
+      "strategy": "",
+      "data_level": "example",
+      "study_accession": "HRA001272",
+      "sample_accession": "",
+      "run_accession": "",
+      "individual_accession": null,
+      "individual_name": "",
+      "sample_name": "",
+      "specimen_types": "",
+      "read_pair": null,
+      "file_path": "/hpcdisk1/cbb_group/data/analysis/HRA001272/HRA001272-Clinical-1.0.xls",
+      "match_reason": "癌种/队列匹配; 格式匹配 xls; 命中 pipeline example_inputs 示例文件; 示例文件属于当前推荐 pipeline; 文件语义匹配: Clinical",
+      "input_role": "clinical"
+     },
+     {
+      "name": "HRA001272-MetaInfo-1.0.xlsx",
+      "graph_status": "available",
+      "source": "EXAMPLE",
+      "t2_id": null,
+      "file_id": "HRA001272-MetaInfo-1.0.xlsx",
+      "file_name": "HRA001272-MetaInfo-1.0.xlsx",
+      "files": "HRA001272-MetaInfo-1.0.xlsx",
+      "format": "xlsx",
+      "strategy": "",
+      "data_level": "example",
+      "study_accession": "HRA001272",
+      "sample_accession": "",
+      "run_accession": "",
+      "individual_accession": null,
+      "individual_name": "",
+      "sample_name": "",
+      "specimen_types": "",
+      "read_pair": null,
+      "file_path": "/hpcdisk1/cbb_group/data/analysis/HRA001272/HRA001272-MetaInfo-1.0.xlsx",
+      "match_reason": "癌种/队列匹配; 格式匹配 xlsx; 命中 pipeline example_inputs 示例文件; 示例文件属于当前推荐 pipeline; 文件语义匹配: MetaInfo",
+      "input_role": "metainfo"
+     }
+    ],
+    "matched_count": 3,
+    "expected_count": 3,
+    "missing_asset_names": [],
+    "study_accessions": [
+     "HRA001272"
+    ]
+   },
+   "source": "deterministic_rule+neo4j",
+   "reference_case_id": null
+  }
+ ],
+ "intent": {
+  "query_text": "我想看肝癌样本里的免疫细胞组成，比如 T 细胞、B 细胞和巨噬细胞比例。",
+  "analysis_goal": "免疫浸润分析",
+  "disease": "肝癌",
+  "omics_type": "bulk RNA-seq",
+  "input_hint": "tpm",
+  "quant_hint": null,
+  "requested_outputs": [
+   "免疫细胞比例",
+   "可视化"
+  ],
+  "study_accessions": [],
+  "source": "rule",
+  "ambiguous": false
+ },
+ "planner_metadata": {
+  "used": false,
+  "status": "force_rule",
+  "calls": 0,
+  "stages": []
+ },
+ "data_matcher_mode": "neo4j",
+ "mcp_timing_ms": 1151.2
+}

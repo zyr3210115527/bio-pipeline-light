@@ -1,0 +1,1337 @@
+{
+ "report": {
+  "cases": 96,
+  "tool_top1": 96,
+  "tool_top1_rate": 1.0,
+  "tool_top3": 96,
+  "tool_top3_rate": 1.0,
+  "data_all_found": 90,
+  "data_all_found_rate": 0.9375,
+  "data_file_found": 174,
+  "data_file_total": 186,
+  "data_file_found_rate": 0.9355,
+  "combined_top1_and_data": 90,
+  "combined_rate": 0.9375,
+  "misses": [
+   {
+    "id": "q052",
+    "q": "双端 FASTQ 文件怎么转成 unmapped BAM？",
+    "expected": "paired_fastq_to_unmapped_bam",
+    "predicted": [
+     "paired_fastq_to_unmapped_bam"
+    ],
+    "data": {
+     "NVM0598_R1.clean.clean.fastq.gz": false,
+     "NVM0598_R2.clean.clean.fastq.gz": false
+    }
+   },
+   {
+    "id": "q053",
+    "q": "我想把原始测序 FASTQ 整理成 GATK 后续分析可用的 uBAM 文件。",
+    "expected": "paired_fastq_to_unmapped_bam",
+    "predicted": [
+     "paired_fastq_to_unmapped_bam"
+    ],
+    "data": {
+     "NVM0598_R1.clean.clean.fastq.gz": false,
+     "NVM0598_R2.clean.clean.fastq.gz": false
+    }
+   },
+   {
+    "id": "q054",
+    "q": "如何将 paired-end FASTQ 数据转换为带有 read group 信息的未比对 BAM，以便作为后续标准变",
+    "expected": "paired_fastq_to_unmapped_bam",
+    "predicted": [
+     "paired_fastq_to_unmapped_bam"
+    ],
+    "data": {
+     "NVM0598_R1.clean.clean.fastq.gz": false,
+     "NVM0598_R2.clean.clean.fastq.gz": false
+    }
+   },
+   {
+    "id": "q055",
+    "q": "RNA-seq FASTQ 原始数据怎么做完整上游分析？",
+    "expected": "rnaseq_singletask",
+    "predicted": [
+     "rnaseq_singletask"
+    ],
+    "data": {
+     "ENCSR142YZV_chr19only_10000_reads_R1.fastq.gz": false,
+     "ENCSR142YZV_chr19only_10000_reads_R2.fastq.gz": false
+    }
+   },
+   {
+    "id": "q056",
+    "q": "我有双端 RNA-seq 测序数据，想完成质控、接头剪切、比对和基因表达计数。",
+    "expected": "rnaseq_singletask",
+    "predicted": [
+     "rnaseq_singletask"
+    ],
+    "data": {
+     "ENCSR142YZV_chr19only_10000_reads_R1.fastq.gz": false,
+     "ENCSR142YZV_chr19only_10000_reads_R2.fastq.gz": false
+    }
+   },
+   {
+    "id": "q057",
+    "q": "如何从 RNA-seq paired-end FASTQ 出发，依次完成 FastQC、Trim Galore、rRNA",
+    "expected": "rnaseq_singletask",
+    "predicted": [
+     "rnaseq_singletask"
+    ],
+    "data": {
+     "ENCSR142YZV_chr19only_10000_reads_R1.fastq.gz": false,
+     "ENCSR142YZV_chr19only_10000_reads_R2.fastq.gz": false
+    }
+   }
+  ]
+ },
+ "detail": [
+  {
+   "id": "q001",
+   "expected": "cellranger_workflow",
+   "predicted": [
+    "cellranger_workflow"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRR572934_f1.fq.gz": true,
+    "HRR572934_r2.fq.gz": true
+   }
+  },
+  {
+   "id": "q002",
+   "expected": "cellranger_workflow",
+   "predicted": [
+    "cellranger_workflow"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRR572934_f1.fq.gz": true,
+    "HRR572934_r2.fq.gz": true
+   }
+  },
+  {
+   "id": "q003",
+   "expected": "cellranger_workflow",
+   "predicted": [
+    "cellranger_workflow"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRR572934_f1.fq.gz": true,
+    "HRR572934_r2.fq.gz": true
+   }
+  },
+  {
+   "id": "q004",
+   "expected": "diff_expr_go",
+   "predicted": [
+    "diff_expr_go"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q005",
+   "expected": "diff_expr_go",
+   "predicted": [
+    "diff_expr_go"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q006",
+   "expected": "diff_expr_go",
+   "predicted": [
+    "diff_expr_go"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q007",
+   "expected": "diff_expr_go",
+   "predicted": [
+    "diff_expr_go"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007167-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q008",
+   "expected": "diff_expr_go",
+   "predicted": [
+    "diff_expr_go"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007167-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q009",
+   "expected": "diff_expr_go",
+   "predicted": [
+    "diff_expr_go"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007167-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q010",
+   "expected": "diff_expr_go",
+   "predicted": [
+    "diff_expr_go"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA003107-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q011",
+   "expected": "diff_expr_go",
+   "predicted": [
+    "diff_expr_go"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA003107-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q012",
+   "expected": "diff_expr_go",
+   "predicted": [
+    "diff_expr_go"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA003107-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q013",
+   "expected": "diff_expr_go",
+   "predicted": [
+    "diff_expr_go"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q014",
+   "expected": "diff_expr_go",
+   "predicted": [
+    "diff_expr_go"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q015",
+   "expected": "diff_expr_go",
+   "predicted": [
+    "diff_expr_go"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q016",
+   "expected": "diff_expr_kegg",
+   "predicted": [
+    "diff_expr_kegg"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q017",
+   "expected": "diff_expr_kegg",
+   "predicted": [
+    "diff_expr_kegg"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q018",
+   "expected": "diff_expr_kegg",
+   "predicted": [
+    "diff_expr_kegg"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q019",
+   "expected": "diff_expr_kegg",
+   "predicted": [
+    "diff_expr_kegg",
+    "diff_expr_go"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007167-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q020",
+   "expected": "diff_expr_kegg",
+   "predicted": [
+    "diff_expr_kegg"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007167-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q021",
+   "expected": "diff_expr_kegg",
+   "predicted": [
+    "diff_expr_kegg"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007167-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q022",
+   "expected": "diff_expr_kegg",
+   "predicted": [
+    "diff_expr_kegg"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA003107-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q023",
+   "expected": "diff_expr_kegg",
+   "predicted": [
+    "diff_expr_kegg"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA003107-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q024",
+   "expected": "diff_expr_kegg",
+   "predicted": [
+    "diff_expr_kegg"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA003107-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q025",
+   "expected": "diff_expr_kegg",
+   "predicted": [
+    "diff_expr_kegg"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q026",
+   "expected": "diff_expr_kegg",
+   "predicted": [
+    "diff_expr_kegg"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q027",
+   "expected": "diff_expr_kegg",
+   "predicted": [
+    "diff_expr_kegg",
+    "diff_expr_go"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-Genes-FPKM-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q028",
+   "expected": "driver_gene_gender_analysis",
+   "predicted": [
+    "driver_gene_gender_analysis"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-SomaticSNV-1.0.maf": true,
+    "HRA001272-Clinical-1.0.xls": true,
+    "HRA001272-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q029",
+   "expected": "driver_gene_gender_analysis",
+   "predicted": [
+    "driver_gene_gender_analysis"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-SomaticSNV-1.0.maf": true,
+    "HRA001272-Clinical-1.0.xls": true,
+    "HRA001272-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q030",
+   "expected": "driver_gene_gender_analysis",
+   "predicted": [
+    "driver_gene_gender_analysis"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-SomaticSNV-1.0.maf": true,
+    "HRA001272-Clinical-1.0.xls": true,
+    "HRA001272-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q031",
+   "expected": "her2_pfs_survival",
+   "predicted": [
+    "her2_pfs_survival"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-Genes-TPM-1.0.tsv": true,
+    "HRA001272-Clinical-1.0.xls": true,
+    "HRA001272-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q032",
+   "expected": "her2_pfs_survival",
+   "predicted": [
+    "her2_pfs_survival"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-Genes-TPM-1.0.tsv": true,
+    "HRA001272-Clinical-1.0.xls": true,
+    "HRA001272-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q033",
+   "expected": "her2_pfs_survival",
+   "predicted": [
+    "her2_pfs_survival"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-Genes-TPM-1.0.tsv": true,
+    "HRA001272-Clinical-1.0.xls": true,
+    "HRA001272-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q034",
+   "expected": "her2_pfs_survival",
+   "predicted": [
+    "her2_pfs_survival"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-TPM-1.0.tsv": true,
+    "HRA000074-Clinical-1.0.xls": true,
+    "HRA000074-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q035",
+   "expected": "her2_pfs_survival",
+   "predicted": [
+    "her2_pfs_survival"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-TPM-1.0.tsv": true,
+    "HRA000074-Clinical-1.0.xls": true,
+    "HRA000074-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q036",
+   "expected": "her2_pfs_survival",
+   "predicted": [
+    "her2_pfs_survival"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-TPM-1.0.tsv": true,
+    "HRA000074-Clinical-1.0.xls": true,
+    "HRA000074-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q037",
+   "expected": "her2_pfs_survival",
+   "predicted": [
+    "her2_pfs_survival"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007167-Genes-TPM-1.0.tsv": true,
+    "HRA007167-Clinical-1.0.xls": true,
+    "HRA007167-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q038",
+   "expected": "her2_pfs_survival",
+   "predicted": [
+    "her2_pfs_survival"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007167-Genes-TPM-1.0.tsv": true,
+    "HRA007167-Clinical-1.0.xls": true,
+    "HRA007167-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q039",
+   "expected": "her2_pfs_survival",
+   "predicted": [
+    "her2_pfs_survival"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007167-Genes-TPM-1.0.tsv": true,
+    "HRA007167-Clinical-1.0.xls": true,
+    "HRA007167-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q040",
+   "expected": "immune_infiltration_iobr",
+   "predicted": [
+    "immune_infiltration_iobr"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-Genes-TPM-1.0.tsv": true,
+    "HRA001272-Clinical-1.0.xls": true,
+    "HRA001272-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q041",
+   "expected": "immune_infiltration_iobr",
+   "predicted": [
+    "immune_infiltration_iobr"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-Genes-TPM-1.0.tsv": true,
+    "HRA001272-Clinical-1.0.xls": true,
+    "HRA001272-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q042",
+   "expected": "immune_infiltration_iobr",
+   "predicted": [
+    "immune_infiltration_iobr"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-Genes-TPM-1.0.tsv": true,
+    "HRA001272-Clinical-1.0.xls": true,
+    "HRA001272-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q043",
+   "expected": "immune_infiltration_iobr",
+   "predicted": [
+    "immune_infiltration_iobr"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-TPM-1.0.tsv": true,
+    "HRA000074-Clinical-1.0.xls": true,
+    "HRA000074-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q044",
+   "expected": "immune_infiltration_iobr",
+   "predicted": [
+    "immune_infiltration_iobr"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-TPM-1.0.tsv": true,
+    "HRA000074-Clinical-1.0.xls": true,
+    "HRA000074-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q045",
+   "expected": "immune_infiltration_iobr",
+   "predicted": [
+    "immune_infiltration_iobr"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-TPM-1.0.tsv": true,
+    "HRA000074-Clinical-1.0.xls": true,
+    "HRA000074-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q046",
+   "expected": "immune_infiltration_iobr",
+   "predicted": [
+    "immune_infiltration_iobr"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007167-Genes-TPM-1.0.tsv": true,
+    "HRA007167-Clinical-1.0.xls": true,
+    "HRA007167-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q047",
+   "expected": "immune_infiltration_iobr",
+   "predicted": [
+    "immune_infiltration_iobr"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007167-Genes-TPM-1.0.tsv": true,
+    "HRA007167-Clinical-1.0.xls": true,
+    "HRA007167-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q048",
+   "expected": "immune_infiltration_iobr",
+   "predicted": [
+    "immune_infiltration_iobr"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007167-Genes-TPM-1.0.tsv": true,
+    "HRA007167-Clinical-1.0.xls": true,
+    "HRA007167-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q049",
+   "expected": "immune_infiltration_iobr",
+   "predicted": [
+    "immune_infiltration_iobr"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA003107-Genes-TPM-1.0.tsv": true,
+    "HRA003107-Clinical-1.0.xls": true,
+    "HRA003107-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q050",
+   "expected": "immune_infiltration_iobr",
+   "predicted": [
+    "immune_infiltration_iobr"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA003107-Genes-TPM-1.0.tsv": true,
+    "HRA003107-Clinical-1.0.xls": true,
+    "HRA003107-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q051",
+   "expected": "immune_infiltration_iobr",
+   "predicted": [
+    "immune_infiltration_iobr"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA003107-Genes-TPM-1.0.tsv": true,
+    "HRA003107-Clinical-1.0.xls": true,
+    "HRA003107-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q052",
+   "expected": "paired_fastq_to_unmapped_bam",
+   "predicted": [
+    "paired_fastq_to_unmapped_bam"
+   ],
+   "tool_hit": true,
+   "data_all_found": false,
+   "data_status": {
+    "NVM0598_R1.clean.clean.fastq.gz": false,
+    "NVM0598_R2.clean.clean.fastq.gz": false
+   }
+  },
+  {
+   "id": "q053",
+   "expected": "paired_fastq_to_unmapped_bam",
+   "predicted": [
+    "paired_fastq_to_unmapped_bam"
+   ],
+   "tool_hit": true,
+   "data_all_found": false,
+   "data_status": {
+    "NVM0598_R1.clean.clean.fastq.gz": false,
+    "NVM0598_R2.clean.clean.fastq.gz": false
+   }
+  },
+  {
+   "id": "q054",
+   "expected": "paired_fastq_to_unmapped_bam",
+   "predicted": [
+    "paired_fastq_to_unmapped_bam"
+   ],
+   "tool_hit": true,
+   "data_all_found": false,
+   "data_status": {
+    "NVM0598_R1.clean.clean.fastq.gz": false,
+    "NVM0598_R2.clean.clean.fastq.gz": false
+   }
+  },
+  {
+   "id": "q055",
+   "expected": "rnaseq_singletask",
+   "predicted": [
+    "rnaseq_singletask"
+   ],
+   "tool_hit": true,
+   "data_all_found": false,
+   "data_status": {
+    "ENCSR142YZV_chr19only_10000_reads_R1.fastq.gz": false,
+    "ENCSR142YZV_chr19only_10000_reads_R2.fastq.gz": false
+   }
+  },
+  {
+   "id": "q056",
+   "expected": "rnaseq_singletask",
+   "predicted": [
+    "rnaseq_singletask"
+   ],
+   "tool_hit": true,
+   "data_all_found": false,
+   "data_status": {
+    "ENCSR142YZV_chr19only_10000_reads_R1.fastq.gz": false,
+    "ENCSR142YZV_chr19only_10000_reads_R2.fastq.gz": false
+   }
+  },
+  {
+   "id": "q057",
+   "expected": "rnaseq_singletask",
+   "predicted": [
+    "rnaseq_singletask"
+   ],
+   "tool_hit": true,
+   "data_all_found": false,
+   "data_status": {
+    "ENCSR142YZV_chr19only_10000_reads_R1.fastq.gz": false,
+    "ENCSR142YZV_chr19only_10000_reads_R2.fastq.gz": false
+   }
+  },
+  {
+   "id": "q058",
+   "expected": "rnaseq_unsupervised_cluster",
+   "predicted": [
+    "rnaseq_unsupervised_cluster"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-Genes-counts-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q059",
+   "expected": "rnaseq_unsupervised_cluster",
+   "predicted": [
+    "rnaseq_unsupervised_cluster"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-Genes-counts-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q060",
+   "expected": "rnaseq_unsupervised_cluster",
+   "predicted": [
+    "rnaseq_unsupervised_cluster"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-Genes-counts-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q061",
+   "expected": "rnaseq_unsupervised_cluster",
+   "predicted": [
+    "rnaseq_unsupervised_cluster"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007167-Genes-counts-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q062",
+   "expected": "rnaseq_unsupervised_cluster",
+   "predicted": [
+    "rnaseq_unsupervised_cluster"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007167-Genes-counts-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q063",
+   "expected": "rnaseq_unsupervised_cluster",
+   "predicted": [
+    "rnaseq_unsupervised_cluster"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007167-Genes-counts-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q064",
+   "expected": "rnaseq_unsupervised_cluster",
+   "predicted": [
+    "rnaseq_unsupervised_cluster"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA003107-Genes-counts-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q065",
+   "expected": "rnaseq_unsupervised_cluster",
+   "predicted": [
+    "rnaseq_unsupervised_cluster"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA003107-Genes-counts-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q066",
+   "expected": "rnaseq_unsupervised_cluster",
+   "predicted": [
+    "rnaseq_unsupervised_cluster"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA003107-Genes-counts-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q067",
+   "expected": "rnaseq_unsupervised_cluster",
+   "predicted": [
+    "rnaseq_unsupervised_cluster"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-counts-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q068",
+   "expected": "rnaseq_unsupervised_cluster",
+   "predicted": [
+    "rnaseq_unsupervised_cluster"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-counts-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q069",
+   "expected": "rnaseq_unsupervised_cluster",
+   "predicted": [
+    "rnaseq_unsupervised_cluster"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-counts-1.0.tsv": true
+   }
+  },
+  {
+   "id": "q070",
+   "expected": "survival_analysis",
+   "predicted": [
+    "survival_analysis"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-SomaticSNV-1.0.maf": true,
+    "HRA001272-Clinical-1.0.xls": true,
+    "HRA001272-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q071",
+   "expected": "survival_analysis",
+   "predicted": [
+    "survival_analysis"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-SomaticSNV-1.0.maf": true,
+    "HRA001272-Clinical-1.0.xls": true,
+    "HRA001272-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q072",
+   "expected": "survival_analysis",
+   "predicted": [
+    "survival_analysis"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-SomaticSNV-1.0.maf": true,
+    "HRA001272-Clinical-1.0.xls": true,
+    "HRA001272-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q073",
+   "expected": "survival_analysis",
+   "predicted": [
+    "survival_analysis"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007169-SomaticSNV-1.0.maf": true,
+    "HRA007169-Clinical-1.0.xls": true,
+    "HRA007169-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q074",
+   "expected": "survival_analysis",
+   "predicted": [
+    "survival_analysis"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007169-SomaticSNV-1.0.maf": true,
+    "HRA007169-Clinical-1.0.xls": true,
+    "HRA007169-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q075",
+   "expected": "survival_analysis",
+   "predicted": [
+    "survival_analysis"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007169-SomaticSNV-1.0.maf": true,
+    "HRA007169-Clinical-1.0.xls": true,
+    "HRA007169-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q076",
+   "expected": "tmb_survival_analysis",
+   "predicted": [
+    "tmb_survival_analysis"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007169-SomaticSNV-1.0.maf": true,
+    "HRA007169-Clinical-1.0.xls": true,
+    "HRA007169-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q077",
+   "expected": "tmb_survival_analysis",
+   "predicted": [
+    "tmb_survival_analysis"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007169-SomaticSNV-1.0.maf": true,
+    "HRA007169-Clinical-1.0.xls": true,
+    "HRA007169-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q078",
+   "expected": "tmb_survival_analysis",
+   "predicted": [
+    "tmb_survival_analysis"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007169-SomaticSNV-1.0.maf": true,
+    "HRA007169-Clinical-1.0.xls": true,
+    "HRA007169-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q079",
+   "expected": "wes_somatic_maf_landscape",
+   "predicted": [
+    "wes_somatic_maf_landscape"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-SomaticSNV-1.0.maf": true
+   }
+  },
+  {
+   "id": "q080",
+   "expected": "wes_somatic_maf_landscape",
+   "predicted": [
+    "wes_somatic_maf_landscape"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-SomaticSNV-1.0.maf": true
+   }
+  },
+  {
+   "id": "q081",
+   "expected": "wes_somatic_maf_landscape",
+   "predicted": [
+    "wes_somatic_maf_landscape"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001272-SomaticSNV-1.0.maf": true
+   }
+  },
+  {
+   "id": "q082",
+   "expected": "wes_somatic_maf_landscape",
+   "predicted": [
+    "wes_somatic_maf_landscape"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000071-SomaticSNV-1.0.maf": true
+   }
+  },
+  {
+   "id": "q083",
+   "expected": "wes_somatic_maf_landscape",
+   "predicted": [
+    "wes_somatic_maf_landscape"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000071-SomaticSNV-1.0.maf": true
+   }
+  },
+  {
+   "id": "q084",
+   "expected": "wes_somatic_maf_landscape",
+   "predicted": [
+    "wes_somatic_maf_landscape"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000071-SomaticSNV-1.0.maf": true
+   }
+  },
+  {
+   "id": "q085",
+   "expected": "wes_somatic_maf_landscape",
+   "predicted": [
+    "wes_somatic_maf_landscape"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007169-SomaticSNV-1.0.maf": true
+   }
+  },
+  {
+   "id": "q086",
+   "expected": "wes_somatic_maf_landscape",
+   "predicted": [
+    "wes_somatic_maf_landscape"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007169-SomaticSNV-1.0.maf": true
+   }
+  },
+  {
+   "id": "q087",
+   "expected": "wes_somatic_maf_landscape",
+   "predicted": [
+    "wes_somatic_maf_landscape"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA007169-SomaticSNV-1.0.maf": true
+   }
+  },
+  {
+   "id": "q088",
+   "expected": "wes_somatic_maf_landscape",
+   "predicted": [
+    "wes_somatic_maf_landscape"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001749-SomaticSNV-1.0.maf": true
+   }
+  },
+  {
+   "id": "q089",
+   "expected": "wes_somatic_maf_landscape",
+   "predicted": [
+    "wes_somatic_maf_landscape"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001749-SomaticSNV-1.0.maf": true
+   }
+  },
+  {
+   "id": "q090",
+   "expected": "wes_somatic_maf_landscape",
+   "predicted": [
+    "wes_somatic_maf_landscape"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA001749-SomaticSNV-1.0.maf": true
+   }
+  },
+  {
+   "id": "q091",
+   "expected": "wes_somatic_pair",
+   "predicted": [
+    "wes_somatic_pair"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRR365660_f1.fastq.gz": true,
+    "HRR365660_r2.fastq.gz": true,
+    "HRR365661_f1.fastq.gz": true,
+    "HRR365661_r2.fastq.gz": true
+   }
+  },
+  {
+   "id": "q092",
+   "expected": "wes_somatic_pair",
+   "predicted": [
+    "wes_somatic_pair"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRR365660_f1.fastq.gz": true,
+    "HRR365660_r2.fastq.gz": true,
+    "HRR365661_f1.fastq.gz": true,
+    "HRR365661_r2.fastq.gz": true
+   }
+  },
+  {
+   "id": "q093",
+   "expected": "wes_somatic_pair",
+   "predicted": [
+    "wes_somatic_pair"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRR365660_f1.fastq.gz": true,
+    "HRR365660_r2.fastq.gz": true,
+    "HRR365661_f1.fastq.gz": true,
+    "HRR365661_r2.fastq.gz": true
+   }
+  },
+  {
+   "id": "q094",
+   "expected": "wgcna",
+   "predicted": [
+    "wgcna"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-counts-1.0.tsv": true,
+    "HRA000074-Clinical-1.0.xls": true,
+    "HRA000074-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q095",
+   "expected": "wgcna",
+   "predicted": [
+    "wgcna"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-counts-1.0.tsv": true,
+    "HRA000074-Clinical-1.0.xls": true,
+    "HRA000074-MetaInfo-1.0.xlsx": true
+   }
+  },
+  {
+   "id": "q096",
+   "expected": "wgcna",
+   "predicted": [
+    "wgcna",
+    "diff_expr_kegg"
+   ],
+   "tool_hit": true,
+   "data_all_found": true,
+   "data_status": {
+    "HRA000074-Genes-counts-1.0.tsv": true,
+    "HRA000074-Clinical-1.0.xls": true,
+    "HRA000074-MetaInfo-1.0.xlsx": true
+   }
+  }
+ ]
+}

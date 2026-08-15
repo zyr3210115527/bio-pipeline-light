@@ -1,0 +1,64 @@
+identity,labels,catalog_id,catalog_source,description,input_format,omics,output_format,tool_id,tool_kind,tool_name,input_variants_json,input_aliases_json,exactly_one_variant
+tool_id:bcftools,Tool|tool_id,T009,sister-tool-csv,VCF 过滤，标准化,,WES,,bcftools,atomic,BCFtools,,,
+tool_id:bwa,Tool|tool_id,T006,sister-tool-csv,DNA reads 比对参考基因组,,WES,,bwa,atomic,BWA,,,
+tool_id:diff_expr_go,Tool|tool_id,T029,sister-tool-csv,"基于表达矩阵进行差异基因分析（limma）并针对上下调基因分别进行 GO 功能富集（clusterProfiler）。
+适用于 FPKM/TPM 定量数据的两组比较场景，输出差异基因列表及 GO 富集结果表。",tsv,RNA-seq,tsv,diff_expr_go,pipeline,diff_expr_go,,,
+tool_id:diff_expr_kegg,Tool|tool_id,T030,sister-tool-csv,"基于 limma 包进行两组样本差异表达分析，并使用 ReactomePA 对上下调基因进行通路富集。
+适用于人类基因表达矩阵（FPKM/TPM），输出差异基因列表及富集结果。",tsv,RNA-seq,tsv,diff_expr_kegg,pipeline,diff_expr_kegg,,,
+tool_id:driver_gene_gender_analysis,Tool|tool_id,T031,sister-tool-csv,"该流程基于 WES MAF 文件、临床表和 MetaInfo 表，对驱动基因的突变频率进行性别分层分析。
+通过卡方检验比较男性和女性样本中每个驱动基因的突变率，并输出统计结果表、诊断表及多种可视化图表（分组柱状图、瀑布图、热图、火山图）。","maf, xls, xlsx",WES,"gz, pdf, png, tsv",driver_gene_gender_analysis,pipeline,driver_gene_gender,,,
+tool_id:fastp,Tool|tool_id,T001,sister-tool-csv,FASTQ 质控，修剪，UMI 提取等,,WES,,fastp,atomic,fastp,"{""single_end"":[""raw_fastq_read_r1""],""paired_end"":[""raw_fastq_read_r1"",""raw_fastq_read_r2""]}","{""raw_fastq_read"":""raw_fastq_read_r1""}",true
+tool_id:fastqc,Tool|tool_id,T002,sister-tool-csv,测序数据质量评估,,"WES, RNA-seq",,fastqc,atomic,FastQC,,,
+tool_id:featurecounts,Tool|tool_id,T012,sister-tool-csv,基因水平计数,,RNA-seq,,featurecounts,atomic,featureCounts,,,
+tool_id:gatk,Tool|tool_id,T008,sister-tool-csv,BQSR，变异检测，质控,,WES,,gatk,atomic,GATK,"{""single"":[""sorted_dedup_bam""],""paired"":[""tumor_bam"",""tumor_bai"",""normal_bam"",""normal_bai""]}",{},true
+tool_id:her2_pfs_survival,Tool|tool_id,T032,sister-tool-csv,"基于 TPM 表达矩阵、临床信息及样本元信息，分析特定基因（默认 HER2）表达水平与无进展生存期（PFS）的关联。
+流程自动匹配样本 accession，执行 Winsorizing 处理，生成 KM 生存曲线、Logrank 统计量及质量控制报告。","tsv, xls, xlsx",RNA-seq,"json, pdf, png, tsv, txt",her2_pfs_survival,pipeline,her2_pfs_survival,,,
+tool_id:immune_infiltration_iobr,Tool|tool_id,T033,sister-tool-csv,"基于 IOBR 包的 CIBERSORT 算法进行免疫细胞浸润分析流程。
+输入基因表达 TPM 矩阵、临床信息和样本元数据，输出免疫细胞比例估计、可靠性评估及可视化图表。
+适用于批量 RNA-seq 数据的肿瘤微环境免疫细胞组成分析。","tsv, xls, xlsx",RNA-seq,"json, pdf, png, tsv, txt",immune_infiltration_iobr,pipeline,immune_infiltration,,,
+tool_id:multiqc,Tool|tool_id,T013,sister-tool-csv,汇总全流程质控报告,,"WES, RNA-seq",,multiqc,atomic,MultiQC,,,
+tool_id:paired_fastq_to_unmapped_bam,Tool|tool_id,T034,sister-tool-csv,"将双端 FASTQ 测序数据转换为未比对的 BAM 文件 (uBAM)，并添加完整的 Read Group 信息。
+适用于 GATK 最佳实践流程的起始步骤，输出可用于后续变异检测流程的标准化 BAM 文件。",fq.gz,WES,"list, bam",paired_fastq_to_unmapped_bam,pipeline,fq_to_ubam,,,
+tool_id:rnaseq_singletask,Tool|tool_id,T059,sister-task-pipeline,从双端 RNA-seq FASTQ 完成质控、剪切、rRNA 去除、STAR 比对、RSEM、featureCounts 和 MultiQC。,,RNA-seq,,rnaseq_singletask,task_pipeline,RNA-seq 单任务完整上游流程,,,
+tool_id:rnaseq_unsupervised_cluster,Tool|tool_id,T035,sister-tool-csv,"本流程针对 RNA-seq count 矩阵进行无监督聚类分析，涵盖数据预处理、高变基因筛选、PCA 降维及高斯混合模型聚类。
+同时通过 Bootstrap 重采样评估聚类稳定性并计算显著性 P 值，适用于无样本元数据场景的探索性分析。",tsv,RNA-seq,"pdf, png, tsv, txt",rnaseq_unsupervised_cluster,pipeline,rnaseq_cluster,,,
+tool_id:rsem,Tool|tool_id,T011,sister-tool-csv,基因及转录本定量,,RNA-seq,,rsem,atomic,RSEM,,,
+tool_id:samtools,Tool|tool_id,T007,sister-tool-csv,BAM 排序，索引，去重,,"WES, RNA-seq",,samtools,atomic,SAMtools,,,
+tool_id:snpeff,Tool|tool_id,T010,sister-tool-csv,变异功能注释,,WES,,snpeff,atomic,SnpEff,,,
+tool_id:star,Tool|tool_id,T005,sister-tool-csv,RNA 比对，去 rRNA，融合检测,,RNA-seq,,star,atomic,STAR,,,
+tool_id:survival_analysis,Tool|tool_id,T036,sister-tool-csv,"基于 WDL 1.0 和 Cromwell 的生存分析流程，用于评估指定基因突变状态与无进展生存期（PFS）的关系。
+流程整合了突变提取、Log-rank 检验、Kaplan-Meier 曲线绘制及单因素 Cox 回归分析，最终生成汇总报告。","maf, xlsx",WES,"pdf, png, txt",survival_analysis,pipeline,survival_analysis,,,
+tool_id:tmb_survival_analysis,Tool|tool_id,T037,sister-tool-csv,"从MAF文件和临床数据计算病人级肿瘤突变负荷（TMB），按TMB中位数将病人分为高/低组，
+进行Kaplan-Meier生存分析和log-rank检验，输出生存曲线、TMB分布图及统计结果表。
+适用于肿瘤队列的预后分析场景。","maf, xlsx",WES,"json, pdf, png, tsv",tmb_survival_analysis,pipeline,tmb_survival,,,
+tool_id:trim_galore,Tool|tool_id,T004,sister-tool-csv,接头修剪，低质量修剪,,RNA-seq,,trim_galore,atomic,Trim Galore,,,
+tool_id:wes_somatic_maf_landscape,Tool|tool_id,T038,sister-tool-csv,本流程用于全外显子测序（WES）队列的体细胞突变景观分析。输入标准 MAF 文件，经过滤处理后绘制 Top N 突变基因 Oncoplot 及突变类型分布图。适用于癌症基因组学中的突变谱可视化与总结。,maf,WES,"maf, pdf, png, tsv",wes_somatic_maf_landscape,pipeline,wes_maf_landscape,,,
+tool_id:wgcna,Tool|tool_id,T039,sister-tool-csv,"基于基因表达矩阵和临床表型数据执行 WGCNA 共表达网络分析，包括样本 QC、模块识别、模块 - 性状关联、hub 基因筛选及 bootstrap 稳定性评估。
+适用于转录组数据的系统性分析，输出模块划分结果、关键 hub 基因列表及功能富集分析结果。","tsv, xls, xlsx",RNA-seq,"gz, pdf, png, tsv",wgcna,pipeline,wgcna,,,
+tool_id:cellranger_workflow,Tool|tool_id,T003,senior-0811-tool-csv,基于 10x Genomics CellRanger 的单细胞 RNA 测序数据分析流程。 包含 FASTQ 质控、序列比对、基因表达定量及结果可视化，适用于 10x Chromium 平台产生的单细胞转录组数据。,"bam, fq.gz","sc-RNA, bulk_RNA","bam, csv, html, json, tsv, txt",cellranger_workflow,pipeline,cellranger_workflow,,,
+tool_id:bootstrap_stability,Tool|tool_id,T040,senior-0811-tool-csv,对聚类分析执行Bootstrap重采样，通过比较不同运行间的ARI/NMI评估聚类稳定性， 统计最佳K的频率，并利用标签置换零分布评估稳定性显著性。 输入为logCPM表达矩阵，输出包含稳定性指标、最佳K频率、置换检验P值及可视化图表。,,bulk_RNA,"csv, pdf, png, tsv, txt",bootstrap_stability,pipeline,bootstrap_stability,,,
+tool_id:breast_cellchat,Tool|tool_id,T041,senior-0811-tool-csv,基于CellChat方法分析乳腺癌单细胞转录组数据中的细胞间通讯网络。输入为Seurat格式的RDS文件，通过比较肿瘤与正常组织中的配体-受体互作，揭示肿瘤微环境中的细胞通讯变化。输出包括通讯网络分析结果、质控报告和运行日志。,"fasta, rds","sc-RNA, bulk_RNA","html, json, pdf, png, txt",breast_cellchat,pipeline,breast_cellchat,,,
+tool_id:celltype_case_control_de,Tool|tool_id,T042,senior-0811-tool-csv,对单细胞RNA-seq数据中指定的细胞类型进行病例-对照差异表达分析。输入为Seurat RDS文件，输出包括差异表达结果、分析摘要、质控报告等。适用于配对或非配对的病例-对照研究设计。,"csv, fasta, rds, tsv, txt","sc-RNA, bulk_RNA","html, json, txt",celltype_case_control_de,pipeline,celltype_case_control_de,,,
+tool_id:cnvkit_cnv_clinical,Tool|tool_id,T043,senior-0811-tool-csv,对肿瘤队列的配对肿瘤/正常 WGS 或 WES BAM 运行 CNVkit，生成样本级分段、离散拷贝数、scatter/diagram 图，并可选汇总高频基因 CNV 与临床分期及总生存的探索性关联。输入为样本ID、肿瘤/正常BAM/BAI数组，输出包括CNV分段文件、BED文件、可视化图以及临床关联分析结果。,"bam, csv, tsv, txt, xls, xlsx","WGS, WES, Clinical","csv, pdf, png, tsv, txt",cnvkit_cnv_clinical,pipeline,cnvkit_cnv_clinical,,,
+tool_id:cox_model,Tool|tool_id,T044,senior-0811-tool-csv,整合基因表达矩阵与临床元数据，执行 Cox 比例风险回归分析和 Kaplan-Meier 生存曲线绘制。 支持自定义样本分组、生存时间/状态列映射，输出风险比、P 值及前 N 个显著基因。 适用于癌症预后标志物筛选和临床亚组生存差异分析场景。,"csv, tsv, txt, xls, xlsx","bulk_RNA, Clinical","csv, html, json, tsv, txt",cox_model,pipeline,cox_model,,,
+tool_id:dataset_downstream,Tool|tool_id,T045,senior-0811-tool-csv,对单细胞RNA-seq数据集进行标准化下游分析，包括基因排序、细胞类型注释和恶性细胞标记。 输入为Seurat RDS文件和基因排序文件，输出包括压缩的结果文件、运行摘要和质量控制报告。,"csv, fasta, rds, tsv, txt",sc-RNA,"html, json, txt",dataset_downstream,pipeline,dataset_downstream,,,
+tool_id:dataset_matrix_annotation,Tool|tool_id,T046,senior-0811-tool-csv,该流程用于对单细胞RNA-seq数据集进行矩阵注释和细胞类型标注。输入为Seurat RDS格式的整合数据文件，输出包括注释结果压缩包、运行摘要、输入质量控制报告和分析清单等文件。,"csv, fasta, rds, tsv, txt",sc-RNA,"html, json, txt",dataset_matrix_annotation,pipeline,dataset_matrix_annotation,,,
+tool_id:de_enrichment,Tool|tool_id,T047,senior-0811-tool-csv,本流程整合 CNCB 元数据，执行差异表达分析并生成富集分析结果。支持自动样本分组、生存分析关联，输出火山图、热图及富集分析可视化。适用于具有临床元数据的 bulk RNA-seq 数据。,"csv, tsv, txt, xls, xlsx","bulk_RNA, Clinical","csv, html, json, tsv, txt",de_enrichment,pipeline,de_enrichment,,,
+tool_id:deg_enrichment,Tool|tool_id,T048,senior-0811-tool-csv,本流程整合表达矩阵、样本元数据和临床信息，执行差异表达分析并生成火山图、热图及功能富集分析结果。 支持自动分组识别、生存分析关联，适用于批量 RNA-seq 数据的标准化差异表达与富集分析场景。,"csv, tsv, txt, xls, xlsx","bulk_RNA, Clinical","csv, html, json, tsv, txt",deg_enrichment,pipeline,deg_enrichment,,,
+tool_id:deg_trend,Tool|tool_id,T049,senior-0811-tool-csv,本流程用于差异表达基因(DEG)的趋势分析与可视化。输入基因表达矩阵、样本元数据和临床信息，自动完成样本分组、差异分析，并生成火山图、热图、箱线图和趋势图等多种可视化结果。适用于批量 RNA-seq 数据的临床关联分析场景。,"csv, tsv, txt, xls, xlsx","bulk_RNA, Clinical","csv, html, json, pdf, png, tsv, txt",deg_trend,pipeline,deg_trend,,,
+tool_id:gene_boxplot,Tool|tool_id,T050,senior-0811-tool-csv,基于基因表达矩阵和临床元数据生成箱线图、火山图、热图等可视化结果。支持从 CNCB 原生格式元数据自动映射样本分组信息，可整合生存分析和肿瘤分期数据。适用于 bulk RNA-seq 数据的探索性可视化分析。,"csv, tsv, txt, xls, xlsx","bulk_RNA, Clinical","csv, html, json, tsv, txt",gene_boxplot,pipeline,gene_boxplot,,,
+tool_id:gsea_pathway_enrichment,Tool|tool_id,T051,senior-0811-tool-csv,本流程基于limma moderated t统计量构建全基因排序，使用fgseaMultilevel执行预排序GSEA。 输入为表达矩阵和样本元数据，输出包括通路富集结果、显著通路、排序基因列表及可视化图表。 适用于病例-对照转录组比较分析，支持协变量校正和配对设计。,"csv, tsv, txt",bulk_RNA,"csv, html, json, pdf, png, tsv, txt",gsea_pathway_enrichment,pipeline,gsea_pathway_enrichment,,,
+tool_id:hvg_pca_gmm,Tool|tool_id,T052,senior-0811-tool-csv,从logCPM表达矩阵中筛选高变基因，执行PCA降维，并在候选K范围内拟合高斯混合模型（GMM），最终依据BIC选择最佳聚类数。输入为预处理后的logCPM矩阵，输出包括高变基因统计、PCA结果、GMM聚类指标及可视化图表。,,"sc-RNA, bulk_RNA","csv, html, json, pdf, png, tsv, txt",hvg_pca_gmm,pipeline,hvg_pca_gmm,,,
+tool_id:immunotherapy_cellchat,Tool|tool_id,T053,senior-0811-tool-csv,基于CellChat的免疫治疗细胞通讯分析流程。输入Seurat格式的单细胞RNA-seq数据，通过比较响应者与非响应者之间的细胞通讯网络差异，揭示免疫治疗相关的细胞间相互作用机制。输出包括通讯网络分析结果、质控报告和运行日志。,"fasta, rds",sc-RNA,"html, json, pdf, png, txt",immunotherapy_cellchat,pipeline,immunotherapy_cellchat,,,
+tool_id:ipf_trajectory_regulon,Tool|tool_id,T054,senior-0811-tool-csv,对特发性肺纤维化(IPF)单细胞RNA-seq数据进行轨迹推断和调控子分析。输入为Seurat RDS对象，输出包括分析结果压缩包、运行摘要、质控报告和文件清单等。,"fasta, rds, tsv, xls, xlsx","sc-RNA, bulk_RNA","html, json, txt",ipf_trajectory_regulon,pipeline,ipf_trajectory_regulon,,,
+tool_id:km_survival,Tool|tool_id,T055,senior-0811-tool-csv,整合基因表达矩阵与临床元数据，执行 Kaplan-Meier 生存分析和 Cox 比例风险模型。 支持样本分组、肿瘤分期过滤和生存数据验证，输出生存曲线及统计结果。,"csv, tsv, txt, xls, xlsx","bulk_RNA, Clinical","csv, html, json, tsv, txt",km_survival,pipeline,km_survival,,,
+tool_id:lung_tme_annotation_cnv,Tool|tool_id,T056,senior-0811-tool-csv,基于单细胞RNA-seq数据对肺癌肿瘤微环境进行细胞类型注释和拷贝数变异(CNV)分析。 输入为Seurat RDS文件和基因排序文件，输出包括压缩的结果包、运行摘要、质控报告和分析清单。,"csv, fasta, rds, tsv, txt",sc-RNA,"html, json, txt",lung_tme_annotation_cnv,pipeline,lung_tme_annotation_cnv,,,
+tool_id:preprocess_counts,Tool|tool_id,T057,senior-0811-tool-csv,对RNA-seq原始count矩阵执行样本质量控制、低表达基因过滤和logCPM标准化。 输入为基因ID为第一列、其余列为样本count值的TSV矩阵，输出标准化后的logCPM矩阵及QC统计文件。,"csv, tsv, txt",bulk_RNA,"csv, html, json, tsv, txt",preprocess_counts,pipeline,preprocess_counts,,,
+tool_id:rmats_alternative_splicing,Tool|tool_id,T058,senior-0811-tool-csv,比较两组 bulk RNA-seq 数据中的差异剪接事件，覆盖 skipped exon（SE）、mutually exclusive exon（MXE）、 alternative 5'/3' splice site（A5SS/A3SS）和 retained intron（RI），并为代表性事件生成 sashimi plot。 流程从已比对 BAM 开始，不包含 FASTQ 质控和比对。,"bam, fasta",bulk_RNA,"bam, csv, html, json, pdf, png, tsv, txt",rmats_alternative_splicing,pipeline,rmats_alternative_splicing,,,
+tool_id:scrna_cell_communication,Tool|tool_id,T060,senior-0811-tool-csv,该流程整合 CellPhoneDB 和 NicheNet 进行单细胞转录组细胞通讯分析。输入为 Seurat RDS 对象或 h5ad 格式的表达矩阵及细胞元数据，输出包括样本级别的 CellPhoneDB 结果、差异通讯分析结果以及 NicheNet 配体-受体和配体-靶基因预测结果。支持 HRA000087 数据集的自动预处理模式。,"csv, rds, tsv, txt, xls, xlsx","sc-RNA, bulk_RNA","csv, html, json, pdf, png, rds, tsv, txt",scrna_cell_communication,pipeline,scrna_cell_communication,,,
+tool_id:stage_heatmap,Tool|tool_id,T061,senior-0811-tool-csv,本流程用于生成基于肿瘤分期的基因表达热图可视化。整合表达矩阵、元数据文件和临床信息文件，自动匹配样本信息并筛选目标分期样本，输出分期热图及样本映射报告。适用于 CNCB 等公共数据库来源的 bulk RNA-seq 数据可视化分析。,"csv, tsv, txt, xls, xlsx","bulk_RNA, Clinical","csv, html, json, pdf, png, tsv, txt",stage_heatmap,pipeline,stage_heatmap,,,
+tool_id:tcell_intervention,Tool|tool_id,T062,senior-0811-tool-csv,该流程用于对单细胞RNA-seq数据进行T细胞干预前后的比较分析。输入为Seurat RDS文件，通过指定细胞类型、时间点和患者信息等元数据列，进行差异表达分析，输出包括压缩的结果文件、运行摘要、质控报告和分析清单等。,"csv, fasta, rds, tsv, txt, xls, xlsx","sc-RNA, bulk_RNA","html, json, txt",tcell_intervention,pipeline,tcell_intervention,,,
+tool_id:umap,Tool|tool_id,T063,senior-0811-tool-csv,基于基因表达矩阵进行 UMAP 降维可视化分析，整合 CNCB 元数据和临床信息。 支持自动样本分组、生存分析数据提取，输出降维结果及样本信息报告。,"csv, tsv, txt, xls, xlsx","bulk_RNA, Clinical","csv, html, json, pdf, png, tsv, txt",umap,pipeline,umap,,,
+tool_id:wes_somatic_pair,Tool|tool_id,T064,senior-0811-tool-csv,用于单个病人配对 tumor-normal WES 数据的体细胞变异分析流程。包含 FASTQ 质控、BWA 比对、Mutect2 变异检测、SnpEff 注释及 MultiQC 汇总报告。 输出包括过滤后的 VCF 文件、BAM 文件及完整的质控报告。,"fasta, fq.gz, interval_list, vcf","WGS, WES","bam, html, json, tbi, txt, vcf",wes_somatic_pair,pipeline,wes_somatic_pair,,,
+tool_id:wgcna_hub,Tool|tool_id,T065,senior-0811-tool-csv,基于 WGCNA 算法构建基因共表达网络，识别与表型性状相关的关键模块和 Hub 基因。 支持从 CNCB 等平台的原始元数据自动解析样本分组和临床信息，输出模块 - 性状关联、候选 Hub 基因列表及功能富集结果。,"csv, tsv, txt, xls, xlsx","bulk_RNA, Clinical","csv, html, json, tsv, txt",wgcna_hub,pipeline,wgcna_hub,,,
+tool_id:wgcna_module_trait,Tool|tool_id,T066,senior-0811-tool-csv,基于 WGCNA 算法构建基因共表达网络，识别功能模块并分析与临床性状的关联关系。 支持 GO/KEGG/Hallmark 富集分析、生存分析和 hub 基因筛选，适用于批量 RNA-seq 数据的系统生物学研究。,"csv, tsv, txt, xls, xlsx","bulk_RNA, Clinical","csv, html, json, tsv, txt",wgcna_module_trait,pipeline,wgcna_module_trait,,,
