@@ -36,6 +36,22 @@
 - 剩余 6 例（q052–057）工具全对，期望数据（`NVM0598_*.fastq.gz`、`ENCSR142YZV_chr19only_10000_reads_*.fastq.gz`）是 **demo 测试文件，不在 Neo4j 图内**——轻架构以图为准如实报 `missing_from_graph`（重 MCP 靠本地 pipeline 仓库的 example_inputs fixture 才标"可用"）
 - 判据说明：工具面可比且打平；数据面轻架构是"期望文件名图内可查"（含多输入工具的 clinical/meta 全部文件），重 MCP 实时验证跑在 0812 交付图上且判据更严格，数字不可直接横比
 
+## 给前端 agent 的 MCP 接口（stdio，同机/局域网）
+
+仓库自带 `mcp_light_server.py`（无第三方依赖的 stdio MCP server），前端 agent 直接接：
+
+- `health_check` —— Neo4j 连通与规模
+- `plan_bio_analysis(query)` —— 自然语言生信问题 → `tool-chain/v2` Plan；**与生信无关的问题直接拒绝**（fail-closed，96 例回归 0 误杀）
+
+```json
+{ "mcpServers": { "bio-pipeline-light": {
+  "type": "stdio", "command": "python3",
+  "args": ["/path/to/bio-pipeline-light/mcp_light_server.py"],
+  "env": { "NEO4J_USER": "neo4j", "NEO4J_PASSWORD": "***" } } } }
+```
+
+仓库根目录已有 `.mcp.json`（Claude Code 打开即用）。完整说明见 `docs/frontend-mcp-connection.md`。
+
 ## 目录结构
 
 ```
