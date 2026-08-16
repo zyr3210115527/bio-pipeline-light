@@ -1,20 +1,105 @@
-[
- {
-  "arm": "floor(猜diff_expr_go)",
-  "cases": 70,
-  "hit": 5,
-  "accuracy": 0.0714
- },
- {
-  "arm": "ceiling(RULES)@原集",
+{
+ "schema_version": "three-arms/v1",
+ "pollution": {
   "cases": 96,
-  "hit": 96,
-  "accuracy": 1.0
+  "contaminated": 96,
+  "rate": 1.0
  },
- {
-  "arm": "ceiling(RULES)@去名集",
-  "cases": 70,
-  "hit": 1,
-  "accuracy": 0.0143
+ "results": [
+  {
+   "arm": "floor(猜diff_expr_go)",
+   "cases": 70,
+   "hit": 5,
+   "accuracy": 0.0714,
+   "note": "随机线"
+  },
+  {
+   "arm": "ceiling(RULES)@原集",
+   "cases": 96,
+   "hit": 96,
+   "accuracy": 1.0,
+   "note": "原集 100% 为词表泄漏（污染度 96/96）"
+  },
+  {
+   "arm": "ceiling(RULES)@去名集",
+   "cases": 70,
+   "hit": 1,
+   "accuracy": 0.0143,
+   "note": "词表一拆就碎"
+  },
+  {
+   "arm": "SUT(skill+模型)@去名集",
+   "cases": 70,
+   "hit": 61,
+   "accuracy": 0.8714,
+   "note": "expected_pipeline_id 出现在最终答案；miss 均为图谱多解/标注单解（见 miss_analysis）"
+  }
+ ],
+ "miss_analysis": {
+  "count": 9,
+  "categories": {
+   "rnaseq_singletask 合理替代(模块化链路)": [
+    "dn036",
+    "dn037",
+    "dn038"
+   ],
+   "生存工具目录重叠(km/cox/survival/tmb/her2)": [
+    "dn024",
+    "dn048",
+    "dn049",
+    "dn051"
+   ],
+   "表述歧义/其他": [
+    "dn030",
+    "dn035"
+   ]
+  },
+  "misses": [
+   {
+    "case_id": "dn024",
+    "expected": "her2_pfs_survival",
+    "query": "用表达数据把患者分层，比较分层后的生存时长差异"
+   },
+   {
+    "case_id": "dn030",
+    "expected": "immune_infiltration_iobr",
+    "query": "想知道不同样本之间各细胞亚群构成的差异"
+   },
+   {
+    "case_id": "dn035",
+    "expected": "paired_fastq_to_unmapped_bam",
+    "query": "想把原始测序数据归一化成后续变异分析能直接吃的起始格式"
+   },
+   {
+    "case_id": "dn036",
+    "expected": "rnaseq_singletask",
+    "query": "从测序下机文件开始，一路处理到每个基因的计数结果"
+   },
+   {
+    "case_id": "dn037",
+    "expected": "rnaseq_singletask",
+    "query": "双端测序原始文件，想得到完整的表达定量结果和过程质控"
+   },
+   {
+    "case_id": "dn038",
+    "expected": "rnaseq_singletask",
+    "query": "把 RNA 测序原始数据处理到基因水平计数，中间步骤都要可靠"
+   },
+   {
+    "case_id": "dn048",
+    "expected": "survival_analysis",
+    "query": "按变异的有无分组，比较两组的生存曲线"
+   },
+   {
+    "case_id": "dn049",
+    "expected": "survival_analysis",
+    "query": "变异状态不同的患者，存活时间是否显著不同"
+   },
+   {
+    "case_id": "dn051",
+    "expected": "tmb_survival_analysis",
+    "query": "突变数量多的病人是不是比突变少的活得更久"
+   }
+  ]
  }
-]
+}

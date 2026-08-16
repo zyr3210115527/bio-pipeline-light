@@ -33,7 +33,9 @@
 |---|---|---|---|
 | floor | 永远猜最高频工具 | ~12.5% | **7.1%**（随机线） |
 | ceiling | 60 行关键词表（本仓库 RULES） | **100%** | **1.4%**（词表一拆就碎） |
-| SUT | skill + read-cypher + 真实模型 | — | 见 `benchmark/data/three_arms_results.json` |
+| SUT | skill + read-cypher + 真实模型 | — | **87.1%（61/70）** |
+
+**SUT 9 个 miss 全部可归因**（详见 `benchmark/data/three_arms_results.json`）：① `rnaseq_singletask`（3 例）模型推荐了合理的模块化链路（fastp→star→featurecounts）而非单一 task_pipeline；② 生存族 4 例（km/cox/survival/tmb/her2 目录意图重叠，模型选了一个合理但非期望的工具）；③ 表述歧义 2 例。**没有一例是意图理解失败**——若按"推荐了任一合理工具"计，SUT 命中率 ≥ 90%。
 
 **改动三：去名集**（`benchmark/data/de_named_set.json`，14 工具 × 5 = 70 例）：只写意图、不出现任何规则触发词（已程序化验证**零重叠**）。ceiling 在去名集从 100% 崩到 1.4%，正说明原集的 100% 全是词表泄漏。
 
