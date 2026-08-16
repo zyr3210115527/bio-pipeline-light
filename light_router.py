@@ -16,7 +16,7 @@ import os
 import re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SKILL_REF = os.environ.get("BIO_SKILL_REF", os.path.join(HERE, "..", "skill", "references"))
+SKILL_REF = os.environ.get("BIO_SKILL_REF", os.path.join(HERE, "skill", "references"))
 
 # ---------- slot 模型（io_slot.csv：artifact/dimension/variant） ----------
 SLOTS: dict = {}   # (tool_id, slot_name) -> {artifact, dimension, dimension_value, variant, variant_alias_for, required, wdl_type}
@@ -39,6 +39,7 @@ def load_slots() -> None:
                 "variant_alias_for": row.get("variant_alias_for") or "",
                 "required": (row.get("required") or "").strip().lower() == "true",
                 "wdl_type": row.get("wdl_type") or "",
+                "direction": (row.get("direction") or "").strip(),
             }
 load_slots()
 
@@ -67,6 +68,10 @@ def intent_extract(query: str, top_pipeline: str = "", pipeline_name: str = "") 
     return {"query_text": query,
             "analysis_goal": goal if goal else None,
             "disease": disease,
+            "disease_term": disease,
+            "disease_source": "rule" if disease else None,
+            "disease_status": None,
+            "disease_studies": [],
             "omics_type": omics,
             "input_hint": input_hint,
             "quant_hint": quant,
@@ -96,44 +101,127 @@ def neo4j_q(statements):
     finally:
         os.unlink(tmp)
 
+def _slot_file_pattern(slot_name: str, description: str) -> str:
+    """按槽位语义推断图内文件名的匹配模式。"""
+    n = (slot_name or "").lower()
+    d = (description or "").lower()
+    if "tpm" in n:
+        return "GenesTPM"
+    if "expression" in n or "矩阵" in d:
+        return "Genes"
+    if "clinical" in n or "临床" in d:
+        return "Clinical"
+    if "metainfo" in n or "meta" in n or "映射" in d or "mapping" in d:
+        return "MetaInfo"
+    if "vcf" in n or "variant" in n:
+        return "vcf"
+    if "maf" in n or "mut" in n:
+        return "maf"
+    if "count" in n:
+        return "counts"
+    return ""
+
+def _cohort_keywords(disease: str) -> list:
+    kw = dict(DISEASE_MAP).get(disease)
+    if not kw:
+        return []
+    return {"liver": ["liver", "hepatocell", "hcc"],
+            "glioma": ["glioma", "gliom"],
+            "melanoma": ["melanoma"],
+            "esoph": ["esoph"],
+            "lung": ["lung"],
+            "breast": ["breast", "mammary"],
+            "colorect": ["colorect", "colon", "rectal"],
+            "ovarian": ["ovarian"],
+            "pancreas": ["pancreas"]}.get(kw, [kw])
+
 def match_data(pipeline_id: str, input_formats: list, intent: dict, limit: int = 5) -> dict:
-    """队列候选 + 文件候选（重版 assets 形状）+ matched/expected/missing。"""
+    """槽位驱动的数据匹配器：按 io_slot 槽位语义找齐资产（对齐重版 matched/expected/missing）。"""
     disease = intent.get("disease")
-    kw = dict(DISEASE_MAP).get(disease) if disease else None
+    # ── 队列解析：多关键词 + 按样本数排序（命中 HRA001272 这类大队列） ──
+    kws = _cohort_keywords(disease) if disease else []
     cohort = []
-    if kw:
-        rows = neo4j_q([f"MATCH (s:study) WHERE toLower(s.tumor_type) CONTAINS '{kw}' OR toLower(s.title) CONTAINS '{kw}' RETURN s.study_accession, s.title, s.sample_count, s.tumor_type LIMIT {limit}"])
+    if kws:
+        conds = " OR ".join(f"toLower(s.tumor_type) CONTAINS '{k}' OR toLower(s.title) CONTAINS '{k}'" for k in kws)
+        rows = neo4j_q([f"MATCH (s:study) WHERE {conds} RETURN s.study_accession, s.title, s.sample_count, s.tumor_type ORDER BY s.sample_count DESC LIMIT {limit}"])
         if rows:
             cohort = [{"study_accession": r[0], "title": r[1], "sample_count": r[2], "tumor_type": r[3],
-                       "match_reason": f"癌种匹配: {disease}"} for r in rows[0]]
+                       "match_reason": f"癌种匹配: {disease} ({kws[0]})"} for r in rows[0]]
     studs = [c["study_accession"] for c in cohort] or intent.get("study_accessions") or []
-    assets, matched = [], 0
-    for fmt in input_formats:
-        f = fmt.strip().lower()
-        if not f or f in ("", "null"):
+    primary_study = studs[0] if studs else None  # 参考资产优先锁定队列（重版行为）
+    # ── 槽位驱动匹配（io_slot.csv 有 pipeline 槽位） ──
+    slots = [(k[1], v) for k, v in SLOTS.items() if k[0] == pipeline_id and v.get("required")]
+    assets, matched, refs = [], 0, []
+    used_slots = []
+    for sname, slot in slots:
+        pat = _slot_file_pattern(sname, "")
+        if not pat:
             continue
-        stmt = f"MATCH (n:T2)-[:in_format]->(f:format) WHERE toLower(f.format) CONTAINS '{f}'"
-        if studs:
+        used_slots.append(sname)
+        if pat == "GenesTPM":
+            pat_sql = "(n.file_name CONTAINS 'Genes' AND n.file_name CONTAINS 'TPM')"
+            stmt = f"MATCH (n:T2) WHERE {pat_sql}"
+        else:
+            stmt = f"MATCH (n:T2) WHERE n.file_name CONTAINS '{pat}'"
+        if primary_study:
+            stmt += f" AND n.study_accession = '{primary_study}'"
+        elif studs:
             stmt += f" AND n.study_accession IN {json.dumps(studs)}"
-        stmt += " RETURN n.file_name, n.format, n.strategy, n.data_level, n.study_accession, n.sample_accession, n.run_accession, n.individual_accession, n.file_path, n.read_pair LIMIT 3"
-        rows = neo4j_q([stmt])
+        _TAIL = """ OPTIONAL MATCH (n)-[:in_sample]->(sp:sample)
+ RETURN n.file_name, n.format, n.strategy, n.data_level, n.study_accession,
+        sp.sample_accession, sp.tissue_type, sp.specimen_type, n.file_path LIMIT 2"""
+        stmt_fallback = None
+        if studs and primary_study:
+            stmt_fallback = f"MATCH (n:T2) WHERE n.file_name CONTAINS '{pat}' AND n.study_accession IN {json.dumps(studs)}" + _TAIL
+        rows = neo4j_q([stmt + _TAIL])
+        if not (rows and rows[0]) and stmt_fallback:
+            rows = neo4j_q([stmt_fallback])   # 主队列无此槽位文件 → 回退到候选队列
         if rows and rows[0]:
             matched += 1
-            for r in rows[0][:3]:
-                assets.append({
-                    "name": r[0], "graph_status": "available", "source": "T2", "t2_id": None,
-                    "file_id": r[0], "file_name": r[0], "files": r[0], "format": r[1],
-                    "strategy": r[2] or "", "data_level": r[3] or "", "study_accession": r[4],
-                    "sample_accession": r[5] or "", "run_accession": r[6] or "",
-                    "individual_accession": r[7] or "", "individual_name": "", "sample_name": "",
-                    "specimen_types": "", "read_pair": r[9], "file_path": r[8],
-                    "match_reason": f"格式匹配 {f}"})
-    expected = len(input_formats)
-    missing = [fmt for fmt in input_formats if fmt.strip().lower() not in ("", "null") and not any(a["format"] and fmt.lower() in str(a["format"]).lower() for a in assets)]
+            r = rows[0][0]
+            assets.append({
+                "name": r[0], "graph_status": "available", "source": "T2",
+                "t2_id": f"{r[0]}::{r[8]}" if r[8] else None,
+                "file_id": r[0], "file_name": r[0], "files": r[0], "format": r[1],
+                "strategy": r[2] or "", "data_level": r[3] or "", "study_accession": r[4],
+                "sample_id": r[5], "run_accession": None, "individual_accession": None,
+                "individual_name": None, "sample_name": None,
+                "specimen_type": r[7], "specimen_types": r[7], "tissue_type": r[6],
+                "sample_role": None, "sample_role_label": None,
+                "read_pair": None, "file_path": r[8],
+                "input_role": sname,
+                "match_reason": f"槽位 {sname} 文件名模式 {pat}"})
+            refs.append(r[0])
+    # 兜底：无槽位时按 input_formats 匹配
+    if not used_slots:
+        for fmt in input_formats:
+            f = fmt.strip().lower()
+            if not f or f == "null":
+                continue
+            stmt = f"MATCH (n:T2)-[:in_format]->(f:format) WHERE toLower(f.format) CONTAINS '{f}'"
+            if studs:
+                stmt += f" AND n.study_accession IN {json.dumps(studs)}"
+            stmt += " RETURN n.file_name, n.format, n.file_path LIMIT 2"
+            rows = neo4j_q([stmt])
+            if rows and rows[0]:
+                matched += 1
+                for r in rows[0]:
+                    assets.append({"name": r[0], "graph_status": "available", "source": "T2",
+                                   "t2_id": None, "file_id": r[0], "file_name": r[0], "files": r[0],
+                                   "format": r[1], "strategy": "", "data_level": "",
+                                   "study_accession": studs[0] if studs else None,
+                                   "sample_id": None, "run_accession": None, "individual_accession": None,
+                                   "individual_name": None, "sample_name": None, "specimen_type": None,
+                                   "specimen_types": None, "tissue_type": None, "sample_role": None,
+                                   "sample_role_label": None, "read_pair": None, "file_path": r[2],
+                                   "input_role": fmt, "match_reason": f"格式匹配 {fmt}"})
+                    refs.append(r[0])
+    expected = len(used_slots) if used_slots else len([f for f in input_formats if f.strip().lower() not in ("", "null")])
+    missing = [sname for sname in used_slots if sname not in [a["input_role"] for a in assets]]
     return {"status": "available" if assets else "information", "source": "neo4j",
             "assets": assets, "matched_count": matched, "expected_count": expected,
             "missing_asset_names": missing, "study_accessions": studs,
-            "cohort_candidates": cohort}
+            "reference_asset_names": refs, "cohort_candidates": cohort}
 
 # ---------- 候选链装配（图内 atomic 链） ----------
 def assemble_candidates(query: str, start_hint: str = "", limit: int = 3) -> list:
@@ -179,6 +267,8 @@ def route_pipeline_request(query: str, top_k: int = 3) -> dict:
     cat = CATALOG.get(pid, {})
     in_fmts = [f.strip() for f in (cat.get("input_format") or "").split(",")]
     data = match_data(pid, in_fmts, intent)
+    intent["disease_studies"] = [c["study_accession"] for c in data.get("cohort_candidates", [])]
+    intent["disease_status"] = "matched" if intent["disease_studies"] else ("unmatched" if intent.get("disease") else None)
     cands = assemble_candidates(query, start_hint="", limit=3)
     rec = {"rank": 1, "match_id": f"recommendation-{pid}",
            "pipeline_id": pid, "match_note": f"语义规则匹配：{cat.get('tool_name','')}",

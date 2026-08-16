@@ -333,18 +333,20 @@ def tool_route_pipeline_request(args):
         # slot 增强：给 recommendations[].tool.inputs 补 artifact/dimension/variant（io_slot.csv）
         pid = out["recommendations"][0]["pipeline_id"] if out.get("recommendations") else None
         if pid:
-            slots = {k[1]: v for k, v in SLOTS.items() if k[0] == pid}
-            out["recommendations"][0]["tool"]["inputs"] = [
-                {"name": n, "type": "File" if v.get("wdl_type") == "File" else "string",
-                 "is_file": v.get("wdl_type") == "File",
-                 "optional": not v.get("required", True),
-                 "artifact": v.get("artifact") or None,
-                 "formats": [], "description": n,
-                 "dimension": v.get("dimension") or "",
-                 "dimension_value": v.get("dimension_value") or "",
-                 "variant": v.get("variant") or "",
-                 "variant_alias_for": v.get("variant_alias_for") or ""}
-                for n, v in slots.items()]
+            def _mk_slot(n, v):
+                return {"name": n, "type": "File" if v.get("wdl_type") == "File" else "string",
+                        "is_file": v.get("wdl_type") == "File",
+                        "optional": not v.get("required", True),
+                        "artifact": v.get("artifact") or None,
+                        "formats": [], "description": n,
+                        "dimension": v.get("dimension") or "",
+                        "dimension_value": v.get("dimension_value") or "",
+                        "variant": v.get("variant") or "",
+                        "variant_alias_for": v.get("variant_alias_for") or ""}
+            in_slots = {k[1]: v for k, v in SLOTS.items() if k[0] == pid and v.get("direction") == "input"}
+            out_slots = {k[1]: v for k, v in SLOTS.items() if k[0] == pid and v.get("direction") == "output"}
+            out["recommendations"][0]["tool"]["inputs"] = [_mk_slot(n, v) for n, v in in_slots.items()]
+            out["recommendations"][0]["tool"]["outputs"] = [_mk_slot(n, v) for n, v in out_slots.items()]
         return out
     except Exception as e:
         import traceback; traceback.print_exc()
