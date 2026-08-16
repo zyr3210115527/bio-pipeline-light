@@ -180,20 +180,27 @@ def tool_validate_atomic_chain(args):
     chain = args.get("chain") or []
     if not isinstance(chain, list) or not chain:
         return {"status": "error", "detail": "chain 必须是非空 tool_id 列表"}
-    unknown = [t for t in chain if t not in CATALOG]
-    non_atomic = [t for t in chain if t in CATALOG and CATALOG[t]["tool_kind"] != "atomic"]
+    # 反向映射：跳过别名键（gid == meta_id 的是 card_id 别名），只留 图谱id -> meta.id
+    meta_to_graph = {c["meta_id"]: gid for gid, c in KC_MAP.items() if gid != c["meta_id"]}
+    def _norm(t):
+        t = str(t)
+        return (meta_to_graph[t], t) if t in meta_to_graph else (t, t)
+    unknown = [t for t in chain if _norm(t)[0] not in CATALOG]
+    non_atomic = [t for t in chain if _norm(t)[0] in CATALOG and CATALOG[_norm(t)[0]]["tool_kind"] != "atomic"]
     violations = []
     if unknown:
         violations.append(f"未知工具: {unknown}")
     if non_atomic:
         violations.append(f"非 atomic（闭集外）: {non_atomic}")
-    # 图内 next_tool 邻接校验（图节点无 tool_id，用 toLower(tool_name) 匹配；入参过白名单）
+    # 图内 next_tool 邻接校验（图节点无 tool_id，用 toLower(tool_name) 匹配；入参过白名单；
+    # 同时接受 Knowledge Card 的 meta.id，先归一化到图谱 tool_id）
     adjacency_ok = []
     for a, b in zip(chain[:-1], chain[1:]):
         if not (_SAFE_TOKEN.fullmatch(str(a)) and _SAFE_TOKEN.fullmatch(str(b))):
             violations.append(f"非法 tool_id 字符: {a}->{b}")
             continue
-        rows = neo4j_q([f"MATCH (a:tool)-[:next_tool]->(b:tool) WHERE toLower(a.tool_name) = '{str(a).lower()}' AND toLower(b.tool_name) = '{str(b).lower()}' RETURN count(*) AS c"])
+        ga, _ = _norm(a); gb, _ = _norm(b)
+        rows = neo4j_q([f"MATCH (a:tool)-[:next_tool]->(b:tool) WHERE toLower(a.tool_name) = '{ga.lower()}' AND toLower(b.tool_name) = '{gb.lower()}' RETURN count(*) AS c"])
         if rows and rows[0] and rows[0][0][0] > 0:
             adjacency_ok.append((a, b))
     missing_edges = [(a, b) for a, b in zip(chain[:-1], chain[1:]) if (a, b) not in adjacency_ok]
@@ -202,9 +209,10 @@ def tool_validate_atomic_chain(args):
     # 输出对齐 Knowledge Card：tool_id 用 meta.id，inputs/outputs 用卡内名称
     tool_chain = []
     for t in chain:
-        card = KC_MAP.get(str(t))
+        gid, given = _norm(t)
+        card = KC_MAP.get(gid)
         if card:
-            tool_chain.append({"tool_id": card["meta_id"],
+            tool_chain.append({"tool_id": card["meta_id"], "input_as": given,
                                "inputs": card["inputs"], "outputs": card["outputs"]})
         else:
             tool_chain.append({"tool_id": str(t), "inputs": [], "outputs": [],
