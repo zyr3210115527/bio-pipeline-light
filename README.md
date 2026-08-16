@@ -58,7 +58,8 @@
 
 - `get_planning_guide()` —— 返回 SKILL.md 全文，调用方模型读后自行规划
 - `read_cypher(query)` —— 数据面：通用只读查询（有写入守卫）
-- `validate_atomic_chain(chain)` —— 确定性闭集校验（11 个 atomic + 图内 next_tool 邻接）
+- `validate_atomic_chain(chain)` —— 确定性闭集校验（11 个 atomic + 图内 next_tool 邻接；输出 Knowledge Card meta.id + 卡内 IO 名，图谱 id / meta.id 均可入参）
+- `validate_execution_chain(steps)` —— **提交前把关（场景1）**：五阶段探查（注册/卡契约必填输入/绑定结构/数据探查/链流转），输出 tool-chain-validation/v1.1 逐阶段报告，errors 清零才可提交
 - `rule_baseline_plan(query)` —— **对照臂**：关键词基线，非推荐路径，仅供与模型路径对比
 - `health_check()` —— Neo4j 连通、规模、atomic 闭集
 

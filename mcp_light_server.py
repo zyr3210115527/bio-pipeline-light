@@ -48,8 +48,8 @@ def load_knowledge_cards() -> None:
     for card_id, c in cards.items():
         gid = c.get("graph_tool_id") or card_id
         KC_MAP[gid] = {"meta_id": card_id,
-                       "inputs": [i["name"] for i in c.get("inputs", [])],
-                       "outputs": [o["name"] for o in c.get("outputs", [])]}
+                       "inputs": c.get("inputs", []),
+                       "outputs": c.get("outputs", [])}
         if gid != card_id:
             KC_MAP.setdefault(card_id, KC_MAP[gid])
 
@@ -212,8 +212,13 @@ def tool_validate_atomic_chain(args):
         gid, given = _norm(t)
         card = KC_MAP.get(gid)
         if card:
+            def _slot(d):
+                return {"name": d.get("name"), "type": d.get("type"),
+                        "optional": not bool(d.get("required", True)),
+                        "formats": [d["format"]] if d.get("format") else []}
             tool_chain.append({"tool_id": card["meta_id"], "input_as": given,
-                               "inputs": card["inputs"], "outputs": card["outputs"]})
+                               "inputs": [_slot(i) for i in card["inputs"]],
+                               "outputs": [_slot(o) for o in card["outputs"]]})
         else:
             tool_chain.append({"tool_id": str(t), "inputs": [], "outputs": [],
                                "note": "无 Knowledge Card（pipeline 级工具或未收录）"})
@@ -221,6 +226,101 @@ def tool_validate_atomic_chain(args):
             "chain": chain, "tool_chain": tool_chain,
             "violations": violations, "adjacency_ok": adjacency_ok,
             "atomic_closed_set_size": len(ATOMIC_IDS)}
+
+def tool_validate_execution_chain(args):
+    """场景1：提交前执行契约把关（多阶段探查）。
+    steps: [{tool_id, inputs:{name: binding}}]；binding 可为字符串或对象{file_id/file_name/format}。
+    五阶段：注册 → 卡契约(必填输入) → 绑定结构 → 数据探查(图内候选) → 链流转。
+    """
+    steps = args.get("steps") or []
+    cohort = (args.get("cohort") or "").strip()
+    if not isinstance(steps, list) or not steps:
+        return {"status": "error", "detail": "steps 必须是非空数组 [{tool_id, inputs}]"}
+    errors, warnings, stages, normalized = [], [], [], []
+    meta_to_graph = {c["meta_id"]: gid for gid, c in KC_MAP.items() if gid != c["meta_id"]}
+    def _norm(t):
+        t = str(t); return (meta_to_graph[t], t) if t in meta_to_graph else (t, t)
+    # ── stage 1 注册校验 ──
+    reg_bad = []
+    for s in steps:
+        gid, given = _norm(s.get("tool_id"))
+        if gid not in CATALOG:
+            reg_bad.append(given)
+    stages.append({"stage": "registry", "passed": not reg_bad,
+                   "findings": [] if not reg_bad else [f"未知工具: {reg_bad}"]})
+    if reg_bad: errors.append(f"未知工具: {reg_bad}")
+    # ── stage 2/3 卡契约 + 绑定结构 ──
+    for s in steps:
+        gid, given = _norm(s.get("tool_id"))
+        card = KC_MAP.get(gid)
+        bindings = s.get("inputs") or {}
+        if not card:
+            warnings.append(f"{given}: 无 Knowledge Card（pipeline 级或未收录），跳过契约校验")
+            normalized.append({"tool_id": given, "card": None})
+            continue
+        # 必填输入检查
+        missing = [i["name"] for i in card["inputs"] if i.get("required", True) and i["name"] not in bindings]
+        if missing:
+            errors.append(f"{card['meta_id']} 缺必填输入: {missing}")
+        # 绑定结构检查（对齐重版：binding 必须为对象）
+        bad_bind = []
+        for i in card["inputs"]:
+            b = bindings.get(i["name"])
+            if b is None:
+                continue
+            if i.get("type") in ("File", "Array[File]"):
+                if not isinstance(b, dict):
+                    bad_bind.append(f"{i['name']} binding 必须为对象")
+            elif i.get("type") in ("Boolean", "Int", "Float"):
+                if not isinstance(b, (bool, int, float)):
+                    bad_bind.append(f"{i['name']} binding 类型应为 {i['type']}")
+        if bad_bind:
+            errors.extend(f"{card['meta_id']}: {x}" for x in bad_bind)
+        normalized.append({"tool_id": card["meta_id"], "inputs": {k: v for k, v in bindings.items()}})
+    stages.append({"stage": "knowledge_card_contract",
+                   "passed": not any("缺必填输入" in e for e in errors),
+                   "findings": [e for e in errors if "缺必填输入" in e]})
+    stages.append({"stage": "binding_structure",
+                   "passed": not any("binding" in e for e in errors),
+                   "findings": [e for e in errors if "binding" in e]})
+    # ── stage 4 数据探查（File 输入 → 图内候选） ──
+    probes = []
+    for s in steps:
+        gid, given = _norm(s.get("tool_id"))
+        card = KC_MAP.get(gid)
+        if not card:
+            continue
+        for i in card["inputs"]:
+            if i.get("type") not in ("File", "Array[File]") or not i.get("required", True):
+                continue
+            b = (s.get("inputs") or {}).get(i["name"])
+            fmt = (i.get("format") or "").upper()
+            kw = next((k for k in ("FASTQ", "BAM", "BAI", "VCF", "TSV", "GTF", "FASTA", "TBI") if k in fmt), None)
+            bound = isinstance(b, dict) and bool(b.get("file_id") or b.get("file_name"))
+            probe = {"tool": card["meta_id"], "input": i["name"], "format": i.get("format"),
+                     "bound": bound}
+            if kw and not bound:
+                rows = neo4j_q([f"MATCH (n:T1) WHERE toLower(n.format) CONTAINS '{kw.lower()}' OR toLower(n.file_name) CONTAINS '.{kw.lower()}' RETURN count(n) AS c",
+                                f"MATCH (n:T2) WHERE toLower(n.format) CONTAINS '{kw.lower()}' OR toLower(n.file_name) CONTAINS '.{kw.lower()}' RETURN count(n) AS c"])
+                t1 = rows[0][0][0] if rows and rows[0] else 0
+                t2 = rows[1][0][0] if rows and rows[1] else 0
+                probe["graph_candidates"] = {"T1": t1, "T2": t2}
+            probes.append(probe)
+    stages.append({"stage": "data_availability", "passed": True, "findings": [], "probes": probes})
+    # ── stage 5 链流转（next_tool 邻接） ──
+    flow_bad = []
+    gids = [_norm(str(s.get("tool_id")))[0] for s in steps]
+    for a, b in zip(gids[:-1], gids[1:]):
+        rows = neo4j_q([f"MATCH (a:tool)-[:next_tool]->(b:tool) WHERE toLower(a.tool_name) = '{a.lower()}' AND toLower(b.tool_name) = '{b.lower()}' RETURN count(*) AS c"])
+        if not (rows and rows[0] and rows[0][0][0] > 0):
+            flow_bad.append((a, b))
+    stages.append({"stage": "chain_flow", "passed": not flow_bad,
+                   "findings": [] if not flow_bad else [f"图谱中无 next_tool 边: {flow_bad}"]})
+    if flow_bad: errors.append(f"图谱中无 next_tool 边: {flow_bad}")
+    return {"schema_version": "tool-chain-validation/v1.1", "mode": "execution_contract",
+            "valid": not errors, "validation": {"ok": not errors, "errors": errors, "warnings": warnings},
+            "stages": stages, "normalized_steps": normalized,
+            "hint": "提交前把关：errors 全部清零才可提交执行端"}
 
 # 关键词基线（对照臂，非推荐路径）
 RULES = [
@@ -294,6 +394,15 @@ TOOLS = {
         "description": "（对照臂，非推荐路径）关键词基线规划。仅用于与模型路径对比。",
         "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
         "handler": tool_rule_baseline_plan,
+    },
+    "validate_execution_chain": {
+        "description": "场景1提交前把关：五阶段探查（注册/卡契约必填输入/绑定结构/数据探查/链流转），输出 tool-chain-validation/v1.1 逐阶段报告。steps: [{tool_id, inputs:{name: binding}}]。",
+        "inputSchema": {"type": "object",
+                        "properties": {"steps": {"type": "array", "items": {"type": "object"},
+                                                 "description": "每步 {tool_id, inputs:{输入名: binding}}，binding 可为对象{file_id/file_name/format}或标量"},
+                                       "cohort": {"type": "string", "description": "可选队列/癌种（如 肝癌），用于数据探查过滤"}},
+                        "required": ["steps"]},
+        "handler": tool_validate_execution_chain,
     },
     "health_check": {
         "description": "检查 Neo4j 连通性、图谱规模与 atomic 闭集。",
