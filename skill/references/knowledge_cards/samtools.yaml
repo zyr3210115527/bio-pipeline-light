@@ -1,0 +1,29 @@
+meta:
+  id: samtools_alignment_processing
+  name_cn: SAM/BAM 排序、去重、索引与统计
+  category: alignment_processing
+  tool: SAMtools
+  reusable_for: [WES, WGS, RNA-seq]
+  description: 支持普通排序/索引/统计，以及 RNA-seq 的 name-sort、fixmate、coordinate-sort、markdup、索引和统计。
+files:
+  wdl: samtools.wdl
+  input: input.json
+  options: option.json
+inputs:
+  - {name: sample_id, type: String, required: true}
+  - {name: alignment, type: File, format: SAM/BAM/CRAM, required: true}
+  - {name: remove_duplicates, type: Boolean, default: false, required: false}
+outputs:
+  - {name: sorted_bam, type: File, format: BAM}
+  - {name: sorted_bai, type: File, format: BAI}
+  - {name: flagstat, type: File, format: TXT}
+  - {name: stats, type: File, format: TXT}
+  - {name: idxstats, type: File, format: TXT}
+  - {name: dedup_bam, type: "File?", format: BAM}
+  - {name: markdup_metrics, type: "File?", format: TXT}
+runtime:
+  docker_parameter: docker_image
+  tested_image: image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5
+  compatible_images:
+    - image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5
+    - image.cncb.ac.cn/cncb-cohort-agent/rnaseq:latest

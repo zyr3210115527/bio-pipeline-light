@@ -1,0 +1,23 @@
+meta:
+  id: featurecounts_gene_counting
+  name_cn: featureCounts 基因水平计数
+  category: expression_quantification
+  tool: featureCounts
+  reusable_for: [RNA-seq]
+  description: 根据 GTF exon/gene_id 注释对 BAM 进行基因水平 read counting，支持单双端和链特异性参数。
+files:
+  wdl: featurecounts.wdl
+  input: input.json
+  options: option.json
+inputs:
+  - {name: bam, type: File, format: BAM, required: true}
+  - {name: gtf_file, type: File, format: GTF, required: true}
+  - {name: paired_end, type: Boolean, default: true, required: false}
+  - {name: strandedness, type: Int, default: 0, allowed: [0, 1, 2]}
+outputs:
+  - {name: counts, type: File, format: TSV}
+  - {name: summary, type: File, format: TXT}
+  - {name: featurecounts_log, type: File, format: TXT}
+runtime:
+  docker_parameter: docker_image
+  tested_image: image.cncb.ac.cn/cncb-cohort-agent/rnaseq:latest

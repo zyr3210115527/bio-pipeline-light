@@ -1,0 +1,22 @@
+meta:
+  id: bcftools_somatic_postprocess
+  name_cn: 体细胞 VCF PASS 提取与标准化
+  category: variant_postprocessing
+  tool: BCFtools
+  reusable_for: [WES, WGS, targeted-sequencing]
+  description: 从过滤后 VCF 提取 PASS 记录，拆分多等位位点、参考标准化、建立索引并生成统计文件。
+files:
+  wdl: bcftools.wdl
+  input: input.json
+  options: option.json
+inputs:
+  - {name: filtered_vcf, type: File, format: VCF.gz, required: true}
+  - {name: filtered_vcf_index, type: File, format: TBI, required: true}
+  - {name: reference_fasta, type: String, format: FASTA, required: true}
+outputs:
+  - {name: pass_vcf, type: File, format: VCF.gz}
+  - {name: normalized_vcf, type: File, format: VCF.gz}
+  - {name: qc_files, type: "Array[File]", format: TSV/TXT}
+runtime:
+  docker_parameter: docker_image
+  tested_image: image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5

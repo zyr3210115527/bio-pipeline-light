@@ -1,0 +1,27 @@
+meta:
+  id: gatk_wes_somatic
+  name_cn: GATK WES 配对体细胞变异分析
+  category: somatic_variant_calling
+  tool: GATK
+  reusable_for: [WES, targeted-sequencing]
+  description: 使用 GATK 完成 MarkDuplicates、BQSR、Mutect2、污染评估、方向偏倚建模和 FilterMutectCalls。
+files:
+  wdl: gatk.wdl
+  input: input.json
+  options: option.json
+inputs:
+  - {name: tumor_bam, type: File, format: coordinate-sorted BAM, required: true}
+  - {name: tumor_bai, type: File, format: BAI, required: true}
+  - {name: normal_bam, type: File, format: coordinate-sorted BAM, required: true}
+  - {name: normal_bai, type: File, format: BAI, required: true}
+  - {name: interval_list, type: File, format: GATK interval_list, required: true}
+outputs:
+  - {name: tumor_bqsr_bam, type: File, format: BAM}
+  - {name: normal_bqsr_bam, type: File, format: BAM}
+  - {name: unfiltered_vcf, type: File, format: VCF.gz}
+  - {name: filtered_vcf, type: File, format: VCF.gz}
+  - {name: contamination, type: File, format: TABLE}
+  - {name: read_orientation_model, type: File, format: TAR.gz}
+runtime:
+  docker_parameter: docker_image
+  tested_image: image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5

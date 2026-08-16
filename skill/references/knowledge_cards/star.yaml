@@ -1,0 +1,25 @@
+meta:
+  id: star_rrna_and_genome_alignment
+  name_cn: STAR rRNA 去除与基因组比对
+  category: rna_alignment
+  tool: STAR
+  reusable_for: [RNA-seq]
+  description: 先比对 rRNA 索引并保留未比对 reads，再用基因组 STAR 索引生成 genome BAM、transcriptome BAM 和 GeneCounts。
+files:
+  wdl: star.wdl
+  input: input.json
+  options: option.json
+inputs:
+  - {name: read1, type: File, format: FASTQ.gz, required: true}
+  - {name: read2, type: "File?", format: FASTQ.gz, required: false}
+  - {name: rrna_star_index, type: File, format: STAR index directory, required: true}
+  - {name: genome_star_index, type: File, format: STAR index directory, required: true}
+outputs:
+  - {name: rrna_removed_r1, type: File, format: FASTQ.gz}
+  - {name: rrna_removed_r2, type: "File?", format: FASTQ.gz}
+  - {name: genome_bam, type: File, format: BAM}
+  - {name: transcriptome_bam, type: File, format: BAM}
+  - {name: gene_counts, type: File, format: TSV}
+runtime:
+  docker_parameter: docker_image
+  tested_image: image.cncb.ac.cn/cncb-cohort-agent/rnaseq:latest

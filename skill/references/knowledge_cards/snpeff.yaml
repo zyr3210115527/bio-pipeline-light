@@ -1,0 +1,22 @@
+meta:
+  id: snpeff_annotation
+  name_cn: SnpEff 变异功能注释
+  category: variant_annotation
+  tool: SnpEff
+  reusable_for: [WES, WGS, targeted-sequencing]
+  description: 使用指定 SnpEff 基因组数据库注释 VCF，并输出注释 VCF 和 HTML/CSV 统计报告。
+files:
+  wdl: snpeff.wdl
+  input: input.json
+  options: option.json
+inputs:
+  - {name: input_vcf, type: File, format: VCF/VCF.gz, required: true}
+  - {name: genome, type: String, example: GRCh38.105, required: true}
+outputs:
+  - {name: annotated_vcf, type: File, format: VCF}
+  - {name: stats_html, type: File, format: HTML}
+  - {name: stats_csv, type: File, format: CSV}
+  - {name: snpeff_log, type: File, format: TXT}
+runtime:
+  docker_parameter: docker_image
+  tested_image: image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5

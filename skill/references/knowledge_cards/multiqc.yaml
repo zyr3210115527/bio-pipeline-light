@@ -1,0 +1,23 @@
+meta:
+  id: multiqc
+  name_cn: 多工具质量控制报告汇总
+  category: quality_control_summary
+  tool: MultiQC
+  reusable_for: [WES, WGS, RNA-seq, scRNA-seq]
+  description: 汇总 FastQC、fastp、SAMtools、BCFtools、SnpEff 等工具产生的报告，生成一个交互式 HTML。
+files:
+  wdl: multiqc.wdl
+  input: input.json
+  options: option.json
+inputs:
+  - {name: report_id, type: String, required: true}
+  - {name: qc_files, type: "Array[File]+", required: true}
+outputs:
+  - {name: multiqc_html, type: File, format: HTML}
+  - {name: multiqc_config, type: File, format: YAML}
+runtime:
+  docker_parameter: docker_image
+  tested_image: image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5
+  compatible_images:
+    - image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5
+    - image.cncb.ac.cn/cncb-cohort-agent/rnaseq:latest

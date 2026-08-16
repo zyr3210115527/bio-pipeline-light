@@ -1,0 +1,611 @@
+{
+ "bcftools_somatic_postprocess": {
+  "graph_tool_id": "bcftools",
+  "name_cn": "体细胞 VCF PASS 提取与标准化",
+  "category": "variant_postprocessing",
+  "reusable_for": [
+   "WES",
+   "WGS",
+   "targeted-sequencing"
+  ],
+  "inputs": [
+   {
+    "name": "filtered_vcf",
+    "type": "File",
+    "format": "VCF.gz",
+    "required": true
+   },
+   {
+    "name": "filtered_vcf_index",
+    "type": "File",
+    "format": "TBI",
+    "required": true
+   },
+   {
+    "name": "reference_fasta",
+    "type": "String",
+    "format": "FASTA",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "pass_vcf",
+    "type": "File",
+    "format": "VCF.gz"
+   },
+   {
+    "name": "normalized_vcf",
+    "type": "File",
+    "format": "VCF.gz"
+   },
+   {
+    "name": "qc_files",
+    "type": "Array[File]",
+    "format": "TSV/TXT"
+   }
+  ]
+ },
+ "bwa_mem_paired": {
+  "graph_tool_id": "bwa",
+  "name_cn": "BWA-MEM 双端序列比对",
+  "category": "alignment",
+  "reusable_for": [
+   "WES",
+   "WGS"
+  ],
+  "inputs": [
+   {
+    "name": "sample_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "read1",
+    "type": "File",
+    "format": "FASTQ.gz",
+    "required": true
+   },
+   {
+    "name": "read2",
+    "type": "File",
+    "format": "FASTQ.gz",
+    "required": true
+   },
+   {
+    "name": "reference_fasta",
+    "type": "String",
+    "format": "FASTA",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "aligned_sam",
+    "type": "File",
+    "format": "SAM"
+   },
+   {
+    "name": "bwa_log",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "fastp_paired_end": {
+  "graph_tool_id": "fastp",
+  "name_cn": "双端 FASTQ 过滤与接头修剪",
+  "category": "quality_control",
+  "reusable_for": [
+   "WES",
+   "WGS",
+   "RNA-seq"
+  ],
+  "inputs": [
+   {
+    "name": "sample_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "read1",
+    "type": "File",
+    "format": "FASTQ.gz",
+    "required": true
+   },
+   {
+    "name": "read2",
+    "type": "File",
+    "format": "FASTQ.gz",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "trimmed_r1",
+    "type": "File",
+    "format": "FASTQ.gz"
+   },
+   {
+    "name": "trimmed_r2",
+    "type": "File",
+    "format": "FASTQ.gz"
+   },
+   {
+    "name": "html_report",
+    "type": "File",
+    "format": "HTML"
+   },
+   {
+    "name": "json_report",
+    "type": "File",
+    "format": "JSON"
+   }
+  ]
+ },
+ "fastqc": {
+  "graph_tool_id": "fastqc",
+  "name_cn": "FASTQ 质量评估",
+  "category": "quality_control",
+  "reusable_for": [
+   "WES",
+   "WGS",
+   "RNA-seq",
+   "scRNA-seq"
+  ],
+  "inputs": [
+   {
+    "name": "fastqs",
+    "type": "Array[File]+",
+    "format": "FASTQ/FASTQ.gz",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "html_reports",
+    "type": "Array[File]",
+    "format": "HTML"
+   },
+   {
+    "name": "zip_reports",
+    "type": "Array[File]",
+    "format": "ZIP"
+   }
+  ]
+ },
+ "featurecounts_gene_counting": {
+  "graph_tool_id": "featurecounts",
+  "name_cn": "featureCounts 基因水平计数",
+  "category": "expression_quantification",
+  "reusable_for": [
+   "RNA-seq"
+  ],
+  "inputs": [
+   {
+    "name": "bam",
+    "type": "File",
+    "format": "BAM",
+    "required": true
+   },
+   {
+    "name": "gtf_file",
+    "type": "File",
+    "format": "GTF",
+    "required": true
+   },
+   {
+    "name": "paired_end",
+    "type": "Boolean",
+    "format": null,
+    "required": false
+   },
+   {
+    "name": "strandedness",
+    "type": "Int",
+    "format": null,
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "counts",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "summary",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "featurecounts_log",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "gatk_wes_somatic": {
+  "graph_tool_id": "gatk",
+  "name_cn": "GATK WES 配对体细胞变异分析",
+  "category": "somatic_variant_calling",
+  "reusable_for": [
+   "WES",
+   "targeted-sequencing"
+  ],
+  "inputs": [
+   {
+    "name": "tumor_bam",
+    "type": "File",
+    "format": "coordinate-sorted BAM",
+    "required": true
+   },
+   {
+    "name": "tumor_bai",
+    "type": "File",
+    "format": "BAI",
+    "required": true
+   },
+   {
+    "name": "normal_bam",
+    "type": "File",
+    "format": "coordinate-sorted BAM",
+    "required": true
+   },
+   {
+    "name": "normal_bai",
+    "type": "File",
+    "format": "BAI",
+    "required": true
+   },
+   {
+    "name": "interval_list",
+    "type": "File",
+    "format": "GATK interval_list",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "tumor_bqsr_bam",
+    "type": "File",
+    "format": "BAM"
+   },
+   {
+    "name": "normal_bqsr_bam",
+    "type": "File",
+    "format": "BAM"
+   },
+   {
+    "name": "unfiltered_vcf",
+    "type": "File",
+    "format": "VCF.gz"
+   },
+   {
+    "name": "filtered_vcf",
+    "type": "File",
+    "format": "VCF.gz"
+   },
+   {
+    "name": "contamination",
+    "type": "File",
+    "format": "TABLE"
+   },
+   {
+    "name": "read_orientation_model",
+    "type": "File",
+    "format": "TAR.gz"
+   }
+  ]
+ },
+ "multiqc": {
+  "graph_tool_id": "multiqc",
+  "name_cn": "多工具质量控制报告汇总",
+  "category": "quality_control_summary",
+  "reusable_for": [
+   "WES",
+   "WGS",
+   "RNA-seq",
+   "scRNA-seq"
+  ],
+  "inputs": [
+   {
+    "name": "report_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "qc_files",
+    "type": "Array[File]+",
+    "format": null,
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "multiqc_html",
+    "type": "File",
+    "format": "HTML"
+   },
+   {
+    "name": "multiqc_config",
+    "type": "File",
+    "format": "YAML"
+   }
+  ]
+ },
+ "rsem_quantification": {
+  "graph_tool_id": "rsem",
+  "name_cn": "RSEM 基因与转录本表达定量",
+  "category": "expression_quantification",
+  "reusable_for": [
+   "RNA-seq"
+  ],
+  "inputs": [
+   {
+    "name": "transcriptome_bam",
+    "type": "File",
+    "format": "BAM",
+    "required": true
+   },
+   {
+    "name": "rsem_index",
+    "type": "File",
+    "format": "RSEM index directory",
+    "required": true
+   },
+   {
+    "name": "paired_end",
+    "type": "Boolean",
+    "format": null,
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "genes_results",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "isoforms_results",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "stat_files",
+    "type": "Array[File]",
+    "format": null
+   },
+   {
+    "name": "rsem_log",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "samtools_alignment_processing": {
+  "graph_tool_id": "samtools",
+  "name_cn": "SAM/BAM 排序、去重、索引与统计",
+  "category": "alignment_processing",
+  "reusable_for": [
+   "WES",
+   "WGS",
+   "RNA-seq"
+  ],
+  "inputs": [
+   {
+    "name": "sample_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "alignment",
+    "type": "File",
+    "format": "SAM/BAM/CRAM",
+    "required": true
+   },
+   {
+    "name": "remove_duplicates",
+    "type": "Boolean",
+    "format": null,
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "sorted_bam",
+    "type": "File",
+    "format": "BAM"
+   },
+   {
+    "name": "sorted_bai",
+    "type": "File",
+    "format": "BAI"
+   },
+   {
+    "name": "flagstat",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "stats",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "idxstats",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "dedup_bam",
+    "type": "File?",
+    "format": "BAM"
+   },
+   {
+    "name": "markdup_metrics",
+    "type": "File?",
+    "format": "TXT"
+   }
+  ]
+ },
+ "snpeff_annotation": {
+  "graph_tool_id": "snpeff",
+  "name_cn": "SnpEff 变异功能注释",
+  "category": "variant_annotation",
+  "reusable_for": [
+   "WES",
+   "WGS",
+   "targeted-sequencing"
+  ],
+  "inputs": [
+   {
+    "name": "input_vcf",
+    "type": "File",
+    "format": "VCF/VCF.gz",
+    "required": true
+   },
+   {
+    "name": "genome",
+    "type": "String",
+    "format": null,
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "annotated_vcf",
+    "type": "File",
+    "format": "VCF"
+   },
+   {
+    "name": "stats_html",
+    "type": "File",
+    "format": "HTML"
+   },
+   {
+    "name": "stats_csv",
+    "type": "File",
+    "format": "CSV"
+   },
+   {
+    "name": "snpeff_log",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "star_rrna_and_genome_alignment": {
+  "graph_tool_id": "star",
+  "name_cn": "STAR rRNA 去除与基因组比对",
+  "category": "rna_alignment",
+  "reusable_for": [
+   "RNA-seq"
+  ],
+  "inputs": [
+   {
+    "name": "read1",
+    "type": "File",
+    "format": "FASTQ.gz",
+    "required": true
+   },
+   {
+    "name": "read2",
+    "type": "File?",
+    "format": "FASTQ.gz",
+    "required": false
+   },
+   {
+    "name": "rrna_star_index",
+    "type": "File",
+    "format": "STAR index directory",
+    "required": true
+   },
+   {
+    "name": "genome_star_index",
+    "type": "File",
+    "format": "STAR index directory",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "rrna_removed_r1",
+    "type": "File",
+    "format": "FASTQ.gz"
+   },
+   {
+    "name": "rrna_removed_r2",
+    "type": "File?",
+    "format": "FASTQ.gz"
+   },
+   {
+    "name": "genome_bam",
+    "type": "File",
+    "format": "BAM"
+   },
+   {
+    "name": "transcriptome_bam",
+    "type": "File",
+    "format": "BAM"
+   },
+   {
+    "name": "gene_counts",
+    "type": "File",
+    "format": "TSV"
+   }
+  ]
+ },
+ "trim_galore": {
+  "graph_tool_id": "trim_galore",
+  "name_cn": "FASTQ 接头和低质量序列修剪",
+  "category": "read_preprocessing",
+  "reusable_for": [
+   "RNA-seq",
+   "WES",
+   "WGS"
+  ],
+  "inputs": [
+   {
+    "name": "read1",
+    "type": "File",
+    "format": "FASTQ.gz",
+    "required": true
+   },
+   {
+    "name": "read2",
+    "type": "File?",
+    "format": "FASTQ.gz",
+    "required": false
+   },
+   {
+    "name": "adapter",
+    "type": "String?",
+    "format": null,
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "trimmed_r1",
+    "type": "File",
+    "format": "FASTQ.gz"
+   },
+   {
+    "name": "trimmed_r2",
+    "type": "File?",
+    "format": "FASTQ.gz"
+   },
+   {
+    "name": "trimming_reports",
+    "type": "Array[File]",
+    "format": "TXT"
+   }
+  ]
+ }
+}

@@ -31,7 +31,7 @@ class MCPClient:
         self._recv(); self._send({"jsonrpc":"2.0","method":"notifications/initialized","params":{}})
     def _send(self, m):
         self.p.stdin.write(json.dumps(m)+"\n"); self.p.stdin.flush()
-    def _recv(self, timeout=60):
+    def _recv(self, timeout=180):
         r,_,_ = select.select([self.p.stdout],[],[],timeout)
         return json.loads(self.p.stdout.readline()) if r else None
     def call_tool(self, name, args):
@@ -69,7 +69,12 @@ def run_query(label, query):
     skill = open(SKILL_MD, encoding="utf-8").read()
     system = (f"你是生信分析链路规划 agent。以下是你的操作手册（必须遵守）：\n\n{skill}\n\n"
               "工作方式：先理解需求，用 read_cypher/get_schema 查询图谱核实工具与数据，"
-              "最后输出完整答案（工具链 Plan 用 tool-chain/v2 JSON；非生信问题直接拒绝）。")
+              "最后输出完整答案。\n\n硬性输出规则：最终答案必须且只能是一个 tool-chain/v2 JSON 对象"
+              "（以左花括号开头，schema_version 字段在首），recommendations[0].tool.pipeline_id 为唯一推荐工具"
+              "（严格 top-1，禁止列多个候选/禁止 markdown/禁止 JSON 外任何文字）。"
+              "查询纪律：禁止调用 get-schema；每条 read_cypher 必须带 LIMIT（默认 LIMIT 20），"
+              "禁止无界 MATCH 全图扫描（图谱 8 万节点，全图查询会超时）。"
+              "非生信问题输出一个 status 为 rejected 的单个 JSON 对象。")
     messages = [{"role":"system","content":system},{"role":"user","content":query}]
     llm_ms, tool_calls, tokens, steps = [], 0, 0, 0
     trajectory = []
@@ -94,7 +99,7 @@ def run_query(label, query):
         # 收敛纪律：第 5 轮后不再记录 tool_calls，直接要求最终作答（保证消息序合法）
         if step >= 3:
             messages.append({"role":"assistant","content":msg.get("content") or ""})
-            messages.append({"role":"user","content":"请停止一切工具调用，直接基于已有证据输出最终答案（生信 Plan 用 tool-chain/v2 JSON）。"})
+            messages.append({"role":"user","content":"停止一切工具调用。直接输出最终答案：单个 tool-chain/v2 JSON 对象（严格 top-1，只留 recommendations[0]，不要散文不要 markdown）。"})
             d = llm_call(messages, tools=[])
             llm_ms.append((time.perf_counter()-t1)*1000)
             usage = d.get("usage", {}) or {}

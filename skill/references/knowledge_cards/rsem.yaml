@@ -1,0 +1,23 @@
+meta:
+  id: rsem_quantification
+  name_cn: RSEM 基因与转录本表达定量
+  category: expression_quantification
+  tool: RSEM
+  reusable_for: [RNA-seq]
+  description: 使用 STAR transcriptome BAM 和 RSEM 索引计算基因及转录本表达量。
+files:
+  wdl: rsem.wdl
+  input: input.json
+  options: option.json
+inputs:
+  - {name: transcriptome_bam, type: File, format: BAM, required: true}
+  - {name: rsem_index, type: File, format: RSEM index directory, required: true}
+  - {name: paired_end, type: Boolean, default: true, required: false}
+outputs:
+  - {name: genes_results, type: File, format: TSV}
+  - {name: isoforms_results, type: File, format: TSV}
+  - {name: stat_files, type: "Array[File]"}
+  - {name: rsem_log, type: File, format: TXT}
+runtime:
+  docker_parameter: docker_image
+  tested_image: image.cncb.ac.cn/cncb-cohort-agent/rnaseq:latest

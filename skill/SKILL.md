@@ -92,6 +92,10 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 
 ## tool-chain/v2 输出契约（前端真源 = bio-pipeline-kg-matcher 的 pipeline_router）
 
+**输出契约（硬性规则，违反即视为未完成任务）**：最终答案**必须且只能输出一个 tool-chain/v2 JSON 对象**——不要散文、不要 markdown、不要列多个候选、不要在 JSON 前后加任何解释。`recommendations[0]` 是唯一推荐（严格 top-1）；`candidates[]` 只在能做原子链时填充。非生信问题输出 `{"status":"rejected","reason":"..."}` 单对象。
+
+**命名契约（Knowledge Card 对齐）**：原子工具的 `tool_id` 必须用 Knowledge Card 的 `meta.id`（如 `bwa_mem_paired` 而非 `bwa`），`tool_chain.inputs` 与输出引用用卡内定义的输入输出名称（如 `read1`/`aligned_sam`）。映射表见 `references/knowledge_cards_map.json`（12 张原子卡）。pipeline 级工具（无卡，如 `diff_expr_go`）维持图谱 tool_id，并在 `tool_id` 旁标注 `"card": null`。
+
 当输出给前端/联调时，产出此 JSON（前端只读 JSON-RPC `result.structuredContent` 那一层）：
 
 ```json

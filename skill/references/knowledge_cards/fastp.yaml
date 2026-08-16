@@ -1,0 +1,23 @@
+meta:
+  id: fastp_paired_end
+  name_cn: 双端 FASTQ 过滤与接头修剪
+  category: quality_control
+  tool: fastp
+  reusable_for: [WES, WGS, RNA-seq]
+  description: 对双端 FASTQ 进行质控、过滤和接头修剪，并生成 HTML/JSON 报告。
+files:
+  wdl: fastp.wdl
+  input: input.json
+  options: option.json
+inputs:
+  - {name: sample_id, type: String, required: true}
+  - {name: read1, type: File, format: FASTQ.gz, required: true}
+  - {name: read2, type: File, format: FASTQ.gz, required: true}
+outputs:
+  - {name: trimmed_r1, type: File, format: FASTQ.gz}
+  - {name: trimmed_r2, type: File, format: FASTQ.gz}
+  - {name: html_report, type: File, format: HTML}
+  - {name: json_report, type: File, format: JSON}
+runtime:
+  docker_parameter: docker_image
+  tested_image: image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5

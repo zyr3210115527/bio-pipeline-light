@@ -1,0 +1,22 @@
+meta:
+  id: trim_galore
+  name_cn: FASTQ 接头和低质量序列修剪
+  category: read_preprocessing
+  tool: Trim Galore
+  reusable_for: [RNA-seq, WES, WGS]
+  description: 对单端或双端 FASTQ 运行 Trim Galore，支持指定接头或自动检测。
+files:
+  wdl: trim_galore.wdl
+  input: input.json
+  options: option.json
+inputs:
+  - {name: read1, type: File, format: FASTQ.gz, required: true}
+  - {name: read2, type: "File?", format: FASTQ.gz, required: false}
+  - {name: adapter, type: "String?", required: false}
+outputs:
+  - {name: trimmed_r1, type: File, format: FASTQ.gz}
+  - {name: trimmed_r2, type: "File?", format: FASTQ.gz}
+  - {name: trimming_reports, type: "Array[File]", format: TXT}
+runtime:
+  docker_parameter: docker_image
+  tested_image: image.cncb.ac.cn/cncb-cohort-agent/rnaseq:latest

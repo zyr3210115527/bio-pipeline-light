@@ -1,0 +1,22 @@
+meta:
+  id: bwa_mem_paired
+  name_cn: BWA-MEM 双端序列比对
+  category: alignment
+  tool: BWA-MEM
+  reusable_for: [WES, WGS]
+  description: 将双端 FASTQ 比对到参考基因组，写入 read group，并输出 SAM 和 BWA 日志。
+files:
+  wdl: bwa.wdl
+  input: input.json
+  options: option.json
+inputs:
+  - {name: sample_id, type: String, required: true}
+  - {name: read1, type: File, format: FASTQ.gz, required: true}
+  - {name: read2, type: File, format: FASTQ.gz, required: true}
+  - {name: reference_fasta, type: String, format: FASTA, required: true}
+outputs:
+  - {name: aligned_sam, type: File, format: SAM}
+  - {name: bwa_log, type: File, format: TXT}
+runtime:
+  docker_parameter: docker_image
+  tested_image: image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5

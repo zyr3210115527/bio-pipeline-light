@@ -33,9 +33,18 @@
 |---|---|---|---|
 | floor | 永远猜最高频工具 | ~12.5% | **7.1%**（随机线） |
 | ceiling | 60 行关键词表（本仓库 RULES） | **100%** | **1.4%**（词表一拆就碎） |
-| SUT | skill + read-cypher + 真实模型 | — | **87.1%（61/70）** |
+| SUT（严格 top-1，结构化） | skill + read-cypher + 真实模型 | — | **35.8%（67 例样本）** |
 
-**SUT 9 个 miss 全部可归因**（详见 `benchmark/data/three_arms_results.json`）：① `rnaseq_singletask`（3 例）模型推荐了合理的模块化链路（fastp→star→featurecounts）而非单一 task_pipeline；② 生存族 4 例（km/cox/survival/tmb/her2 目录意图重叠，模型选了一个合理但非期望的工具）；③ 表述歧义 2 例。**没有一例是意图理解失败**——若按"推荐了任一合理工具"计，SUT 命中率 ≥ 90%。
+**评分口径演进（诚实记录）**：最初"87.1%"是**子串匹配**（expected 出现在全文即算）——已弃用，存在 `survival_analysis ⊂ tmb_survival_analysis` 误判与"提到即命中"送分。改为与 ceiling 同口径的**严格 top-1**（解析 tool-chain/v2 `recommendations[0].tool.pipeline_id`）后，SUT 降至 35.8%。三个口径并列报告：
+
+| 口径 | 数值（67 例） | 含义 |
+|---|---|---|
+| 子串（旧，已弃） | 85.1% | 软：提到即算 |
+| **严格 top-1** | **35.8%** | 硬：与 ceiling 可比，SUT 仍为词表的 25 倍 |
+| 格式合规率 | 52% | 模型半数写散文，契约执行不彻底 |
+| 结构化子集内准确率 | 69% | 遵守契约时的工具选择质量 |
+
+**两个系统性发现**（比绝对数字更重要）：① **生存族 0/5**——图谱内 km_survival/cox_model/survival_analysis/tmb/her2 意图重叠，模型稳定选到合理但非期望的工具，是"题库单解 vs 图谱多解"的标注问题；② **输出契约执行仅 52%**——即使强制"单个 JSON"，模型仍频繁写散文，需要更强的输出纪律或结构化校验层。
 
 **改动三：去名集**（`benchmark/data/de_named_set.json`，14 工具 × 5 = 70 例）：只写意图、不出现任何规则触发词（已程序化验证**零重叠**）。ceiling 在去名集从 100% 崩到 1.4%，正说明原集的 100% 全是词表泄漏。
 

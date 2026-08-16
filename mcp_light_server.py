@@ -33,6 +33,27 @@ NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "")
 SKILL_REF = os.environ.get("BIO_SKILL_REF", os.path.join(HERE, "skill", "references"))
 SKILL_MD = os.environ.get("BIO_SKILL_MD", os.path.join(os.path.dirname(SKILL_REF), "SKILL.md"))
 _SAFE_TOKEN = re.compile(r"^[a-zA-Z0-9_\-\u4e00-\u9fff ]+$")
+KC_MAP: dict = {}   # graph tool_id -> Knowledge Card（meta.id + 卡内 IO 名）
+
+def load_knowledge_cards() -> None:
+    """加载 skill/references/knowledge_cards_map.json：graph tool_id -> card。"""
+    global KC_MAP
+    path = os.path.join(SKILL_REF, "knowledge_cards_map.json")
+    if not os.path.exists(path):
+        return
+    try:
+        cards = json.load(open(path))
+    except Exception:
+        return
+    for card_id, c in cards.items():
+        gid = c.get("graph_tool_id") or card_id
+        KC_MAP[gid] = {"meta_id": card_id,
+                       "inputs": [i["name"] for i in c.get("inputs", [])],
+                       "outputs": [o["name"] for o in c.get("outputs", [])]}
+        if gid != card_id:
+            KC_MAP.setdefault(card_id, KC_MAP[gid])
+
+load_knowledge_cards()
 
 # ---------- 目录加载（从 skill/references/tool_catalog.csv，不内嵌） ----------
 ATOMIC_IDS: set[str] = set()
@@ -178,8 +199,19 @@ def tool_validate_atomic_chain(args):
     missing_edges = [(a, b) for a, b in zip(chain[:-1], chain[1:]) if (a, b) not in adjacency_ok]
     if missing_edges:
         violations.append(f"图谱中无 next_tool 边: {missing_edges}")
+    # 输出对齐 Knowledge Card：tool_id 用 meta.id，inputs/outputs 用卡内名称
+    tool_chain = []
+    for t in chain:
+        card = KC_MAP.get(str(t))
+        if card:
+            tool_chain.append({"tool_id": card["meta_id"],
+                               "inputs": card["inputs"], "outputs": card["outputs"]})
+        else:
+            tool_chain.append({"tool_id": str(t), "inputs": [], "outputs": [],
+                               "note": "无 Knowledge Card（pipeline 级工具或未收录）"})
     return {"status": "valid" if not violations else "invalid",
-            "chain": chain, "violations": violations, "adjacency_ok": adjacency_ok,
+            "chain": chain, "tool_chain": tool_chain,
+            "violations": violations, "adjacency_ok": adjacency_ok,
             "atomic_closed_set_size": len(ATOMIC_IDS)}
 
 # 关键词基线（对照臂，非推荐路径）
@@ -246,7 +278,7 @@ TOOLS = {
         "handler": tool_read_cypher,
     },
     "validate_atomic_chain": {
-        "description": "确定性闭集校验：给定 atomic 工具链，校验闭集成员 + 图内 next_tool 邻接。",
+        "description": "确定性闭集校验：给定 atomic 工具链，校验闭集成员 + 图内 next_tool 邻接；输出 tool_chain 使用 Knowledge Card 的 meta.id 与卡内输入输出名称。",
         "inputSchema": {"type": "object", "properties": {"chain": {"type": "array", "items": {"type": "string"}, "description": "atomic tool_id 有序列表"}}, "required": ["chain"]},
         "handler": tool_validate_atomic_chain,
     },

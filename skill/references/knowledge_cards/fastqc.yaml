@@ -1,0 +1,22 @@
+meta:
+  id: fastqc
+  name_cn: FASTQ 质量评估
+  category: quality_control
+  tool: FastQC
+  reusable_for: [WES, WGS, RNA-seq, scRNA-seq]
+  description: 对一个或多个 FASTQ 文件执行 FastQC；workflow 使用 scatter 为每个文件创建独立任务。
+files:
+  wdl: fastqc.wdl
+  input: input.json
+  options: option.json
+inputs:
+  - {name: fastqs, type: "Array[File]+", format: FASTQ/FASTQ.gz, required: true}
+outputs:
+  - {name: html_reports, type: "Array[File]", format: HTML}
+  - {name: zip_reports, type: "Array[File]", format: ZIP}
+runtime:
+  docker_parameter: docker_image
+  tested_image: image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5
+  compatible_images:
+    - image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5
+    - image.cncb.ac.cn/cncb-cohort-agent/rnaseq:latest
