@@ -322,6 +322,34 @@ def tool_validate_execution_chain(args):
             "stages": stages, "normalized_steps": normalized,
             "hint": "提交前把关：errors 全部清零才可提交执行端"}
 
+def tool_route_pipeline_request(args):
+    """tool-chain/v2 信封（对齐重 MCP）：规则意图 + 数据匹配 + 候选链，无 server 内 LLM。"""
+    query = (args.get("query") or "").strip()
+    if not query:
+        return {"status": "error", "detail": "query 不能为空"}
+    try:
+        from light_router import route_pipeline_request as _route, intent_extract, SLOTS
+        out = _route(query)
+        # slot 增强：给 recommendations[].tool.inputs 补 artifact/dimension/variant（io_slot.csv）
+        pid = out["recommendations"][0]["pipeline_id"] if out.get("recommendations") else None
+        if pid:
+            slots = {k[1]: v for k, v in SLOTS.items() if k[0] == pid}
+            out["recommendations"][0]["tool"]["inputs"] = [
+                {"name": n, "type": "File" if v.get("wdl_type") == "File" else "string",
+                 "is_file": v.get("wdl_type") == "File",
+                 "optional": not v.get("required", True),
+                 "artifact": v.get("artifact") or None,
+                 "formats": [], "description": n,
+                 "dimension": v.get("dimension") or "",
+                 "dimension_value": v.get("dimension_value") or "",
+                 "variant": v.get("variant") or "",
+                 "variant_alias_for": v.get("variant_alias_for") or ""}
+                for n, v in slots.items()]
+        return out
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return {"status": "error", "detail": str(e)[:300]}
+
 # 关键词基线（对照臂，非推荐路径）
 RULES = [
     (["10x", "cellranger", "CellRanger", "单细胞", "barcode", "Seurat", "Scanpy"], "cellranger_workflow", 3),
@@ -394,6 +422,11 @@ TOOLS = {
         "description": "（对照臂，非推荐路径）关键词基线规划。仅用于与模型路径对比。",
         "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
         "handler": tool_rule_baseline_plan,
+    },
+    "route_pipeline_request": {
+        "description": "tool-chain/v2 规划（对齐重 MCP）：规则意图提取 + 数据匹配 + 原子候选链，无 server 内 LLM（推理在调用方模型）。",
+        "inputSchema": {"type": "object", "properties": {"query": {"type": "string", "description": "生信分析需求"}}, "required": ["query"]},
+        "handler": tool_route_pipeline_request,
     },
     "validate_execution_chain": {
         "description": "场景1提交前把关：五阶段探查（注册/卡契约必填输入/绑定结构/数据探查/链流转），输出 tool-chain-validation/v1.1 逐阶段报告。steps: [{tool_id, inputs:{name: binding}}]。",
