@@ -44,7 +44,9 @@ read_cypher / resolve_sample_roles / validate_* 的返回结果。你的内部�
    {"status":"rejected","reason":"off_topic|privacy: ..."}。JSON 前后不加任何文字。
 ```
 
-DeepSeek 实操建议：`temperature` 调低（≤0.3）；若客户端支持 `response_format: {"type":"json_object"}`，在最终输出轮开启；工具调用轮数按手册执行纪律控制在 ≤3 轮。前端侧再加两道断言兜底：Plan 必须带 `schema_version: "tool-chain/v2"`，且 `validate_plan.grounded=true`、提交前 `submittable=true`。
+DeepSeek 实操建议：`temperature` 调低（≤0.3）；若客户端支持 `response_format: {"type":"json_object"}`，在最终输出轮开启；工具调用轮数按手册执行纪律控制在 ≤3 轮。前端侧再加三道断言兜底：Plan 必须带 `schema_version: "tool-chain/v2"`，且 `validate_plan.grounded=true`、提交前 `submittable=true`。
+
+**可运行参考实现**：`examples/deepseek_agent_loop.py`——含 MCP stdio 桥接（tools/list 自动转 function-calling 格式）、多轮工具循环、三道断言与 violations 喂回重试，系统提示词直接读取本文件的模板（单一事实源）。前端在此基础上替换为自己的会话管理即可。
 
 ## 前置条件
 
