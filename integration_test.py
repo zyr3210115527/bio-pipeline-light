@@ -37,14 +37,21 @@ if h.get("status") != "ok":
 print(f"  nodes={h['nodes']} tools={h['tools']} atomic_closed_set={len(h['atomic_closed_set'])}")
 
 # ── 2. resolve_sample_roles study 模式依赖的图结构假设 ──
-sec("2. 图结构假设：(T1)-[:in_sample]->(sample) 且 T1.study_accession 存在")
+sec("2. 图结构假设：sample 自带 study_accession，等价于 study<-individual<-sample")
 rows = m.neo4j_q([
     "MATCH (f:T1) WHERE f.study_accession IS NOT NULL RETURN count(f) AS c",
-    "MATCH (:T1)-[:in_sample]->(:sample) RETURN count(*) AS c"])
-t1_with_study = rows[0][0][0]
-edges = rows[1][0][0]
+    "MATCH (:T1)-[:in_sample]->(:sample) RETURN count(*) AS c",
+    "MATCH (sp:sample) WHERE sp.study_accession='HRA006117' RETURN count(DISTINCT sp) AS c",
+    "MATCH (sp:sample)-[:in_individual]->(:individual)-[:in_study]->(st:study) "
+    "WHERE st.study_accession='HRA006117' RETURN count(DISTINCT sp) AS c",
+    "MATCH (sp:sample) WHERE NOT (sp)-[:in_individual]->() RETURN count(*) AS c"])
+t1_with_study, edges = rows[0][0][0], rows[1][0][0]
+direct, traversed, orphan = rows[2][0][0], rows[3][0][0], rows[4][0][0]
 check("T1.study_accession", t1_with_study > 0, f"count={t1_with_study}")
 check("(T1)-[:in_sample]->(sample)", edges > 0, f"count={edges}")
+check("sample.study_accession 直查 == study<-individual<-sample 遍历",
+      direct == traversed, f"direct={direct} traversed={traversed}")
+check("无游离 sample（都挂到 individual）", orphan == 0, f"orphan={orphan}")
 
 # ── 3. resolve_sample_roles ──
 sec("3. resolve_sample_roles（study 模式：HRA000071 覆盖规则 / HRA001272 常规）")
@@ -61,6 +68,25 @@ if r71.get("status") == "ok" and r71.get("samples"):
     check("HRA000071 覆盖规则（Blood→normal）",
           bool(blood) and all(s["sample_role"] == "normal" for s in blood),
           f"blood_in_first200={len(blood)}")
+
+# ── 3b. 回归：不得走文件路径数样本；run→sample 缺口必须如实报出 ──
+sec("3b. 样本清单口径 + run→sample 缺口如实上报")
+r6117 = m.tool_resolve_sample_roles({"study": "HRA006117"})
+check("HRA006117 样本数按 sample 节点计（835，非文件路径的 570）",
+      r6117.get("sample_count") == direct, f"got={r6117.get('sample_count')} want={direct}")
+check("无文件的样本计入 unresolved 而非被丢弃",
+      (r6117.get("sample_roles") or {}).get("unresolved", 0) > 0,
+      json.dumps(r6117.get("sample_roles"), ensure_ascii=False))
+r87 = m.tool_resolve_sample_roles({"study": "HRA000087"})
+cov = r87.get("file_coverage") or {}
+check("HRA000087 报出 run→sample 缺口", cov.get("runs_without_sample_node", 0) > 0,
+      json.dumps(cov, ensure_ascii=False))
+check("缺口队列附带解释性 note",
+      any("run" in n and "sample" in n for n in (r87.get("notes") or [])),
+      str(r87.get("notes"))[:160])
+cov71 = (m.tool_resolve_sample_roles({"study": "HRA000071"}) or {}).get("file_coverage") or {}
+check("HRA000071 无缺口（不误报）", cov71.get("runs_without_sample_node") == 0,
+      json.dumps(cov71, ensure_ascii=False))
 
 # ── 4. execution_params：file_name → 图内真实路径回填 ──
 sec("4. validate_execution_chain：execution_params 查图回填 + submittable")

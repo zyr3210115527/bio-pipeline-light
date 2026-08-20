@@ -154,18 +154,83 @@ r = m.tool_read_cypher({"query": "MATCH (i:individual)-[:in_study]->(s:study) "
 check("存在性判断（IS NOT NULL）→ 放行", r["status"] == "ok", r)
 r = m.tool_read_cypher({"query": "MATCH (n:T1) RETURN n.file_name"})
 check("无 LIMIT 自动限流 ≤500", r["status"] == "ok" and len(r["rows"]) <= 500, len(r.get("rows", [])))
+# 行数上限绕过（0820 实测：以下五种写法都能拿到 27,000+ 行）。结果会原样进调用方模型的
+# 上下文，超限即撑爆/被上游静默截断，模型拿半截数据当全集下结论。
+for name, bypass in [
+    ("UNION 前置分支不受尾部 LIMIT 约束",
+     "MATCH (n:T1) RETURN n.file_name UNION MATCH (n:T2) RETURN n.file_name"),
+    ("自报超大 LIMIT", "MATCH (n:T1) RETURN n.file_name LIMIT 99999"),
+    ("超大 LIMIT 带分号", "MATCH (n:T1) RETURN n.file_name LIMIT 99999;"),
+    ("注释里的 LIMIT 骗过检测", "// LIMIT 10\nMATCH (n:T1) RETURN n.file_name"),
+    ("行尾注释吞掉追加的 LIMIT", "MATCH (n:T1) RETURN n.file_name // all"),
+    ("块注释里的 LIMIT", "/* LIMIT 3 */ MATCH (n:T1) RETURN n.file_name"),
+]:
+    r = m.tool_read_cypher({"query": bypass})
+    check(f"限流绕过「{name}」→ 截断至 ≤500",
+          r["status"] == "ok" and len(r["rows"]) <= 500 and r.get("row_count") == len(r["rows"]),
+          {"n": len(r.get("rows", [])), "detail": r.get("detail", "")[:80]})
+r = m.tool_read_cypher({"query": "MATCH (n:T1) RETURN n.file_name UNION MATCH (n:T2) RETURN n.file_name"})
+check("截断时如实上报 truncated + note", r.get("truncated") is True and "截断" in (r.get("note") or ""), r.get("note"))
+# 限流加固不能误伤正常查询（注释/字符串扫描写错会把合法语句改坏）
+for name, ok_q, want in [
+    ("小 LIMIT 原样保留", "MATCH (n:T1) RETURN n.file_name LIMIT 3", 3),
+    ("ORDER BY + LIMIT", "MATCH (s:study) RETURN s.study_accession ORDER BY s.study_accession LIMIT 5", 5),
+    ("子查询内 LIMIT 不改写",
+     "MATCH (s:study) CALL { WITH s MATCH (n:T1) WHERE n.study_accession = s.study_accession "
+     "RETURN count(n) AS c } RETURN s.study_accession, c LIMIT 4", 4),
+    ("字符串字面量含 LIMIT 字样",
+     "MATCH (n:T1) WHERE n.file_name CONTAINS 'LIMIT 5' RETURN n.file_name LIMIT 2", 0),
+]:
+    r = m.tool_read_cypher({"query": ok_q})
+    check(f"限流零误伤「{name}」", r["status"] == "ok" and len(r["rows"]) == want,
+          {"n": len(r.get("rows", [])), "detail": r.get("detail", "")[:80]})
 r = m.tool_read_cypher({"query": "MATCH (n) DETACH DELETE n"})
 check("写入语句 → 拒绝（回归）", r["status"] == "error" and "只读" in r["detail"], r)
-# 绕过尝试
+# 绕过尝试。前 5 条是查询面守卫认得的写法；后 6 条换等价写法绕开变量识别，
+# 靠结果面守卫 _assert_no_sensitive_payload 兜底——查询面正则永远补不全，
+# 所以真正的防线是"返回内容里出现患者级属性就整条拒绝"。
 for name, bypass in [
     ("整节点 RETURN i", "MATCH (i:individual) RETURN i LIMIT 3"),
     ("别名转手 WITH i AS x", "MATCH (i:individual) WITH i AS x RETURN x LIMIT 3"),
     ("properties() 导出", "MATCH (i:individual) RETURN properties(i) LIMIT 3"),
     ("keys()+动态下标", "MATCH (i:individual) UNWIND keys(i) AS k RETURN i[k] LIMIT 3"),
     ("collect(i) 打包", "MATCH (i:individual) RETURN collect(i)"),
+    ("无标签 pattern 取 individual",
+     "MATCH (s:sample)-[:in_individual]->(x) RETURN x LIMIT 1"),
+    ("WHERE 标签谓词绕开 inline label", "MATCH (n) WHERE n:individual RETURN n LIMIT 1"),
+    ("collect 打包后经 WITH 转手",
+     "MATCH (i:individual) WITH collect(i) AS c RETURN c LIMIT 1"),
+    ("map projection i{.*}", "MATCH (i:individual) RETURN i{.*} LIMIT 1"),
+    ("map projection 经 WITH", "MATCH (i:individual) WITH i{.*} AS mm RETURN mm LIMIT 1"),
+    ("两级别名 i→z→y", "MATCH (i:individual) WITH i AS z WITH z AS y RETURN y LIMIT 1"),
+    ("无标签变量 + UNWIND keys 把属性名当值返回",
+     "MATCH (s:sample)-[:in_individual]->(x) UNWIND keys(x) AS k RETURN k LIMIT 30"),
+    ("无标签变量 + 动态下标取值",
+     "MATCH (s:sample)-[:in_individual]->(x) RETURN x['01_age'] LIMIT 3"),
 ]:
     r = m.tool_read_cypher({"query": bypass})
     check(f"绕过尝试「{name}」→ 拒绝", r["status"] == "error" and "隐私" in r["detail"], r)
+# LOAD CSV / apoc 不是写入语句，但能读本地文件、外带数据，必须一并挡在只读守卫里
+for name, q in [
+    ("LOAD CSV 读本地文件", "LOAD CSV FROM 'file:///etc/passwd' AS r RETURN r LIMIT 1"),
+    ("LOAD CSV 外带(SSRF)", "LOAD CSV FROM 'http://127.0.0.1:7474/' AS r RETURN r LIMIT 1"),
+    ("apoc.export 导出全图", "CALL apoc.export.json.all(null,{stream:true}) YIELD data RETURN data"),
+]:
+    r = m.tool_read_cypher({"query": q})
+    check(f"{name} → 拒绝", r["status"] == "error" and "只读" in r["detail"], r)
+# 合法工作负载不能被上面的加固误杀
+for name, q in [
+    ("count(节点)", "MATCH (i:individual) RETURN count(i) AS n"),
+    ("count 别名后再 RETURN", "MATCH (i:individual) WITH count(i) AS n RETURN n"),
+    ("点取非临床字段带别名", "MATCH (i:individual) RETURN i.individual_accession AS acc LIMIT 3"),
+    ("点取+聚合混合投影",
+     "MATCH (i:individual) RETURN i.individual_accession AS acc, count(i) AS c LIMIT 3"),
+    ("生存队列发现（存在性+聚合）",
+     "MATCH (i:individual)-[:in_study]->(st:study) WHERE i.`13_survival_days` IS NOT NULL "
+     "RETURN st.study_accession AS s, count(*) AS n ORDER BY n DESC LIMIT 5"),
+]:
+    r = m.tool_read_cypher({"query": q})
+    check(f"合法查询「{name}」→ 放行", r["status"] == "ok", r)
 # 合法工作负载回归：15 条官方模板必须全部通过守卫（不触发误杀）
 import glob as _glob
 tpl_dir = os.path.join(os.path.dirname(m.__file__), "skill", "references", "query_templates")
@@ -185,6 +250,29 @@ try:
     check("配对发现查询零误杀", True)
 except ValueError as e:
     check("配对发现查询零误杀", False, str(e)[:100])
+
+# ────────────────────────────────────────────────────────────────────
+sec("S8b 工具入参 Cypher 注入（tool_id 直接进字面量的路径）")
+def _flow_stage(steps):
+    r = m.tool_validate_execution_chain({"steps": steps})
+    return next((s for s in r["stages"] if s["stage"] == "chain_flow"), {})
+# 这条路径不经过 _assert_read_only：注入既能跑任意 Cypher（写操作可达），
+# 又能把图里不存在的邻接伪造成 passed=True，等于架空提交前把关。
+for name, payload in [
+    ("闭合引号 + UNION 伪造邻接", "zzz' RETURN 1 AS c UNION MATCH (n:study) RETURN 1 AS c //"),
+    ("闭合引号 + 注释截断", "zzz' RETURN 1 AS c //"),
+    ("恒真条件", "zzz' OR '1'='1"),
+]:
+    st = _flow_stage([{"tool_id": payload, "inputs": {}}, {"tool_id": "star", "inputs": {}}])
+    check(f"注入「{name}」→ 不得判定通过", st.get("passed") is False, st)
+for name, chain in [
+    ("fastp→star", ["fastp", "star"]),
+    ("四步原子链", ["fastp", "star", "samtools", "featurecounts"]),
+]:
+    st = _flow_stage([{"tool_id": t, "inputs": {}} for t in chain])
+    check(f"真实链「{name}」→ 仍judged通过（零误伤）", st.get("passed") is True, st)
+r = m.tool_resolve_sample_roles({"study": "x' RETURN 1 AS a UNION MATCH (i:individual) RETURN i.`01_age` AS a //"})
+check("resolve_sample_roles 注入 → 拒绝", r.get("status") == "error", r)
 
 # ────────────────────────────────────────────────────────────────────
 sec("S9 拒绝纪律指引（无关问题/隐私问询，调用方模型主路径）")

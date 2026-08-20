@@ -74,7 +74,12 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
      RETURN study, count(i) AS pairable_individuals ORDER BY pairable_individuals DESC
      ```
      已知陷阱：**HRA000071 的血液对照与肿瘤样本在图内不属于同一个体**（572 样本 1:1 对应 572 个体），能做 tumor/normal 分组（resolve_sample_roles 可判角色）但**做不了同个体配对**（wes_somatic_pair 不适用），如实告知用户。
-   - **样本角色（tumor/normal）必须用 MCP 工具 `resolve_sample_roles` 判定，绝不自行按名称/直觉猜**：配对或分组分析（wes_somatic_pair、生存、差异表达分组等）选队列前先传 `study` 查 `role_resolved`——为 false 的队列做不了配对/分组，如实报告；逐文件的 `sample_role`/`sample_role_label` 用 `records` 模式判。聚合类文件（表达矩阵/MAF/临床表）无单样本角色，相关字段置 null 属正常，不是图谱缺数据。
+   - **样本角色（tumor/normal）必须用 MCP 工具 `resolve_sample_roles` 判定，绝不自行按名称/直觉猜**：配对或分组分析（wes_somatic_pair、生存、差异表达分组等）选队列前先传 `study` 查 `role_resolved`——为 false 的队列做不了配对/分组，如实报告；逐文件的 `sample_role`/`sample_role_label` 用 `records` 模式判。
+   - **队列样本清单以 `sample` 节点为准**：`MATCH (sp:sample) WHERE sp.study_accession = '<HRA*>'`（等价于 `study<-individual<-sample` 遍历）。**不要用 `(T1)-[:in_sample]->(sample)` 数样本**——那只能看到挂了文件的样本，无文件的样本会被静默漏掉（HRA006117 实有 835 个，走文件路径只剩 570）。
+   - **文件为什么会 `sample_accession = null`，分两种，不要混为一谈**：
+     1. **聚合类文件**（表达矩阵/MAF/临床表/MetaInfo）本就跨样本，无单样本归属，字段 null 属正常；
+     2. **按 run 组织的 fastq**（`data_level=1`）应当有样本，但图谱里 `sample` 节点每个只记录**一个** `run_accession`，而文件侧共有 13,063 个 run——**3,758 个 run（29%，牵连 7,516 个 T1 文件）在图里没有对应 sample 节点**，走 `run_accession` 也回连不上（命中 0）。这是**图谱 run→sample 映射缺失**，不是"聚合文件"。此时如实输出 `missing_from_graph` 并说明原因，**绝不按文件名/顺序猜样本归属**。
+     `resolve_sample_roles(study=...)` 的 `file_coverage.runs_without_sample_node` 会直接给出该队列缺多少（如 HRA000087 缺 1492/1553、HRA001272 缺 482/1180、HRA000071 缺 0）。规划 FASTQ 起步的链路前先看这个数：缺口大的队列拿不到完整样本级输入。
 
 ## 接地纪律（最高优先级：答案只能来自本手册与图谱查询结果）
 
@@ -129,6 +134,8 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 - **无关问题**（闲聊、代码求助、留学/生活咨询等一切与生信分析规划无关的请求）→ 输出 `{"status":"rejected","reason":"off_topic: <一句话说明>"}` 单对象。
 - **患者隐私问询**（询问个体层面的临床信息：某个/某些病人的年龄、性别、种族、吸烟史、病理分期、生存时间等，或要求"列出所有病人的 X"）→ 输出 `{"status":"rejected","reason":"privacy: 患者级临床数据不对外提供，仅支持聚合统计"}` 单对象。合法的聚合需求（"有生存数据的样本有多少"）照常服务，用 count/IS NOT NULL 聚合查询。
 - 服务端双保险：`read_cypher` 会拒绝对 `01_/03_/09_/11_/13_` 前缀临床属性的非聚合查询——收到该拒绝时不要改写绕过，向用户如实说明隐私边界。
+
+**`read_cypher` 结果上限（会影响结论正确性，务必注意）**：单次最多返回 **500 行**。超出时返回体带 `truncated: true` 和 `row_count`，**这时手上是截断样本，不是全集**——绝不能据此下"共有 N 个 / 全部都是 / 没有其他"这类全称结论。要总数就改用 `count(...)`/聚合重查，要细节就加更严格的过滤条件（队列号、format、data_level）再查。不带 `truncated` 的结果才是完整结果集。
 
 **命名契约（Knowledge Card 对齐）**：原子工具的 `tool_id` 必须用 Knowledge Card 的 `meta.id`（如 `bwa_mem_paired` 而非 `bwa`），`tool_chain.inputs` 与输出引用用卡内定义的输入输出名称（如 `read1`/`aligned_sam`）。映射表见 `references/knowledge_cards_map.json`（12 张原子卡）。pipeline 级工具（无卡，如 `diff_expr_go`）维持图谱 tool_id，并在 `tool_id` 旁标注 `"card": null`。
 
