@@ -82,7 +82,7 @@
 4. **产出 Plan 并自检接地**：模型输出单个 tool-chain/v2 JSON（严格 top-1；契约见 SKILL.md，完整示例见 `examples/plan_go_enrichment_liver_v2.json`），输出前把整份 JSON 交给 `validate_plan` 核验——工具/文件/路径/队列号逐一到图与目录比对，`grounded=false`（含模型编造内容）按 `violations` 修正后重验。
 5. **提交前把关**：调 `validate_execution_chain(steps)`——`errors` 清零且 `submittable=true` 才能提交执行端；`execution_params` 就是可直接下发的"输入名→真实文件路径"，`execution_params_missing` 如实展示给用户，**绝不伪造路径**。
 
-前端断言建议：收到的 Plan 若缺 `schema_version: "tool-chain/v2"`，或提交前未见 `submittable=true`，一律拒收——这两条能挡住大部分模型不守契约的输出（实测格式合规率约 52%，校验层必须有）。
+前端断言建议（三道，缺一不可）：① Plan 带 `schema_version: "tool-chain/v2"`（或是 `rejected` 单对象）；② `validate_plan` 返回 `grounded=true`；③ 提交前 `validate_execution_chain` 返回 `submittable=true`。断言失败把错误信息喂回模型重试 2-3 次，仍失败则如实报错——实测模型格式合规率约 52%，校验层必须有。**可运行的完整参考实现（MCP 桥接 + function-calling 循环 + 断言重试，约 150 行）见 `examples/deepseek_agent_loop.py`，前端照抄即可。**
 
 ### 与之前版本的区别
 
