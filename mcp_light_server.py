@@ -3,15 +3,16 @@
 """
 mcp_light_server.py — 轻架构 stdio MCP server（无第三方依赖）
 
-交付形态 = skill + MCP：**推理留给调用方的模型**，本 server 只提供知识与校验：
+交付形态 = skill + MCP：**推理只能来自调用方的模型**，本 server 只提供知识与确定性校验，
+不存在任何规则规划路径（词表基线仅存在于 benchmark 对照臂与 light_router.py，不暴露为 MCP 工具）：
 
   get_planning_guide()      → 返回 SKILL.md 全文（调用方模型自己读、自己规划）
-  read_cypher(query)        → 数据面：通用只读 Cypher 查询（有只读守卫）
+  read_cypher(query)        → 数据面：通用只读 Cypher 查询（只读守卫 + 患者隐私守卫 + 自动 LIMIT）
+  resolve_sample_roles(...) → 确定性样本角色判定（tumor/normal，规则移植自重版，不许模型猜）
   validate_atomic_chain(chain) → 确定性闭集校验（11 个 atomic 工具 + 图内 next_tool 邻接）
+  validate_execution_chain(steps) → 提交前把关，输出 execution_params / submittable
+  validate_plan(plan)       → 接地校验：整份 Plan 的名词逐一到图/目录核验，防模型编造
   health_check()            → Neo4j 连通与图谱规模
-
-兼容/对照臂（明确标注，非推荐路径）：
-  rule_baseline_plan(query) → 关键词基线规划，仅供与模型路径对照，不用于生产
 
 目录数据（tool_catalog.csv）启动时从 skill/references/ 读取，不内嵌拷贝。
 用法：export NEO4J_USER=neo4j NEO4J_PASSWORD=<密码> && python3 mcp_light_server.py
@@ -33,6 +34,7 @@ NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "")
 SKILL_REF = os.environ.get("BIO_SKILL_REF", os.path.join(HERE, "skill", "references"))
 SKILL_MD = os.environ.get("BIO_SKILL_MD", os.path.join(os.path.dirname(SKILL_REF), "SKILL.md"))
 _SAFE_TOKEN = re.compile(r"^[a-zA-Z0-9_\-\u4e00-\u9fff ]+$")
+_SAFE_FILE = re.compile(r"^[A-Za-z0-9._\-]+$")   # \u56fe\u5185 file_name / accession \u767d\u540d\u5355
 KC_MAP: dict = {}   # graph tool_id -> Knowledge Card（meta.id + 卡内 IO 名）
 
 def load_knowledge_cards() -> None:
@@ -86,57 +88,92 @@ def load_catalog() -> None:
 
 load_catalog()
 
-# ---------- 生信相关性门（仅 rule_baseline_plan 使用） ----------
-BIO_TERMS = [
-    "生信", "生物信息", "测序", "fastq", "fq.gz", "bam", "vcf", "maf", "tsv",
-    "基因", "表达", "转录组", "rna-seq", "wes", "wgs", "scrna", "单细胞",
-    "突变", "变异", "体细胞", "somatic", "质控", "比对", "注释", "定量",
-    "count", "tpm", "fpkm", "差异表达", "deg", "差异基因", "富集", "kegg", "reactome", "gsea",
-    "生存", "kaplan", "cox", "pfs", "免疫浸润", "免疫细胞", "cibersort",
-    "聚类", "分型", "亚型", "wgcna", "共表达", "hub", "细胞通讯", "cellchat",
-    "cellranger", "barcode", "umi", "seurat", "scanpy", "h5ad",
-    "肿瘤", "癌症", "癌", "队列", "样本", "病人", "患者", "oncoplot", "tmb", "her2", "erbb2", "egfr",
-    "参考基因组", "gtf", "star", "hisat", "bwa", "gatk", "mutect", "snpeff", "bcftools",
-    "reads", "read group", "ubam", "染色体", "位点",
-]
-NON_BIO_TERMS = [
-    "雅思", "托福", "口语", "写作", "听力", "签证", "留学", "高考", "考研",
-    "租房", "搬家", "健身", "菜谱", "股票", "基金", "税务",
-    "写代码", "前端", "后端", "react", "vue", "css", "html", "bug", "部署", "docker",
-    "语法", "翻译", "简历", "面试",
-]
+# ---------- 样本角色推断（确定性知识，移植自重版 pipeline_router._sample_role） ----------
+# 角色判定必须确定、可审计（tumor/normal 弄反 = 配对分析出错），因此放在 server 而不是让模型猜。
+STUDY_ROLE_OVERRIDES: dict = {
+    # HRA000071（胶质瘤）：286 个 T_ 组织标 Tumor 没问题，286 个血样的 tissue_type
+    # 却分裂成 104 Tumor / 182 Normal。血样在该研究里是配对对照，按 specimen 统一判。
+    "HRA000071": ("specimen_type", {"blood": "normal", "patient solid tissue": "tumor"}),
+}
+SAMPLE_ROLE_LABELS = {"tumor": "肿瘤样本（实验组）", "normal": "正常样本（对照组）"}
 
-def _hits(q, terms):
-    low = q.lower()
-    out = []
-    for t in terms:
-        tl = t.lower()
-        if re.fullmatch(r"[a-z0-9]+", tl):
-            if re.search(rf"\b{re.escape(tl)}\b", low):
-                out.append(t)
-        elif tl in low:
-            out.append(t)
-    return out
+def sample_role(record: dict):
+    """推断样本角色；推不出返回 None，不猜。聚合类文件（表达矩阵/MAF/临床表）本无单样本角色。"""
+    study = str(record.get("study_accession") or "").strip()
+    rule = STUDY_ROLE_OVERRIDES.get(study)
+    if rule:
+        kind, mapping = rule
+        if kind == "study_constant":
+            return str(mapping)
+        if kind == "specimen_type":
+            # 0819 图谱清洗把空格规范成下划线（Patient_Solid_Tissue），归一化后新旧取值都能命中
+            sp = str(record.get("specimen_type") or record.get("specimen_types") or "").strip().lower().replace("_", " ")
+            return mapping.get(sp)
+        if kind == "name_suffix":
+            # 长后缀优先，"_Normal" 才不会被 "N" 抢走（各 study 命名习惯不同，规则随 study 配）
+            name = str(record.get("sample_name") or "").strip().lower()
+            for suffix in sorted(mapping, key=len, reverse=True):
+                if name.endswith(str(suffix).lower()):
+                    return mapping[suffix]
+        return None
+    return {"tumor": "tumor", "normal": "normal"}.get(str(record.get("tissue_type") or "").strip().lower())
 
-def check_relevance(query):
-    bio = _hits(query, BIO_TERMS)
-    non_bio = _hits(query, NON_BIO_TERMS)
-    if bio and not non_bio:
-        return {"is_bio": True, "reason": "ok", "bio_hits": bio, "non_bio_hits": []}
-    if non_bio and not bio:
-        return {"is_bio": False, "reason": "rejected: 非生信问题", "bio_hits": [], "non_bio_hits": non_bio}
-    if bio and non_bio:
-        return {"is_bio": False, "reason": "rejected: 生信与非生信信号并存，无法确认意图", "bio_hits": bio, "non_bio_hits": non_bio}
-    return {"is_bio": False, "reason": "rejected: 未检测到生信信号（fail-closed）", "bio_hits": [], "non_bio_hits": []}
-
-# ---------- Neo4j 数据面（curl，只读守卫） ----------
+# ---------- Neo4j 数据面（curl，只读守卫 + 隐私守卫） ----------
 _WRITE_RE = re.compile(
     r"\b(CREATE|MERGE|DELETE|SET\s|REMOVE|DROP|DETACH|FOREACH)\b|CALL\s+dbms\.|db\.create",
+    re.IGNORECASE)
+# individual 的编号前缀临床属性是患者级敏感数据：01_ 人口学(年龄/性别/种族)、03_ 生活史、
+# 09_ 肿瘤病理、11_ 分子指标、13_ 生存。规划只允许聚合统计或存在性判断，不允许取个体值。
+_SENSITIVE_PROP = r"`?(?:01|03|09|11|13)_\w+`?"
+_SENSITIVE_RE = re.compile(_SENSITIVE_PROP)
+_ALLOW_NULLCHECK_RE = re.compile(
+    rf"(?:[\w.]+\.)?{_SENSITIVE_PROP}\s+IS\s+(?:NOT\s+)?NULL", re.IGNORECASE)
+_ALLOW_AGG_RE = re.compile(
+    r"\b(?:count|avg|sum|min|max|stdev\w*|percentile\w*)\s*\((?:[^()]|\([^()]*\))*\)",
     re.IGNORECASE)
 
 def _assert_read_only(query):
     if _WRITE_RE.search(query):
         raise ValueError("read_cypher 只允许只读查询（检测到写入语句）")
+
+def _assert_privacy(query):
+    """患者级临床属性只许聚合/存在性判断：去掉允许形态后仍出现敏感属性 → 拒绝。
+    另防整节点绕过：individual 变量禁止 properties()/keys()/动态下标/整体 RETURN。
+    说明：正则守卫是尽力而为的纵深防御层，主防线是调用方模型的拒绝纪律与部署信任边界。"""
+    residual = _ALLOW_NULLCHECK_RE.sub(" ", query)
+    residual = _ALLOW_AGG_RE.sub(" ", residual)
+    hit = _SENSITIVE_RE.search(residual)
+    if hit:
+        raise ValueError(
+            f"read_cypher 隐私守卫：{hit.group(0)} 是患者级临床属性（01_人口学/03_生活史/09_病理/"
+            "11_分子指标/13_生存），只允许聚合统计（count/avg/min/max…）或存在性判断（IS NOT NULL），"
+            "不允许返回或按值筛选个体数据。请改写为聚合查询，或直接拒绝用户的隐私问询。")
+    # individual 绑定变量 + 一层别名追踪
+    ind_vars = set(re.findall(r"\(\s*(\w+)\s*:\s*individual\b", query, re.IGNORECASE))
+    for v in list(ind_vars):
+        ind_vars.update(re.findall(rf"\b{v}\s+AS\s+(\w+)", query, re.IGNORECASE))
+    for v in ind_vars:
+        if re.search(rf"\b(?:properties|keys)\s*\(\s*{v}\b", query, re.IGNORECASE) \
+                or re.search(rf"\b{v}\s*\[", query):
+            raise ValueError(
+                f"read_cypher 隐私守卫：禁止对 individual 节点（变量 {v}）使用 properties()/keys()/"
+                "动态属性访问——这会导出患者级临床属性。请显式点取非临床字段（如 individual_accession）。")
+        # RETURN 段禁止整节点导出（count(v)/id(v) 允许；v.prop 点取由属性守卫把关）
+        for mseg in re.finditer(r"\bRETURN\b(.*?)(?=\b(?:MATCH|WHERE|UNWIND|CALL|UNION|ORDER|SKIP|LIMIT)\b|$)",
+                                query, re.IGNORECASE | re.S):
+            seg = mseg.group(1)
+            seg = re.sub(rf"\bcount\s*\(\s*(?:DISTINCT\s+)?{v}\s*\)", " ", seg, flags=re.IGNORECASE)
+            seg = re.sub(rf"\b(?:id|elementId)\s*\(\s*{v}\s*\)", " ", seg, flags=re.IGNORECASE)
+            if re.search(rf"(?<![\w.]){v}(?![\w.])", seg):
+                raise ValueError(
+                    f"read_cypher 隐私守卫：禁止整体 RETURN individual 节点（变量 {v}）——"
+                    "请显式点取所需的非临床字段（如 {v}.individual_accession）或用 count() 聚合。")
+
+def _ensure_limit(query):
+    """无 LIMIT 的查询自动加 LIMIT 500，防止整表拖库。"""
+    if re.search(r"\bLIMIT\s+\d+", query, re.IGNORECASE):
+        return query
+    return query.rstrip().rstrip(";") + " LIMIT 500"
 
 def neo4j_q(statements):
     if not NEO4J_PASSWORD:
@@ -171,10 +208,50 @@ def tool_read_cypher(args):
         return {"status": "error", "detail": "query 不能为空"}
     try:
         _assert_read_only(query)
-        rows = neo4j_q([query])
+        _assert_privacy(query)
+        rows = neo4j_q([_ensure_limit(query)])
         return {"status": "ok", "columns_unknown": True, "rows": rows[0] if rows else []}
     except Exception as e:
         return {"status": "error", "detail": str(e)[:500]}
+
+def tool_resolve_sample_roles(args):
+    """确定性样本角色判定（不查 LLM、不猜）。两种用法：
+    - records: 对调用方提供的样本记录逐条判 tumor/normal（离线，不查图）
+    - study:   查图统计该队列的角色分布（tumor/normal/unresolved）+ role_resolved"""
+    records = args.get("records")
+    if records:
+        out = []
+        for r in records:
+            role = sample_role(r or {})
+            out.append({**(r or {}), "sample_role": role,
+                        "sample_role_label": SAMPLE_ROLE_LABELS.get(role or "")})
+        return {"status": "ok", "records": out}
+    study = (args.get("study") or "").strip()
+    if not study:
+        return {"status": "error", "detail": "需要 study（队列号）或 records（样本记录数组）参数"}
+    if not _SAFE_FILE.fullmatch(study):
+        return {"status": "error", "detail": "非法 study 格式"}
+    try:
+        rows = neo4j_q([
+            f"MATCH (f:T1)-[:in_sample]->(sp:sample) WHERE f.study_accession = '{study}' "
+            "RETURN DISTINCT sp.sample_accession, sp.sample_name, sp.tissue_type, sp.specimen_type"])
+    except Exception as e:
+        return {"status": "error", "detail": str(e)[:300]}
+    counts = {"tumor": 0, "normal": 0, "unresolved": 0}
+    samples = []
+    for r in (rows[0] if rows else []):
+        rec = {"study_accession": study, "sample_accession": r[0], "sample_name": r[1],
+               "tissue_type": r[2], "specimen_type": r[3]}
+        role = sample_role(rec)
+        counts[role if role in ("tumor", "normal") else "unresolved"] += 1
+        if len(samples) < 200:
+            samples.append({**rec, "sample_role": role,
+                            "sample_role_label": SAMPLE_ROLE_LABELS.get(role or "")})
+    return {"status": "ok", "study": study,
+            "sample_roles": counts,   # 按 distinct sample 计数（重版按 T1 文件计数，口径不同）
+            "role_resolved": counts["tumor"] > 0 and counts["normal"] > 0,
+            "samples": samples, "sample_count": sum(counts.values()),
+            "note": "聚合类文件（表达矩阵/MAF/临床表）无单样本角色，字段为 null 属正常，不是图谱缺数据"}
 
 def tool_validate_atomic_chain(args):
     chain = args.get("chain") or []
@@ -317,42 +394,52 @@ def tool_validate_execution_chain(args):
     stages.append({"stage": "chain_flow", "passed": not flow_bad,
                    "findings": [] if not flow_bad else [f"图谱中无 next_tool 边: {flow_bad}"]})
     if flow_bad: errors.append(f"图谱中无 next_tool 边: {flow_bad}")
+    # ── 执行参数解析（对齐重版 execution_params/submittable：只认真实 "/" 开头路径，不伪造） ──
+    def _real_path(binding):
+        if not isinstance(binding, dict):
+            return ""
+        path = str(binding.get("file_path") or "").strip()
+        if path.startswith("/") and "NOT_FOUND" not in path:
+            return path
+        fname = str(binding.get("file_name") or binding.get("file_id") or "").strip()
+        if fname and _SAFE_FILE.fullmatch(fname):
+            try:
+                rows = neo4j_q([f"MATCH (n) WHERE (n:T1 OR n:T2) AND n.file_name = '{fname}' RETURN n.file_path LIMIT 1"])
+                p = str(rows[0][0][0] or "") if rows and rows[0] else ""
+                if p.startswith("/") and "NOT_FOUND" not in p:
+                    return p
+            except Exception:
+                pass
+        return ""
+    execution_params, exec_missing = {}, []
+    for s in steps:
+        gid, given = _norm(s.get("tool_id"))
+        card = KC_MAP.get(gid)
+        bindings = s.get("inputs") or {}
+        if card:
+            file_inputs = [i["name"] for i in card["inputs"]
+                           if i.get("type") in ("File", "Array[File]") and i.get("required", True)]
+        else:   # pipeline 级无卡：有对象 binding 的输入都当 File 处理
+            file_inputs = [k for k, v in bindings.items() if isinstance(v, dict)]
+        for name in file_inputs:
+            key = f"{given}.{name}" if len(steps) > 1 else name
+            path = _real_path(bindings.get(name))
+            if path:
+                execution_params[key] = path
+            else:
+                exec_missing.append(key)
+    submittable = not errors and not exec_missing
     return {"schema_version": "tool-chain-validation/v1.1", "mode": "execution_contract",
             "valid": not errors, "validation": {"ok": not errors, "errors": errors, "warnings": warnings},
             "stages": stages, "normalized_steps": normalized,
-            "hint": "提交前把关：errors 全部清零才可提交执行端"}
+            "execution_params": execution_params,
+            "execution_params_missing": exec_missing,
+            "submittable": submittable,
+            "hint": "提交前把关：errors 清零且 execution_params_missing 为空（submittable=true）才可提交执行端"}
 
-def tool_route_pipeline_request(args):
-    """tool-chain/v2 信封（对齐重 MCP）：规则意图 + 数据匹配 + 候选链，无 server 内 LLM。"""
-    query = (args.get("query") or "").strip()
-    if not query:
-        return {"status": "error", "detail": "query 不能为空"}
-    try:
-        from light_router import route_pipeline_request as _route, intent_extract, SLOTS
-        out = _route(query)
-        # slot 增强：给 recommendations[].tool.inputs 补 artifact/dimension/variant（io_slot.csv）
-        pid = out["recommendations"][0]["pipeline_id"] if out.get("recommendations") else None
-        if pid:
-            def _mk_slot(n, v):
-                return {"name": n, "type": "File" if v.get("wdl_type") == "File" else "string",
-                        "is_file": v.get("wdl_type") == "File",
-                        "optional": not v.get("required", True),
-                        "artifact": v.get("artifact") or None,
-                        "formats": [], "description": n,
-                        "dimension": v.get("dimension") or "",
-                        "dimension_value": v.get("dimension_value") or "",
-                        "variant": v.get("variant") or "",
-                        "variant_alias_for": v.get("variant_alias_for") or ""}
-            in_slots = {k[1]: v for k, v in SLOTS.items() if k[0] == pid and v.get("direction") == "input"}
-            out_slots = {k[1]: v for k, v in SLOTS.items() if k[0] == pid and v.get("direction") == "output"}
-            out["recommendations"][0]["tool"]["inputs"] = [_mk_slot(n, v) for n, v in in_slots.items()]
-            out["recommendations"][0]["tool"]["outputs"] = [_mk_slot(n, v) for n, v in out_slots.items()]
-        return out
-    except Exception as e:
-        import traceback; traceback.print_exc()
-        return {"status": "error", "detail": str(e)[:300]}
-
-# 关键词基线（对照臂，非推荐路径）
+# route_pipeline_request / rule_baseline_plan 已下线（v2.1）：规则规划路径与架构主张
+# （推理必来自调用方模型）冲突。关键词基线仅保留给 benchmark 三臂评测的 ceiling 对照臂
+# 与 light_router.py（离线对照）——去名集上它只有 1.4%，生产路径不允许静默降级到这里。
 RULES = [
     (["10x", "cellranger", "CellRanger", "单细胞", "barcode", "Seurat", "Scanpy"], "cellranger_workflow", 3),
     (["uBAM", "unmapped bam", "未比对", "read group"], "paired_fastq_to_unmapped_bam", 3),
@@ -386,15 +473,65 @@ def _predict_baseline(query):
             scores.pop("diff_expr_go", None)
     return [pid for pid, _ in sorted(scores.items(), key=lambda kv: -kv[1])][:3]
 
-def tool_rule_baseline_plan(args):
-    """对照臂：关键词基线。仅供与模型路径对比，不用于生产（见 README 三臂结论）。"""
-    query = (args.get("query") or "").strip()
-    rel = check_relevance(query)
-    if not rel["is_bio"]:
-        return {"status": "rejected", "reason": rel["reason"], "bio_hits": rel["bio_hits"], "non_bio_hits": rel["non_bio_hits"]}
-    top = _predict_baseline(query)
-    return {"status": "ok", "baseline": True, "top_pipelines": top,
-            "note": "关键词基线（ceiling arm），非推荐路径；推理请用 get_planning_guide + read_cypher"}
+def tool_validate_plan(args):
+    """接地校验：整份 tool-chain/v2 Plan 的名词必须图内/目录内可验证。
+    模型输出前自检用——工具、文件、路径、队列号任一无法证实即 grounded=false，
+    防调用方模型用内部知识编造答案内容。"""
+    plan = args.get("plan")
+    if isinstance(plan, str):
+        try:
+            plan = json.loads(plan)
+        except json.JSONDecodeError as e:
+            return {"status": "error", "detail": f"plan 不是合法 JSON: {e}"}
+    if not isinstance(plan, dict):
+        return {"status": "error", "detail": "plan 必须是 JSON 对象或其字符串"}
+    if plan.get("status") == "rejected":
+        ok = bool(plan.get("reason"))
+        return {"status": "ok", "grounded": ok, "kind": "rejected",
+                "violations": [] if ok else ["rejected 对象缺 reason"]}
+    v = []
+    if plan.get("schema_version") != "tool-chain/v2":
+        v.append("schema_version 缺失或不是 tool-chain/v2")
+    meta_to_graph = {c["meta_id"]: gid for gid, c in KC_MAP.items() if gid != c["meta_id"]}
+    recs = plan.get("recommendations") or []
+    if not recs:
+        v.append("recommendations 为空（信息型回答也应有 rank1 推荐或改用 rejected/unsupported）")
+    for i, rec in enumerate(recs):
+        pid = rec.get("pipeline_id") or (rec.get("tool") or {}).get("tool_id")
+        gid = meta_to_graph.get(pid, pid)
+        if gid not in CATALOG:
+            v.append(f"recommendations[{i}] 工具不在闭集目录（疑似模型编造）: {pid}")
+        for a in (rec.get("data") or {}).get("assets") or []:
+            fn = a.get("file_name") or a.get("name")
+            if not fn:
+                v.append(f"recommendations[{i}] asset 缺 file_name")
+                continue
+            if not _SAFE_FILE.fullmatch(str(fn)):
+                v.append(f"asset 文件名含非法字符: {fn}")
+                continue
+            rows = neo4j_q([f"MATCH (n) WHERE (n:T1 OR n:T2) AND n.file_name = '{fn}' RETURN n.file_path LIMIT 1"])
+            if not (rows and rows[0]):
+                v.append(f"asset 图内不存在（疑似模型编造）: {fn}")
+            else:
+                fp = a.get("file_path")
+                real = rows[0][0][0]
+                if fp and real and fp != real:
+                    v.append(f"asset file_path 与图内记录不符: {fn}")
+        for st in (rec.get("data") or {}).get("study_accessions") or []:
+            if not _SAFE_FILE.fullmatch(str(st)):
+                v.append(f"study 号非法: {st}")
+                continue
+            rows = neo4j_q([f"MATCH (s:study {{study_accession: '{st}'}}) RETURN count(s)"])
+            if not (rows and rows[0] and rows[0][0][0] > 0):
+                v.append(f"study 图内不存在（疑似模型编造）: {st}")
+    for i, c in enumerate(plan.get("candidates") or []):
+        for stp in c.get("tool_chain") or []:
+            tid = stp.get("tool_id")
+            gid = meta_to_graph.get(tid, tid)
+            if gid not in CATALOG or CATALOG[gid].get("tool_kind") != "atomic":
+                v.append(f"candidates[{i}] 工具链含非闭集 atomic: {tid}")
+    return {"status": "ok", "grounded": not v, "violations": v,
+            "hint": "grounded=false 说明 Plan 含图谱无法证实的内容——回到查询结果修正，不要用模型内部知识补全"}
 
 def tool_health_check(args):
     try:
@@ -411,7 +548,7 @@ TOOLS = {
         "handler": tool_get_planning_guide,
     },
     "read_cypher": {
-        "description": "数据面：对 Neo4j 知识图谱执行只读 Cypher 查询（有只读守卫，写入语句会被拒）。",
+        "description": "数据面：对 Neo4j 知识图谱执行只读 Cypher 查询。三重守卫：写入语句拒绝；患者级临床属性（01_/03_/09_/11_/13_ 前缀）只允许聚合统计或 IS NOT NULL 存在性判断，不允许取个体值；无 LIMIT 自动加 LIMIT 500。",
         "inputSchema": {"type": "object", "properties": {"query": {"type": "string", "description": "只读 Cypher，结果多时加 LIMIT"}}, "required": ["query"]},
         "handler": tool_read_cypher,
     },
@@ -420,24 +557,30 @@ TOOLS = {
         "inputSchema": {"type": "object", "properties": {"chain": {"type": "array", "items": {"type": "string"}, "description": "atomic tool_id 有序列表"}}, "required": ["chain"]},
         "handler": tool_validate_atomic_chain,
     },
-    "rule_baseline_plan": {
-        "description": "（对照臂，非推荐路径）关键词基线规划。仅用于与模型路径对比。",
-        "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
-        "handler": tool_rule_baseline_plan,
-    },
-    "route_pipeline_request": {
-        "description": "tool-chain/v2 规划（对齐重 MCP）：规则意图提取 + 数据匹配 + 原子候选链，无 server 内 LLM（推理在调用方模型）。",
-        "inputSchema": {"type": "object", "properties": {"query": {"type": "string", "description": "生信分析需求"}}, "required": ["query"]},
-        "handler": tool_route_pipeline_request,
+    "resolve_sample_roles": {
+        "description": "确定性样本角色判定（tumor/normal，规则移植自重版，不猜）。传 study 查图统计角色分布（sample_roles/role_resolved），或传 records 对给定样本记录逐条判角色。配对/分组分析选数据前必须调用，不许模型自行推断角色。",
+        "inputSchema": {"type": "object",
+                        "properties": {"study": {"type": "string", "description": "队列号（如 HRA001272）"},
+                                       "records": {"type": "array", "items": {"type": "object"},
+                                                   "description": "样本记录数组，字段含 study_accession/tissue_type/specimen_type/sample_name"}},
+                        "required": []},
+        "handler": tool_resolve_sample_roles,
     },
     "validate_execution_chain": {
-        "description": "场景1提交前把关：五阶段探查（注册/卡契约必填输入/绑定结构/数据探查/链流转），输出 tool-chain-validation/v1.1 逐阶段报告。steps: [{tool_id, inputs:{name: binding}}]。",
+        "description": "提交前把关：五阶段探查（注册/卡契约必填输入/绑定结构/数据探查/链流转），输出 tool-chain-validation/v1.1 逐阶段报告 + execution_params（输入名→真实文件路径）+ execution_params_missing + submittable。steps: [{tool_id, inputs:{name: binding}}]。",
         "inputSchema": {"type": "object",
                         "properties": {"steps": {"type": "array", "items": {"type": "object"},
                                                  "description": "每步 {tool_id, inputs:{输入名: binding}}，binding 可为对象{file_id/file_name/format}或标量"},
                                        "cohort": {"type": "string", "description": "可选队列/癌种（如 肝癌），用于数据探查过滤"}},
                         "required": ["steps"]},
         "handler": tool_validate_execution_chain,
+    },
+    "validate_plan": {
+        "description": "接地校验（模型输出前自检）：核验整份 tool-chain/v2 Plan 的工具是否在闭集目录、文件/路径/队列号是否图内真实存在。grounded=false 时按 violations 修正——防止调用方模型用内部知识编造答案内容。",
+        "inputSchema": {"type": "object",
+                        "properties": {"plan": {"description": "最终要输出的 tool-chain/v2 JSON（对象或字符串）"}},
+                        "required": ["plan"]},
+        "handler": tool_validate_plan,
     },
     "health_check": {
         "description": "检查 Neo4j 连通性、图谱规模与 atomic 闭集。",
@@ -465,7 +608,7 @@ def main():
             _send({"jsonrpc": "2.0", "id": msg.get("id"),
                    "result": {"protocolVersion": "2024-11-05",
                               "capabilities": {"tools": {"listChanged": False}},
-                              "serverInfo": {"name": "bio-pipeline-light", "version": "2.0.0"}}})
+                              "serverInfo": {"name": "bio-pipeline-light", "version": "2.1.0"}}})
         elif method == "notifications/initialized":
             pass
         elif method == "ping":

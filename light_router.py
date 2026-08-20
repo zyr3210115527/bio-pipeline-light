@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-light_router.py — 轻架构 route_pipeline_request（tool-chain/v2 对齐重 MCP）
+light_router.py — 【离线对照臂，已从 MCP 下线（v2.1）】规则版 route_pipeline_request
 
-给 mcp_light_server.py 的 route_pipeline_request 工具提供：
+本模块不再被 mcp_light_server.py 暴露为工具：规则规划与架构主张（推理必来自调用方模型）
+冲突，去名集上词表基线仅 1.4%。保留此文件只为 benchmark 对照与实现参考，勿接回生产。
+
+原提供：
   - intent 提取（规则）：analysis_goal / disease / omics_type / input_hint / quant_hint / requested_outputs
   - 数据匹配器（轻）：队列候选 + 文件候选（重版 assets 字段形状）+ matched/expected/missing
   - 候选链装配：图内 next_tool 可达的 atomic 链（闭集校验），输出 candidates[]
