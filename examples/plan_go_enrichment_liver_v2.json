@@ -1,0 +1,139 @@
+{
+  "schema_version": "tool-chain/v2",
+  "selection_status": "information",
+  "candidate_count": 0,
+  "candidates": [],
+  "recommendation_count": 1,
+  "recommendations": [
+    {
+      "rank": 1,
+      "match_id": "recommendation-diff-expr-go-hra001272",
+      "pipeline_id": "diff_expr_go",
+      "match_note": "基于表达矩阵做差异表达（limma）并对上下调基因分别 GO 富集，匹配肝癌 bulk RNA-seq 病例-对照场景",
+      "tool": {
+        "tool_id": "diff_expr_go",
+        "catalog_id": "T029",
+        "tool_kind": "pipeline",
+        "name": "diff_expr_go",
+        "description": "基于表达矩阵进行差异基因分析（limma）并针对上下调基因分别进行 GO 功能富集（clusterProfiler）。\r\n适用于 FPKM/TPM 定量数据的两组比较场景，输出差异基因列表及 GO 富集结果表。",
+        "card": null,
+        "inputs": [
+          {
+            "name": "expression_matrix",
+            "type": "File",
+            "is_file": true,
+            "optional": false,
+            "artifact": "expression_abundance_matrix",
+            "formats": [
+              "tsv"
+            ],
+            "description": "FPKM/TPM 基因×样本矩阵"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "differential_expression",
+            "artifact": "differential_expression_table",
+            "formats": [
+              "tsv"
+            ]
+          },
+          {
+            "name": "go_enrichment",
+            "artifact": "enrichment_result_table",
+            "formats": [
+              "tsv"
+            ]
+          }
+        ]
+      },
+      "data": {
+        "status": "available",
+        "source": "neo4j",
+        "assets": [
+          {
+            "file_name": "HRA001272-Genes-FPKM-1.0.tsv",
+            "graph_status": "available",
+            "source": "T2",
+            "format": "tsv",
+            "strategy": "bulk_RNA",
+            "data_level": "2",
+            "study_accession": "HRA001272",
+            "sample_id": null,
+            "sample_role": null,
+            "sample_role_label": null,
+            "file_path": "/hpcdisk1/cbb_group/data/analysis/HRA001272/RNAseq/HRA001272-Genes-FPKM-1.0.tsv",
+            "match_reason": "癌种匹配(Hepatocellular Carcinoma); 现成 T2 表达矩阵复用; 文件语义 FPKM(聚合文件,无单样本角色,sample 字段置 null 属正常)"
+          }
+        ],
+        "matched_count": 1,
+        "expected_count": 1,
+        "missing_asset_names": [],
+        "study_accessions": [
+          "HRA001272"
+        ],
+        "alternatives": [
+          {
+            "study_accession": "HRA001272",
+            "tumor_type": "Hepatocellular Carcinoma",
+            "label": "HRA001272 · Hepatocellular Carcinoma",
+            "selected": true,
+            "sample_roles": {
+              "tumor": 485,
+              "normal": 213,
+              "unresolved": 0
+            },
+            "role_resolved": true,
+            "execution_params": {
+              "expression_matrix": "/hpcdisk1/cbb_group/data/analysis/HRA001272/RNAseq/HRA001272-Genes-FPKM-1.0.tsv"
+            },
+            "execution_params_missing": [],
+            "submittable": true
+          }
+        ]
+      },
+      "execution_params": {
+        "expression_matrix": "/hpcdisk1/cbb_group/data/analysis/HRA001272/RNAseq/HRA001272-Genes-FPKM-1.0.tsv"
+      },
+      "execution_params_missing": [],
+      "source": "caller_model+neo4j",
+      "reference_case_id": null
+    }
+  ],
+  "intent": {
+    "query_text": "我想用肝癌数据做go富集分析",
+    "analysis_goal": "GO 富集分析(差异表达+GO)",
+    "disease": "肝癌",
+    "disease_term": "肝癌",
+    "disease_status": "matched",
+    "disease_studies": [
+      "HRA001272",
+      "HRA006499",
+      "HRA001749",
+      "HRA001748"
+    ],
+    "omics_type": "bulk RNA-seq",
+    "input_hint": "fpkm",
+    "quant_hint": "fpkm",
+    "requested_outputs": [
+      "enrichment"
+    ],
+    "study_accessions": [],
+    "source": "caller_model",
+    "ambiguous": false
+  },
+  "planner_metadata": {
+    "used": true,
+    "status": "ok",
+    "model": "caller",
+    "calls": 4,
+    "stages": [
+      "function_match",
+      "cohort_resolve",
+      "data_match",
+      "pre_submit_validation"
+    ]
+  },
+  "data_matcher_mode": "neo4j",
+  "submittable": true
+}

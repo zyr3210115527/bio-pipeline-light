@@ -7,18 +7,44 @@
 | 工具 | 作用 |
 |---|---|
 | `get_planning_guide()` | 返回 SKILL.md 全文（调用方模型自己读、自己规划——**本 server 不做推理**） |
-| `read_cypher(query)` | 数据面：通用只读 Cypher 查询（写入守卫拒绝写语句） |
+| `read_cypher(query)` | 数据面：通用只读 Cypher 查询（三重守卫：拒写入；患者级临床属性 `01_/03_/09_/11_/13_` 仅聚合/存在性判断；无 LIMIT 自动加 LIMIT 500） |
+| `resolve_sample_roles(study \| records)` | 确定性样本角色判定（tumor/normal）：队列角色分布 + `role_resolved`，或对给定样本记录逐条判角色 |
 | `validate_atomic_chain(chain)` | 确定性闭集校验：11 个 atomic 工具 + 图内 next_tool 邻接 |
-| `rule_baseline_plan(query)` | **对照臂**：关键词基线，非推荐路径（仅与模型路径对比用） |
+| `validate_execution_chain(steps)` | 提交前把关：五阶段报告 + `execution_params` + `submittable` |
+| `validate_plan(plan)` | 接地校验：整份 Plan 的工具/文件/路径/队列号逐一到图与目录核验，`grounded=false` 即含编造内容 |
 | `health_check` | Neo4j 连通性、图谱规模、atomic 闭集 |
 
-**拒绝门**：主路径的推理在调用方模型——由 SKILL.md 指导它对非生信问题直接拒绝；`rule_baseline_plan` 内置 fail-closed 相关性门（96 例回归 0 误杀）。
+**没有规则规划接口**（v2.1 起 `route_pipeline_request` / `rule_baseline_plan` 已删除）：Plan 只能由调用方模型产出——读 `get_planning_guide`、按手册查 `read_cypher`、产出 tool-chain/v2、提交前过 `validate_execution_chain`（`submittable=true` 才可提交）。**接入端必须有模型在环**；无模型的业务后端请勿直连本 server。非生信问题的拒绝由 SKILL.md 指导调用方模型执行（输出 `{"status":"rejected",...}` 单对象）。
 
-```json
-{ "status": "rejected", "reason": "rejected: 非生信问题", "bio_hits": [], "non_bio_hits": ["雅思", "口语"] }
+## 调用方模型系统提示词（DeepSeek / 其他 OpenAI 兼容模型直接复制）
+
+目的：强制模型**只根据本系统的输出作答**（手册 + 图谱查询结果），不用它的内部生信知识编内容。将下面整段放进 `system` 角色（SKILL.md 全文不用手动贴，模型第一步调 `get_planning_guide` 自然进上下文）：
+
+```text
+你是生信分析链路规划 agent，通过 MCP 工具连接一个 Neo4j 知识图谱服务（bio-pipeline-light）。
+
+【知识来源，最高优先级】
+你在本任务中的唯一知识来源是工具返回的内容：get_planning_guide 返回的手册、
+read_cypher / resolve_sample_roles / validate_* 的返回结果。你的内部生信知识只许
+用来理解用户意图和决定"查什么"，禁止直接写进答案。
+
+【硬性规则】
+1. 会话开始第一件事：调用 get_planning_guide，通读手册后严格按其目录规则、
+   查询配方、执行纪律、拒绝纪律、输出契约行事。
+2. 答案中出现的每一个工具名、pipeline_id、队列号(HRA*)、文件名、文件路径、
+   格式名，必须逐字来自手册或本会话工具返回。没查到过的名词绝对不许出现——
+   即使你确信某工具真实存在（如 DESeq2/Seurat），只要图谱闭集里没有，就不能用。
+3. 图里查不到 → 如实输出 missing_from_graph / no_candidate / unsupported，
+   不许用记忆补全，不许猜测。
+4. 样本的肿瘤/正常角色只能来自 resolve_sample_roles 工具，不许按样本名猜测。
+5. 输出最终答案前，把整份 JSON 传给 validate_plan 工具自检：grounded=false 就
+   按 violations 修正后重验（回到查询结果找依据，不是换个说法），直到
+   grounded=true。收到工具的隐私拒绝时不许改写查询绕过。
+6. 最终输出必须且只能是一个 JSON 对象：tool-chain/v2 Plan，或
+   {"status":"rejected","reason":"off_topic|privacy: ..."}。JSON 前后不加任何文字。
 ```
 
-96 例生信问题回归：**96/96 放行，0 误杀**（含 "Reactome 通路" 等易误伤场景，词边界匹配）。
+DeepSeek 实操建议：`temperature` 调低（≤0.3）；若客户端支持 `response_format: {"type":"json_object"}`，在最终输出轮开启；工具调用轮数按手册执行纪律控制在 ≤3 轮。前端侧再加两道断言兜底：Plan 必须带 `schema_version: "tool-chain/v2"`，且 `validate_plan.grounded=true`、提交前 `submittable=true`。
 
 ## 前置条件
 
@@ -78,7 +104,7 @@ recv()
 send({"jsonrpc":"2.0","method":"notifications/initialized","params":{}})
 send({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}})
 print("tools:", [t["name"] for t in recv()["result"]["tools"]])
-send({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"plan_bio_analysis","arguments":{"query":"肝癌样本免疫浸润怎么分析"}}})
+send({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"resolve_sample_roles","arguments":{"study":"HRA001272"}}})
 print(json.dumps(recv()["result"]["structuredContent"], ensure_ascii=False, indent=1)[:800])
 p.terminate()
 EOF
@@ -89,4 +115,4 @@ EOF
 ## 与 DSH 侧的关系
 
 - 同一份能力，DSH agent 走 `dsh-mcp-client` + `bio-pipeline-planning` skill（见 `docs/integration.md`）；
-- 前端 agent 走本文件描述的 stdio MCP。**数据面（Neo4j 只读查询）两端等价**；推理面：DSH 用 skill 手册，前端 agent 直接用 `plan_bio_analysis` 拿到 Plan（或用自己的 LLM + `read-cypher` 自主规划——若需自主查图，把 `mcp_light_server.py` 换成官方 `neo4j-mcp-server` 的 stdio 配置即可，见 `docs/integration.md` 的 `mcp-neo4j` 段）。
+- 前端 agent 走本文件描述的 stdio MCP。**数据面（Neo4j 只读查询）两端等价**；推理面：DSH 用 skill 手册，前端 agent 用自己的 LLM + `get_planning_guide` + `read_cypher` 自主规划（server 内无任何规划接口——若需自主查图，把 `mcp_light_server.py` 换成官方 `neo4j-mcp-server` 的 stdio 配置即可，见 `docs/integration.md` 的 `mcp-neo4j` 段）。

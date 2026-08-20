@@ -48,19 +48,19 @@
 
 **改动三：去名集**（`benchmark/data/de_named_set.json`，14 工具 × 5 = 70 例）：只写意图、不出现任何规则触发词（已程序化验证**零重叠**）。ceiling 在去名集从 100% 崩到 1.4%，正说明原集的 100% 全是词表泄漏。
 
-**改动四：推理归模型。** MCP server 不内嵌 if-else 推理：`get_planning_guide` 给手册、`read_cypher` 给数据、`validate_atomic_chain` 给确定性校验；关键词表降级为 `rule_baseline_plan` 对照臂（非推荐路径）。
+**改动四：推理归模型。** MCP server 不内嵌 if-else 推理：`get_planning_guide` 给手册、`read_cypher` 给数据、`validate_atomic_chain` 给确定性校验。关键词表已从 MCP 工具下线（v2.1），仅存于 benchmark 三臂评测的 ceiling 对照臂与 `light_router.py` 离线对照——生产路径不存在规则规划，也就不存在静默降级。
 
 **数据面**（96 例，已拆含水）：期望文件图内可查 174/186（93.5%），其中**精确命中 138/186（74.2%）**，仅宽匹配命中 36（19.4%）；6 例（q052–057）期望数据是 demo 文件（`NVM0598_*`、`ENCSR142YZV_chr19only_*`），不在 Neo4j 图内——以图为准如实报 `missing_from_graph`。
 
 ## 给前端 agent 的 MCP 接口（stdio，同机/局域网）
 
-仓库自带 `mcp_light_server.py`（无第三方依赖的 stdio MCP server，v2），前端 agent 直接接。**推理留给调用方自己的模型**：
+仓库自带 `mcp_light_server.py`（无第三方依赖的 stdio MCP server，v2.1），前端 agent 直接接。**推理只能来自调用方自己的模型**（规则规划接口已删除，无降级路径）：
 
 - `get_planning_guide()` —— 返回 SKILL.md 全文，调用方模型读后自行规划
-- `read_cypher(query)` —— 数据面：通用只读查询（有写入守卫）
+- `read_cypher(query)` —— 数据面：通用只读查询（三重守卫：拒写入；患者级临床属性 `01_/03_/09_/11_/13_` 仅允许聚合统计或 IS NOT NULL，含整节点导出/properties()/动态下标防绕过；无 LIMIT 自动限流 500）
+- `resolve_sample_roles(study | records)` —— 确定性样本角色判定（tumor/normal，规则移植自重版 `_sample_role`）：`study` 模式返回队列角色分布 `sample_roles` 与 `role_resolved`，`records` 模式对给定样本记录逐条判角色。配对/分组分析选数据前必须调用
 - `validate_atomic_chain(chain)` —— 确定性闭集校验（11 个 atomic + 图内 next_tool 邻接；输出 Knowledge Card meta.id + 卡内 IO 名，图谱 id / meta.id 均可入参）
-- `validate_execution_chain(steps)` —— **提交前把关（场景1）**：五阶段探查（注册/卡契约必填输入/绑定结构/数据探查/链流转），输出 tool-chain-validation/v1.1 逐阶段报告，errors 清零才可提交
-- `rule_baseline_plan(query)` —— **对照臂**：关键词基线，非推荐路径，仅供与模型路径对比
+- `validate_execution_chain(steps)` —— **提交前把关（场景1）**：五阶段探查（注册/卡契约必填输入/绑定结构/数据探查/链流转），输出 tool-chain-validation/v1.1 逐阶段报告 + `execution_params`（输入名→图内真实路径）+ `execution_params_missing` + `submittable`；errors 清零且 submittable=true 才可提交
 - `health_check()` —— Neo4j 连通、规模、atomic 闭集
 
 ```json
@@ -71,6 +71,31 @@
 ```
 
 仓库根目录已有 `.mcp.json`（Claude Code 打开即用）。完整说明见 `docs/frontend-mcp-connection.md`。
+
+### 前端接入方法（五步，模型必须在环）
+
+前提：前端是**带模型的 agent**（Claude Code / Codex / DeepSeek 等 OpenAI 兼容模型均可）。本 server 没有任何"一次调用出 Plan"的接口，Plan 必须由前端自己的模型产出。**给调用方模型的系统提示词模板（强制只依据本系统输出作答、禁用内部知识）见 `docs/frontend-mcp-connection.md`，直接复制可用**：
+
+1. **配置 MCP**：把上面的 `mcpServers` 段填进客户端配置（或直接用仓库根目录 `.mcp.json`），设好 `NEO4J_*` 环境变量。
+2. **读手册**：会话开始时模型调 `get_planning_guide()`，按 SKILL.md 的词汇表、闭集目录规则、15 条配方行事（含拒绝纪律：无关问题回 `off_topic`、患者隐私问询回 `privacy`，先判再查）。
+3. **查图规划**：模型用 `read_cypher` 按配方查询（功能匹配→链路组装→数据选择）；**配对/分组分析先调 `resolve_sample_roles`** 判定队列角色（`role_resolved=false` 的队列做不了配对，不许模型自己猜角色）。
+4. **产出 Plan 并自检接地**：模型输出单个 tool-chain/v2 JSON（严格 top-1；契约见 SKILL.md，完整示例见 `examples/plan_go_enrichment_liver_v2.json`），输出前把整份 JSON 交给 `validate_plan` 核验——工具/文件/路径/队列号逐一到图与目录比对，`grounded=false`（含模型编造内容）按 `violations` 修正后重验。
+5. **提交前把关**：调 `validate_execution_chain(steps)`——`errors` 清零且 `submittable=true` 才能提交执行端；`execution_params` 就是可直接下发的"输入名→真实文件路径"，`execution_params_missing` 如实展示给用户，**绝不伪造路径**。
+
+前端断言建议：收到的 Plan 若缺 `schema_version: "tool-chain/v2"`，或提交前未见 `submittable=true`，一律拒收——这两条能挡住大部分模型不守契约的输出（实测格式合规率约 52%，校验层必须有）。
+
+### 与之前版本的区别
+
+| | 旧（重 MCP / light v2.0） | 现在（light v2.1） |
+|---|---|---|
+| Plan 从哪来 | 一次调用 `route_pipeline_request` 拿现成 Plan（重版 server 内嵌 LLM；v2.0 是词表规则，去名集仅 1.4%） | **接口已删除**。Plan 由前端自己的模型按手册产出，无静默降级路径 |
+| 前端形态 | 无模型的后端也能直连 | **必须有模型在环**；无模型后端请继续用重版或在自己侧加 LLM |
+| 样本角色 | 重版内置推断 / v2.0 输出恒 null | `resolve_sample_roles` 确定性工具（study/records 两模式，规则与重版对齐并适配 0819 图谱） |
+| 提交判定 | 重版有 `execution_params`/`submittable` / v2.0 没有 | `validate_execution_chain` 补齐：`execution_params` + `execution_params_missing` + `submittable` |
+| 拒绝无关问题 | `rule_baseline_plan` 内置词表相关性门 | 拒绝纪律在 SKILL.md（`off_topic`/`privacy` 两类 reason），由调用方模型执行 |
+| 患者隐私 | 无专门防护 | `read_cypher` 服务端守卫：临床属性（`01_/03_/09_/11_/13_`）仅聚合/存在性判断，防整节点导出/别名/动态下标绕过，自动 LIMIT 500 |
+| 图谱 | 0812 交付 | 0819 交付（列名规范/数据补充/值清洗），SKILL.md 已同步 |
+| 回归手段 | 96 例含水测试集 | `benchmark/system_test.py`（9 场景 44 断言）+ `integration_test.py`，图谱更新后必跑 |
 
 ## 目录结构
 

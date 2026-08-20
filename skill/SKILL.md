@@ -11,17 +11,18 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 - 备用：`curl -u neo4j:<pwd> -X POST -H 'Content-Type: application/json' -d '{"statements":[{"statement":"<Cypher>"}]}' http://127.0.0.1:7474/db/neo4j/tx/commit`
 - **绝不**执行 CREATE/MERGE/DELETE/SET；本图谱是只读咨询面。
 
-## 图谱模型（0812 交付；数量以图内实测为准）
+## 图谱模型（0819 交付；数量以图内实测为准）
 
 | 节点 | 含义 |
 |---|---|
 | `tool`（51） | 分析工具/流程：`tool_name`、`function`（中文）、`semantic_output`（`;` 分隔语义产物）、catalog_id（T001…） |
 | `function`（90） | 分析功能（中文整句，用 CONTAINS 子串匹配） |
-| `format` / `modal` / `datalevel` | 格式（`RAW_PAIRED_END_R1_FASTQ`、`DNA_VARIANT_VCF_GENERAL`、`MUTATION_ANNOTATION_FORMAT_MAF`…）/ 模态 / 层级（1 原始→4 知识） |
-| `study` / `project` | 队列：`study_accession`、`tumor_type`、`study_description`、`sample_count` |
-| `individual` / `sample` | 个体/样本：`sample_accession`、`tissue_type`（Tumor/Normal）、`specimen_type`、`gender` |
-| `T1` | 原始数据文件（FASTQ 等）：`file_path`、`file_name`、`format`、`strategy` |
-| `T2` | 分析结果文件（VCF/BAM/MAF…）：`file_path`、`size`、`format` |
+| `format` / `modal` / `datalevel` | 格式（`RAW_PAIRED_END_R1_FASTQ`、`DNA_VARIANT_VCF_GENERAL`、`MUTATION_ANNOTATION_FORMAT_MAF`…，0819 新增 `CLINICAL`/`*_META` 元数据格式）/ 模态 / 层级（1 原始→4 知识） |
+| `study` / `project` | 队列：`study_accession`、`tumor_type`（0819 起 Title Case，如 `Liver Cancer`，查询仍用 toLower）、`study_description`、`sample_count` |
+| `individual` | 个体：`individual_accession`；临床属性 0819 起按编号前缀分组——`00_*` 基本信息、`01_*` 人口学（`01_age`/`01_gender`/`01_race`）、`09_*` 肿瘤病理（`09_tumor_stage`/`09_tumor_type`…）、`11_*` 分子指标（`11_tmb`/`11_msi_score`）、**`13_*` 生存（`13_survival_days`/`13_survival_status`）——生存分析选数据用这里** |
+| `sample` | 样本：`sample_accession`、`tissue_type`（Tumor/Normal）、`specimen_type`（0819 起下划线风格，如 `Patient_Solid_Tissue`）、`gender` |
+| `T1` | 原始数据文件（FASTQ 等）：`t1_id`、`file_path`、`file_name`、`file_format`（字面格式）、`semantic_format`、`strategy` |
+| `T2` | 分析结果文件（VCF/BAM/MAF…）：`t2_id`、`file_path`、`size`、`format`、`semantic_format` |
 
 关键关系：`(tool)-[:next_tool]->(tool)` 链路；`(tool)-[:input|output]->(format)` I/O 契约；`(tool)-[:suitable_for]->(modal)`；`(tool)-[:has_function]->(function)`；`(T1|T2)-[:in_sample|in_format|in_modal|in_level|in_study]->(...)`；`(T2)-[:generated_from]->(T1)`；`(sample)-[:in_individual]->(individual)`。
 
@@ -65,6 +66,24 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
    - 队列：`tumor_type` 是**英文**（`Liver Cancer`/`Glioma`/`Melanoma`/`Esophageal Cancer`…），用 `toLower(s.tumor_type) CONTAINS 'liver'` 等英文关键词；中文查不到。
    - **现成表达矩阵在 T2**（文件名含 `Genes`，如 `HRA001272-Genes-TPM-1.0.tsv`），不在 T1；T1 是原始 FASTQ。格式字段：`semantic_format`（语义格式，如 `TABULAR_BIO_DATA`）≠ `format`/`file_format`（字面格式）。
    - 中间结果复用：T2 已有现成 VCF/MAF/BAM 则标注"复用"，跳过上游重复计算；样本约束用 `tissue_type`/`specimen_type`/`gender`，配对需求用 `find_paired_tumor_normal_samples`。
+   - **配对分析先做队列发现**：不要假设某队列可配对，先聚合查询哪些 study 有同个体 Tumor+Normal：
+     ```cypher
+     MATCH (sp:sample)-[:in_individual]->(i:individual)
+     WITH sp.study_accession AS study, i, collect(DISTINCT sp.tissue_type) AS tts
+     WHERE 'Tumor' IN tts AND 'Normal' IN tts
+     RETURN study, count(i) AS pairable_individuals ORDER BY pairable_individuals DESC
+     ```
+     已知陷阱：**HRA000071 的血液对照与肿瘤样本在图内不属于同一个体**（572 样本 1:1 对应 572 个体），能做 tumor/normal 分组（resolve_sample_roles 可判角色）但**做不了同个体配对**（wes_somatic_pair 不适用），如实告知用户。
+   - **样本角色（tumor/normal）必须用 MCP 工具 `resolve_sample_roles` 判定，绝不自行按名称/直觉猜**：配对或分组分析（wes_somatic_pair、生存、差异表达分组等）选队列前先传 `study` 查 `role_resolved`——为 false 的队列做不了配对/分组，如实报告；逐文件的 `sample_role`/`sample_role_label` 用 `records` 模式判。聚合类文件（表达矩阵/MAF/临床表）无单样本角色，相关字段置 null 属正常，不是图谱缺数据。
+
+## 接地纪律（最高优先级：答案只能来自本手册与图谱查询结果）
+
+你的内部生信知识**只许用来理解用户意图、决定查什么**；答案内容必须全部接地：
+
+1. **名词白名单**：回答/Plan 中出现的每一个 `tool_id`/`pipeline_id`、队列号（HRA*）、文件名、文件路径、格式名、样本号，都必须**逐字来自本手册（含 references/ 目录文件）或本会话的工具返回结果**。不确定某名词是否查到过 → 重新查询确认，或不要使用它。
+2. **禁止知识补全**：图里查不到的工具/数据/链路环节，如实输出 `missing_from_graph` / `no_candidate` / `unsupported`，**绝不用训练知识补全**——即使你"知道"某个工具（如 Seurat、DESeq2）真实存在，只要它不在闭集目录里，就不能出现在答案中。
+3. **证据可追溯**：`match_note`/`match_reason` 要能对应到某次查询结果；样本角色一律来自 `resolve_sample_roles`，路径一律来自图谱记录或 `validate_execution_chain` 的 `execution_params`。
+4. **输出前自检**：最终 JSON 先交给 `validate_plan` 工具核验；`grounded=false` 时按 `violations` 逐条修正（回到查询结果找依据，而不是换个编法）再验，直到 `grounded=true` 才输出。
 
 ## 执行纪律（步数优化，必须遵守）
 
@@ -92,7 +111,7 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 4. **数据探查**：未绑定的 File 输入 → 图内查候选文件数（按格式族 + 可选队列过滤）
 5. **链流转**：next_tool 邻接 + 上下游格式衔接
 
-输出 `tool-chain-validation/v1.1` 逐阶段报告；**errors 清零才可提交**。pipeline 级工具无卡时明确警告"跳过契约校验"。
+输出 `tool-chain-validation/v1.1` 逐阶段报告，并附 `execution_params`（输入名 → 图内真实文件路径，只认 `/` 开头的确认路径，绝不伪造）、`execution_params_missing`、`submittable`。**errors 清零且 `submittable=true` 才可提交**；`submittable=false` 时不得宣称"这条链能跑"，把 `execution_params_missing` 如实列给用户。pipeline 级工具无卡时明确警告"跳过契约校验"。
 
 ## 规划流程（5 步）
 
@@ -104,7 +123,12 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 
 ## tool-chain/v2 输出契约（前端真源 = bio-pipeline-kg-matcher 的 pipeline_router）
 
-**输出契约（硬性规则，违反即视为未完成任务）**：最终答案**必须且只能输出一个 tool-chain/v2 JSON 对象**——不要散文、不要 markdown、不要列多个候选、不要在 JSON 前后加任何解释。`recommendations[0]` 是唯一推荐（严格 top-1）；`candidates[]` 只在能做原子链时填充。非生信问题输出 `{"status":"rejected","reason":"..."}` 单对象。
+**输出契约（硬性规则，违反即视为未完成任务）**：最终答案**必须且只能输出一个 tool-chain/v2 JSON 对象**——不要散文、不要 markdown、不要列多个候选、不要在 JSON 前后加任何解释。`recommendations[0]` 是唯一推荐（严格 top-1）；`candidates[]` 只在能做原子链时填充。
+
+**拒绝纪律（先判再查，命中即拒，不调用任何查询工具）**：
+- **无关问题**（闲聊、代码求助、留学/生活咨询等一切与生信分析规划无关的请求）→ 输出 `{"status":"rejected","reason":"off_topic: <一句话说明>"}` 单对象。
+- **患者隐私问询**（询问个体层面的临床信息：某个/某些病人的年龄、性别、种族、吸烟史、病理分期、生存时间等，或要求"列出所有病人的 X"）→ 输出 `{"status":"rejected","reason":"privacy: 患者级临床数据不对外提供，仅支持聚合统计"}` 单对象。合法的聚合需求（"有生存数据的样本有多少"）照常服务，用 count/IS NOT NULL 聚合查询。
+- 服务端双保险：`read_cypher` 会拒绝对 `01_/03_/09_/11_/13_` 前缀临床属性的非聚合查询——收到该拒绝时不要改写绕过，向用户如实说明隐私边界。
 
 **命名契约（Knowledge Card 对齐）**：原子工具的 `tool_id` 必须用 Knowledge Card 的 `meta.id`（如 `bwa_mem_paired` 而非 `bwa`），`tool_chain.inputs` 与输出引用用卡内定义的输入输出名称（如 `read1`/`aligned_sam`）。映射表见 `references/knowledge_cards_map.json`（12 张原子卡）。pipeline 级工具（无卡，如 `diff_expr_go`）维持图谱 tool_id，并在 `tool_id` 旁标注 `"card": null`。
 
@@ -151,7 +175,7 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 }
 ```
 
-要点：`assets` 逐文件带溯源与 `match_reason`；`inputs/outputs` 的 `artifact` 用 ArtifactType 词表（`references/artifact_type.csv`）；`candidates[]` 只在能做原子链时填，否则空 + `selection_status` 说明。
+要点：`assets` 逐文件带溯源与 `match_reason`；`inputs/outputs` 的 `artifact` 用 ArtifactType 词表（`references/artifact_type.csv`）；`candidates[]` 只在能做原子链时填，否则空 + `selection_status` 说明。**单样本类资产（FASTQ/BAM 等）必须带 `sample_role`/`sample_role_label`（用 `resolve_sample_roles` 判定）；聚合类资产（矩阵/MAF/临床表）这些字段置 null。** 配对/分组分析的 `data` 下建议附 `alternatives[]`（其他可选队列：`study_accession`/`label`/`sample_roles` 统计/`role_resolved`/`selected`，数据同样来自 `resolve_sample_roles` 与队列查询）。执行参数一律以 `validate_execution_chain` 返回的 `execution_params`/`submittable` 为准转录进 plan，不自行拼路径。
 
 ## 可读 Plan 模板（面向人）
 
@@ -165,6 +189,7 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 
 ## 边界与原则
 
+- **隐私红线**：`individual` 的编号临床属性（`01_` 人口学、`03_` 生活史、`09_` 病理、`11_` 分子指标、`13_` 生存）是患者级敏感数据。规划过程只做聚合统计与存在性判断（count / IS NOT NULL）；绝不在回答、Plan、日志里出现任何个体的临床属性值。样本的 `tissue_type`/`specimen_type`/`gender` 作为分组约束属操作性使用，不逐个体罗列。
 - 图谱是"方法与数据的地图"；工具是否已安装、数据路径本机是否可达要**实际检查**（which、ls），不假装可读。
 - 回答"能做哪些分析"：先给图谱覆盖的分析族，再对感兴趣族给链路。
 - 前端/后端要执行时，plan 里的 `file_path` 是图谱记录（可能指向另一台服务器），如实说明来源。
