@@ -218,6 +218,28 @@ for name, q in [
 ]:
     r = m.tool_read_cypher({"query": q})
     check(f"{name} → 拒绝", r["status"] == "error" and "只读" in r["detail"], r)
+# 敏感前缀覆盖范围：0821 实测漏了 02/04/10/12 四类，能直接查出个体级治疗方案、
+# 脉管侵犯、家族史（"HRI264436 → 3+7 regimen"）。改为按前缀区间覆盖 01_–13_，
+# 只放行 00_（操作性标识）。这几条防的是"上游一加编号列就又漏一类"。
+for name, q in [
+    ("12_ 治疗史（个体级方案）",
+     "MATCH (i:individual) RETURN i.individual_accession, "
+     "i.`12_treatment_regimens_for_non_surgical_patients` LIMIT 3"),
+    ("04_ 血液学指标", "MATCH (i:individual) RETURN i.`04_hemoglobin_concentration_g_l` LIMIT 3"),
+    ("02_ 家族史", "MATCH (i:individual) RETURN i.`02_family_history` LIMIT 3"),
+    ("10_ 脉管侵犯", "MATCH (i:individual) RETURN i.`10_vessel_invasion` LIMIT 3"),
+]:
+    r = m.tool_read_cypher({"query": q})
+    check(f"敏感前缀「{name}」→ 拒绝", r["status"] == "error" and "隐私" in r["detail"], r)
+for name, q in [
+    ("00_ 操作性标识放行",
+     "MATCH (i:individual) WHERE i.`00_sample_accession` IS NOT NULL RETURN count(*)"),
+    ("12_ 存在性判断放行", "MATCH (i:individual) WHERE i.`12_surgery` IS NOT NULL RETURN count(*)"),
+    # 属性名里嵌了数字（..._109_l）不能被当成 09_ 病理属性误杀：前缀必须落在名字开头
+    ("04_platelet_count_109_l 聚合放行", "MATCH (i:individual) RETURN avg(i.`04_platelet_count_109_l`)"),
+]:
+    r = m.tool_read_cypher({"query": q})
+    check(f"敏感前缀零误伤「{name}」", r["status"] == "ok", r)
 # 合法工作负载不能被上面的加固误杀
 for name, q in [
     ("count(节点)", "MATCH (i:individual) RETURN count(i) AS n"),

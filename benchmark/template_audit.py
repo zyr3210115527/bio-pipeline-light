@@ -6,6 +6,14 @@
 改成 `t1_id`）之后，模板语法仍然合法、Neo4j 也不报错，只是静默返回 0 行——模型
 拿到空结果就会退回内部知识去猜。所以"能跑通"不够，必须断言**每条模板都返回行**。
 
+只断言行数还不够：0821 实测 find_t1_by_study_and_format 返回 100 行，但 `t1.T1_id`
+（已改名为 `t1_id`）那一整列都是 null——行数断言全程绿灯，只有逐列看才发现。所以这里
+同时断言**每一列至少有一个非 null 值**。
+反过来也要留意选样偏差：同一次排查里我按前两行判定 `t1.platform` "不存在"，其实
+28,184/28,229 个 T1 都有，只是排在前面的 Clinical/*_META 聚合文件没有。判某列死没死
+要看整列，不能看 LIMIT 2。
+OPTIONAL MATCH 出来的列天然可空，列进 NULLABLE 白名单，不参与该断言。
+
 用法: NEO4J_PASSWORD=... python3 benchmark/template_audit.py
 """
 import glob
@@ -30,6 +38,41 @@ PARAMS = {
     "$input_format": "'RAW_PAIRED_END_R1_FASTQ'",
     "$output_format": "'DNA_VARIANT_VCF_GENERAL'",
 }
+
+# OPTIONAL MATCH 出来的列天生可空，整列 null 不代表模板坏了，不参与"整列 null"断言。
+# 只白名单到具体模板的具体列，不要整条模板豁免——否则真坏了也看不出来。
+NULLABLE = {
+    "trace_sample_hierarchy.cypher": {"s.sample_accession", "i.individual_accession",
+                                      "st.study_accession", "p.project_accession"},
+}
+
+
+def return_columns(query):
+    """从 RETURN 子句里抽列名（只为报错时能指名道姓；抽不出就退回列序号）。"""
+    mm = list(re.finditer(r"(?is)\bRETURN\b", query))
+    if not mm:
+        return []
+    tail = query[mm[-1].end():]
+    tail = re.split(r"(?is)\b(?:ORDER\s+BY|SKIP|LIMIT)\b", tail)[0]
+    cols, depth, buf = [], 0, ""
+    for ch in tail:
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        if ch == "," and depth == 0:
+            cols.append(buf)
+            buf = ""
+        else:
+            buf += ch
+    cols.append(buf)
+    out = []
+    for c in cols:
+        c = c.strip()
+        alias = re.search(r"(?is)\bAS\s+([\w`]+)\s*$", c)
+        out.append((alias.group(1) if alias else c).strip("` "))
+    return out
+
 
 fails = []
 tdir = os.path.join(ROOT, "skill", "references", "query_templates")
@@ -65,7 +108,21 @@ for path in paths:
         fails.append(name)
         continue
     if rows:
-        print(f"PASS {name}: rows={len(rows)}")
+        # 整列 null = 属性名写错/字段根本不存在，语句照样返回行。必须单独查出来。
+        cols = return_columns(query)
+        dead = []
+        for j in range(max(len(r) for r in rows)):
+            label = cols[j] if j < len(cols) else f"第{j + 1}列"
+            if label in NULLABLE.get(name, ()):
+                continue
+            if all(r[j] is None for r in rows if j < len(r)):
+                dead.append(label)
+        if dead:
+            print(f"FAIL {name}: rows={len(rows)} 但整列为 null：{', '.join(dead)}"
+                  f"——属性名写错或该字段在此标签上不存在")
+            fails.append(name)
+        else:
+            print(f"PASS {name}: rows={len(rows)}, cols={len(cols)}")
     else:
         print(f"FAIL {name}: 返回 0 行——属性名/标签可能已随图谱换版失效")
         fails.append(name)

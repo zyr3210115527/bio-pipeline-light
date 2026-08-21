@@ -6,23 +6,27 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 
 # 生信分析链路规划（Neo4j 知识图谱 + tool-chain/v2）
 
-以本机 Neo4j（bolt://localhost:7687，库 neo4j）为唯一事实源。查询接口：
-- 优先 MCP 工具 `mcp__neo4j__read-cypher`（参数 `query`，只读；写语句会被拒）
-- 备用：`curl -u neo4j:<pwd> -X POST -H 'Content-Type: application/json' -d '{"statements":[{"statement":"<Cypher>"}]}' http://127.0.0.1:7474/db/neo4j/tx/commit`
-- **绝不**执行 CREATE/MERGE/DELETE/SET；本图谱是只读咨询面。
+以 Neo4j 知识图谱（库 `neo4j`）为唯一事实源。查询接口：
+- **本 MCP server 的 `read_cypher` 工具**（参数 `query`，只读；写语句、患者级临床属性的非聚合查询会被拒）。
+  本 server 共 7 个工具：`get_planning_guide`、`read_cypher`、`resolve_sample_roles`、
+  `validate_atomic_chain`、`validate_execution_chain`、`validate_plan`、`health_check`。
+  **没有"一次调用出 Plan"的接口**——规划由你自己做，本 server 只提供知识与确定性校验。
+- 现网地址（0821）：HTTP `http://192.168.130.24:7480/db/neo4j/tx/commit`、bolt `bolt://192.168.130.24:7690`。
+  server 从 `NEO4J_URL`/`NEO4J_USER`/`NEO4J_PASSWORD` 读取，**不要把地址或口令写进查询和回答里**。
+- **绝不**执行 CREATE/MERGE/DELETE/SET/LOAD CSV；本图谱是只读咨询面。
 
-## 图谱模型（0819 交付；数量以图内实测为准）
+## 图谱模型（0821 交付；数量为 0821 实测：81,621 节点 / 364,184 关系）
 
 | 节点 | 含义 |
 |---|---|
 | `tool`（51） | 分析工具/流程：`tool_name`、`function`（中文）、`semantic_output`（`;` 分隔语义产物）、catalog_id（T001…） |
 | `function`（90） | 分析功能（中文整句，用 CONTAINS 子串匹配） |
-| `format` / `modal` / `datalevel` | 格式（`RAW_PAIRED_END_R1_FASTQ`、`DNA_VARIANT_VCF_GENERAL`、`MUTATION_ANNOTATION_FORMAT_MAF`…，0819 新增 `CLINICAL`/`*_META` 元数据格式）/ 模态 / 层级（1 原始→4 知识） |
-| `study` / `project` | 队列：`study_accession`、`tumor_type`（0819 起 Title Case，如 `Liver Cancer`，查询仍用 toLower）、`study_description`、`sample_count` |
-| `individual` | 个体：`individual_accession`；临床属性 0819 起按编号前缀分组——`00_*` 基本信息、`01_*` 人口学（`01_age`/`01_gender`/`01_race`）、`09_*` 肿瘤病理（`09_tumor_stage`/`09_tumor_type`…）、`11_*` 分子指标（`11_tmb`/`11_msi_score`）、**`13_*` 生存（`13_survival_days`/`13_survival_status`）——生存分析选数据用这里** |
-| `sample` | 样本：`sample_accession`、`tissue_type`（Tumor/Normal）、`specimen_type`（0819 起下划线风格，如 `Patient_Solid_Tissue`）、`gender` |
-| `T1` | 原始数据文件（FASTQ 等）：`t1_id`、`file_path`、`file_name`、`file_format`（字面格式）、`semantic_format`、`strategy` |
-| `T2` | 分析结果文件（VCF/BAM/MAF…）：`t2_id`、`file_path`、`size`、`format`、`semantic_format` |
+| `format`（35） / `modal`（6） / `datalevel`（4） | 格式（`RAW_PAIRED_END_R1_FASTQ`、`DNA_VARIANT_VCF_GENERAL`、`MUTATION_ANNOTATION_FORMAT_MAF`…，含 `CLINICAL`/`*_META` 元数据格式）/ 模态（**取值只有 `WES`/`WGS`/`bulk_RNA`/`sc-RNA`/`Clinical`/`Meta` 六个，别自己编 `RNA-seq` 这种写法**）/ 层级（节点属性是 `level`/`name`/`description`，**不是** `data_level`；1 原始→4 知识。文件侧的 `T1.data_level`/`T2.data_level` 才叫 data_level） |
+| `study`（20） / `project`（18） | 队列：`study_accession`、`tumor_type`（Title Case，如 `Liver Cancer`，查询用 toLower + CONTAINS，注意同一癌种有多种写法，见配方 3）、`title`、`study_description`、`individual_count`、`sample_count`（**只有 14/20 个队列有值**，HRA000073/HRA000087/HRA002693/HRA006117/HRA007413/HRA016026 为 null——按它排序或过滤会静默漏掉这 6 个，要队列规模就数 `sample` 节点） |
+| `individual`（7131） | 个体：`individual_accession`；其余属性按编号前缀分组，**只有 `00_*` 是操作性标识**（`00_sample_accession`/`00_run_accession`/`00_platform`/`00_strategy`… 规划连数据用它）；**`01_`–`13_` 全是患者级敏感数据**——01_ 人口学、02_ 家族史、03_ 生活史、04_ 血液学、09_ 肿瘤病理、10_ 侵犯情况、11_ 分子指标（`11_tmb`/`11_msi_score`）、12_ 治疗史、**13_ 生存（`13_survival_days`/`13_survival_status`/`13_pfs_time`…）——生存分析选数据用这里**。这些只许 count/avg/IS NOT NULL 聚合，逐个体取值会被服务端守卫拒绝（见「边界与原则」） |
+| `sample`（10465） | 样本：`sample_accession`、`sample_name`、`tissue_type`、`specimen_type`（下划线风格，如 `Patient_Solid_Tissue`）、`gender`。**`tissue_type` 不是干净的 Tumor/Normal 二值**：0821 实测 Tumor 5469、Normal 2469、null 1270、`Tumor,Normal` 700（多值格子）、Blood 557；`specimen_type` 同样有 `Organoid;Patient_Solid_Tissue` 这种分号多值。判角色一律用 `resolve_sample_roles`，别自己写等值匹配 |
+| `T1` | 原始数据文件（FASTQ 等）：`t1_id`、`file_name`、`file_format`（字面格式）、`semantic_format`、`data_level`、`study_accession`（这 6 个全量 28,229 有值）；`strategy` 28,222、`platform`/`sample_accession`/`individual_accession`/`sample_name` 28,184、`run_accession`/`experiment_accession` 27,070、`file_path` 26,879、`size` 25,417。**缺值的那 45 个是 Clinical/`*_META` 聚合文件**（本就不属于单样本），不要据此判"图里没有平台/样本信息" |
+| `T2` | 分析结果文件（VCF/BAM/MAF…）：`t2_id`、`file_name`、`format`、`strategy`、`data_level`、`size`、`study_accession`（全量 35,572）；`semantic_format` 35,570、`file_path` 35,566、`run_accession` 31,717。**T2 上没有 `platform`/`sample_accession`**——要样本归属走 `(T2)-[:generated_from]->(T1)-[:in_sample]->(sample)` |
 
 关键关系：`(tool)-[:next_tool]->(tool)` 链路；`(tool)-[:input|output]->(format)` I/O 契约；`(tool)-[:suitable_for]->(modal)`；`(tool)-[:has_function]->(function)`；`(T1|T2)-[:in_sample|in_format|in_modal|in_level|in_study]->(...)`；`(T2)-[:generated_from]->(T1)`；`(sample)-[:in_individual]->(individual)`；`(individual)-[:in_study]->(study)`；`(study)-[:in_project]->(project)`；`(format)-[:subclass_of]->(format)`（具体格式→通用格式，按语义格式找工具时可沿边向上找）。
 
@@ -35,7 +39,7 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 995（实际 7061）、`data_level = 1` 返回 0 行、队列按 `sample_count` 排序把 `'81'` 排在 `'698'` 前面。
 如果你看到这类反常结果，先确认字段类型，不要在结论里照搬。
 
-## 闭集工具目录（0812，真源 = bio-pipeline-kg-matcher repo）
+## 闭集工具目录（真源 = bio-pipeline-kg-matcher repo 的 `data/csv/catalog`；0821 与图内实测一致）
 
 运行时目录 **51 个**：**12 个 atomic**（其中 **11 个可编排**，`multiqc` 仅收尾不参与编排）+ **38 个 pipeline** + **1 个 task_pipeline**，与图内 51 个 `tool` 节点**一一对应，无缺无多**（0821 实测双向差集为空）。完整字段（catalog_id、input/output format、omics、变体、slot 绑定）见 `references/tool_catalog.csv`；ArtifactType 词表见 `references/artifact_type.csv`。
 
@@ -52,12 +56,12 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 
 ## 查询配方
 
-**15 条官方 Cypher 模板**在本 skill 的 `references/query_templates/`，按名取用（都是 read-cypher 直接可执行的语句）：
+**15 条官方 Cypher 模板**在本 skill 的 `references/query_templates/`，按名取用（都是 `read_cypher` 直接可执行的语句；0821 逐条实跑，15/15 都能返回行，脚本见 `benchmark/template_audit.py`）。**照抄别改属性名大小写**——`t1_id`/`t2_id` 写成 `T1_id`/`T2_id` 不会报错，只会静默返回 0 行：
 
 | 模板 | 用途 |
 |---|---|
 | `find_tools_by_function` | 按功能中文子串找工具（`has_function` CONTAINS） |
-| `find_tools_by_input_format` / `find_tools_by_output_format` | 按输入/输出格式找工具 |
+| `find_tools_by_input_format` / `find_tools_by_output_format` | 按输入/输出格式找工具（**注意 `bootstrap_stability`、`hvg_pca_gmm`、`multiqc` 三个工具在图里没有 `input` 边，按输入格式永远找不到它们**——需要时按 `has_function` 或工具名直接查，别据此下"图里没有这个工具"的结论） |
 | `find_tool_input_output` | 单工具的 I/O 契约 |
 | `find_tools_by_modal` | 按模态找工具 |
 | `trace_next_tool_chain` | 从某工具沿 `next_tool` 走链 |
@@ -72,7 +76,18 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 1. **请求→工具匹配**：分词多关键词 OR 检索 `tool_name`/`function`；注意命名模式（`deg_*`/`de_*`=差异、`wgcna*`=共表达、`*survival`/`km_*`/`cox_*`=生存、`*enrichment`=富集、`*cellchat`=细胞通讯、`tmb_*`=突变负荷）。
 2. **链路组装+验链**：逐环节核对上一工具 `output`/`semantic_output` 与下一工具 `input` 的 format 交集；缺口如实报（"图谱缺：<环节>，期望输入 <format>；建议 <可补工具或说明>"），**绝不虚构不存在的工具**。
 3. **数据选择（注意英文词表与 T2 现成矩阵）**：
-   - 队列：`tumor_type` 是**英文**（`Liver Cancer`/`Glioma`/`Melanoma`/`Esophageal Cancer`…），用 `toLower(s.tumor_type) CONTAINS 'liver'` 等英文关键词；中文查不到。
+   - 队列：`tumor_type` 是**英文 Title Case**，用 `toLower(s.tumor_type) CONTAINS '<英文词>'` 匹配，中文查不到。
+     **同一癌种在图里有多种写法，只按一个词查会漏队列**——0821 实测 20 个队列的全部取值：
+     `Liver Cancer`、`Hepatocellular Carcinoma`、`Lung Cancer`、`Non-Small Cell Lung Carcinoma`、
+     `Malignant Glioma`、`Melanoma`、`Esophageal Cancer`、`Colorectal Adenocarcinoma`、
+     `Nasopharynx Carcinoma`、`Acute Myeloid Leukemia`、`Acute T Cell Leukemia`，另有 1 个队列 `tumor_type` 为 null。
+     **典型坑**：查肝癌写 `CONTAINS 'liver'` 只返回 HRA001748/HRA001749/HRA006499，
+     **查不到 HRA001272**（它是 `Hepatocellular Carcinoma`）——而 HRA001272 恰恰是本手册
+     tool-chain/v2 示例里那个带现成 TPM 矩阵的肝癌队列。肝癌要写
+     `toLower(s.tumor_type) CONTAINS 'liver' OR toLower(s.tumor_type) CONTAINS 'hepatocell'`，
+     肺癌同理要带上 `'lung'`（`Lung Cancer` 与 `Non-Small Cell Lung Carcinoma` 都含 lung，一个词够）。
+     拿不准就先把 20 个队列的 `study_accession` + `tumor_type` 一次全查回来（一条语句、20 行），
+     自己对着选，比反复试关键词省轮数。
    - **现成表达矩阵在 T2**（文件名含 `Genes`，如 `HRA001272-Genes-TPM-1.0.tsv`），不在 T1；T1 是原始 FASTQ。格式字段：`semantic_format`（语义格式，如 `TABULAR_BIO_DATA`）≠ `format`/`file_format`（字面格式）。
    - 中间结果复用：T2 已有现成 VCF/MAF/BAM 则标注"复用"，跳过上游重复计算；样本约束用 `tissue_type`/`specimen_type`/`gender`，配对需求用 `find_paired_tumor_normal_samples`。
    - **配对分析先做队列发现**：不要假设某队列可配对，先聚合查询哪些 study 有同个体 Tumor+Normal。
@@ -178,8 +193,8 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 
 **拒绝纪律（先判再查，命中即拒，不调用任何查询工具）**：
 - **无关问题**（闲聊、代码求助、留学/生活咨询等一切与生信分析规划无关的请求）→ 输出 `{"status":"rejected","reason":"off_topic: <一句话说明>"}` 单对象。
-- **患者隐私问询**（询问个体层面的临床信息：某个/某些病人的年龄、性别、种族、吸烟史、病理分期、生存时间等，或要求"列出所有病人的 X"）→ 输出 `{"status":"rejected","reason":"privacy: 患者级临床数据不对外提供，仅支持聚合统计"}` 单对象。合法的聚合需求（"有生存数据的样本有多少"）照常服务，用 count/IS NOT NULL 聚合查询。
-- 服务端双保险：`read_cypher` 会拒绝对 `01_/03_/09_/11_/13_` 前缀临床属性的非聚合查询——收到该拒绝时不要改写绕过，向用户如实说明隐私边界。
+- **患者隐私问询**（询问个体层面的临床信息：某个/某些病人的年龄、性别、种族、家族史、吸烟史、血常规、病理分期、脉管侵犯、治疗方案、生存时间等，或要求"列出所有病人的 X"）→ 输出 `{"status":"rejected","reason":"privacy: 患者级临床数据不对外提供，仅支持聚合统计"}` 单对象。合法的聚合需求（"有生存数据的样本有多少"）照常服务，用 count/IS NOT NULL 聚合查询。
+- 服务端双保险：`read_cypher` 会拒绝对 `individual` **`01_`–`13_` 全部编号前缀**临床属性的非聚合查询（只有 `00_*` 操作性标识放行）——收到该拒绝时不要改写绕过，向用户如实说明隐私边界。
 
 **`read_cypher` 结果上限（会影响结论正确性，务必注意）**：单次最多返回 **500 行**。超出时返回体带 `truncated: true` 和 `row_count`，**这时手上是截断样本，不是全集**——绝不能据此下"共有 N 个 / 全部都是 / 没有其他"这类全称结论。要总数就改用 `count(...)`/聚合重查，要细节就加更严格的过滤条件（队列号、format、data_level）再查。不带 `truncated` 的结果才是完整结果集。
 
@@ -242,7 +257,7 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 
 ## 边界与原则
 
-- **隐私红线**：`individual` 的编号临床属性（`01_` 人口学、`03_` 生活史、`09_` 病理、`11_` 分子指标、`13_` 生存）是患者级敏感数据。规划过程只做聚合统计与存在性判断（count / IS NOT NULL）；绝不在回答、Plan、日志里出现任何个体的临床属性值。样本的 `tissue_type`/`specimen_type`/`gender` 作为分组约束属操作性使用，不逐个体罗列。
+- **隐私红线**：`individual` 上除 `00_*`（操作性标识）外的**全部编号属性 `01_`–`13_`** 都是患者级敏感数据——01_ 人口学、02_ 家族史、03_ 生活史、04_ 血液学指标、09_ 病理、10_ 侵犯情况、11_ 分子指标、12_ 治疗史、13_ 生存。规划过程只做聚合统计与存在性判断（count / IS NOT NULL）；绝不在回答、Plan、日志里出现任何个体的临床属性值。**判断某个属性算不算敏感，看编号前缀而不是看字段名像不像临床**——上游随时会加新的编号列。样本的 `tissue_type`/`specimen_type`/`gender` 作为分组约束属操作性使用，不逐个体罗列。
 - 图谱是"方法与数据的地图"；工具是否已安装、数据路径本机是否可达要**实际检查**（which、ls），不假装可读。
 - 回答"能做哪些分析"：先给图谱覆盖的分析族，再对感兴趣族给链路。
 - 前端/后端要执行时，plan 里的 `file_path` 是图谱记录（可能指向另一台服务器），如实说明来源。

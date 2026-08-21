@@ -130,9 +130,16 @@ _WRITE_RE = re.compile(
     r"\b(CREATE|MERGE|DELETE|SET\s|REMOVE|DROP|DETACH|FOREACH|LOAD\s+CSV)\b"
     r"|CALL\s+dbms\.|db\.create|apoc\.(?:load|export|cypher|trigger)",
     re.IGNORECASE)
-# individual 的编号前缀临床属性是患者级敏感数据：01_ 人口学(年龄/性别/种族)、03_ 生活史、
-# 09_ 肿瘤病理、11_ 分子指标、13_ 生存。规划只允许聚合统计或存在性判断，不允许取个体值。
-_SENSITIVE_PROP = r"`?(?:01|03|09|11|13)_\w+`?"
+# individual 的编号前缀属性里，除 `00_`（操作性标识：sample/run/project 编号、平台、
+# 建库策略等，规划要靠它们连数据）之外**全是患者级敏感数据**：01_ 人口学、02_ 家族史、
+# 03_ 生活史、04_ 血液学指标、09_ 肿瘤病理、10_ 侵犯情况、11_ 分子指标、12_ 治疗史、
+# 13_ 生存。规划只允许聚合统计或存在性判断，不允许取个体值。
+# 0821 实测：此前只列了 01/03/09/11/13，漏掉的 02/04/10/12 能直接查出个体级治疗方案
+# （"HRI264436 → 3+7 regimen"）、脉管侵犯、家族史——覆盖范围必须按前缀区间取，
+# 不能靠手工枚举，否则上游一加编号就又漏一类。
+# 前缀必须落在属性名开头（`(?<![\w])`）：不加这条时 `04_platelet_count_109_l` 里的
+# `09_l` 会被当成 09_ 病理属性误杀，而 04_ 本身反倒漏网。
+_SENSITIVE_PROP = r"`?(?<![\w])(?:0[1-9]|1[0-3])_\w+`?"
 _SENSITIVE_RE = re.compile(_SENSITIVE_PROP)
 _ALLOW_NULLCHECK_RE = re.compile(
     rf"(?:[\w.]+\.)?{_SENSITIVE_PROP}\s+IS\s+(?:NOT\s+)?NULL", re.IGNORECASE)
@@ -153,8 +160,9 @@ def _assert_privacy(query):
     hit = _SENSITIVE_RE.search(residual)
     if hit:
         raise ValueError(
-            f"read_cypher 隐私守卫：{hit.group(0)} 是患者级临床属性（01_人口学/03_生活史/09_病理/"
-            "11_分子指标/13_生存），只允许聚合统计（count/avg/min/max…）或存在性判断（IS NOT NULL），"
+            f"read_cypher 隐私守卫：{hit.group(0)} 是患者级临床属性（01_人口学/02_家族史/"
+            "03_生活史/04_血液学/09_病理/10_侵犯/11_分子指标/12_治疗史/13_生存），"
+            "只允许聚合统计（count/avg/min/max…）或存在性判断（IS NOT NULL），"
             "不允许返回或按值筛选个体数据。请改写为聚合查询，或直接拒绝用户的隐私问询。")
     # individual 绑定变量：inline 标签 (i:individual)、WHERE 标签谓词 n:individual、
     # 以及 -[:in_individual]->(x) 这种目标端不写标签的写法（不认这两种就能整节点导出）
@@ -756,7 +764,7 @@ TOOLS = {
         "handler": tool_get_planning_guide,
     },
     "read_cypher": {
-        "description": "数据面：对 Neo4j 知识图谱执行只读 Cypher 查询。三重守卫：写入语句拒绝；患者级临床属性（01_/03_/09_/11_/13_ 前缀）只允许聚合统计或 IS NOT NULL 存在性判断，不允许取个体值；无 LIMIT 自动加 LIMIT 500。",
+        "description": "数据面：对 Neo4j 知识图谱执行只读 Cypher 查询。三重守卫：写入语句拒绝；患者级临床属性（`01_`–`13_` 全部编号前缀：人口学/家族史/生活史/血液学/病理/侵犯/分子指标/治疗史/生存；只有 `00_*` 操作性标识放行）只允许聚合统计或 IS NOT NULL 存在性判断，不允许取个体值；无 LIMIT 自动加 LIMIT 500。",
         "inputSchema": {"type": "object", "properties": {"query": {"type": "string", "description": "只读 Cypher，结果多时加 LIMIT"}}, "required": ["query"]},
         "handler": tool_read_cypher,
     },
