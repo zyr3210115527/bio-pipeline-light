@@ -37,14 +37,21 @@ if h.get("status") != "ok":
 print(f"  nodes={h['nodes']} tools={h['tools']} atomic_closed_set={len(h['atomic_closed_set'])}")
 
 # ── 2. resolve_sample_roles study 模式依赖的图结构假设 ──
-sec("2. 图结构假设：(T1)-[:in_sample]->(sample) 且 T1.study_accession 存在")
+sec("2. 图结构假设：sample 自带 study_accession，等价于 study<-individual<-sample")
 rows = m.neo4j_q([
     "MATCH (f:T1) WHERE f.study_accession IS NOT NULL RETURN count(f) AS c",
-    "MATCH (:T1)-[:in_sample]->(:sample) RETURN count(*) AS c"])
-t1_with_study = rows[0][0][0]
-edges = rows[1][0][0]
+    "MATCH (:T1)-[:in_sample]->(:sample) RETURN count(*) AS c",
+    "MATCH (sp:sample) WHERE sp.study_accession='HRA006117' RETURN count(DISTINCT sp) AS c",
+    "MATCH (sp:sample)-[:in_individual]->(:individual)-[:in_study]->(st:study) "
+    "WHERE st.study_accession='HRA006117' RETURN count(DISTINCT sp) AS c",
+    "MATCH (sp:sample) WHERE NOT (sp)-[:in_individual]->() RETURN count(*) AS c"])
+t1_with_study, edges = rows[0][0][0], rows[1][0][0]
+direct, traversed, orphan = rows[2][0][0], rows[3][0][0], rows[4][0][0]
 check("T1.study_accession", t1_with_study > 0, f"count={t1_with_study}")
 check("(T1)-[:in_sample]->(sample)", edges > 0, f"count={edges}")
+check("sample.study_accession 直查 == study<-individual<-sample 遍历",
+      direct == traversed, f"direct={direct} traversed={traversed}")
+check("无游离 sample（都挂到 individual）", orphan == 0, f"orphan={orphan}")
 
 # ── 3. resolve_sample_roles ──
 sec("3. resolve_sample_roles（study 模式：HRA000071 覆盖规则 / HRA001272 常规）")
@@ -61,6 +68,84 @@ if r71.get("status") == "ok" and r71.get("samples"):
     check("HRA000071 覆盖规则（Blood→normal）",
           bool(blood) and all(s["sample_role"] == "normal" for s in blood),
           f"blood_in_first200={len(blood)}")
+
+# ── 3b. 回归：不得走文件路径数样本；run→sample 缺口必须如实报出 ──
+sec("3b. 样本清单口径 + run→sample 缺口如实上报")
+r6117 = m.tool_resolve_sample_roles({"study": "HRA006117"})
+check("HRA006117 样本数按 sample 节点计（835，非文件路径的 570）",
+      r6117.get("sample_count") == direct, f"got={r6117.get('sample_count')} want={direct}")
+check("无文件的样本计入 unresolved 而非被丢弃",
+      (r6117.get("sample_roles") or {}).get("unresolved", 0) > 0,
+      json.dumps(r6117.get("sample_roles"), ensure_ascii=False))
+r87 = m.tool_resolve_sample_roles({"study": "HRA000087"})
+cov = r87.get("file_coverage") or {}
+# 0821 数据换代：sample_accession 直接写在 T1 上，in_sample 边照它建，run 不再是归属依据。
+# 所以缺口口径从 runs_without_sample_node 换成 t1_files_unlinked——前者仍然很大
+# （sample 节点每个只记一个 run，按 run 反查必然对不齐），但它已经不代表文件定位不到样本。
+check("HRA000087 的 T1 文件几乎全部连上样本（换代后缺口已闭合）",
+      cov.get("t1_files_linked_to_sample", 0) >= cov.get("t1_files", 1) - 5,
+      json.dumps(cov, ensure_ascii=False))
+check("runs_without_sample_node 降级为诊断字段，note 明说不要拿它判队列",
+      any("不要拿这个数判断队列" in n for n in (r87.get("notes") or [])),
+      str(r87.get("notes"))[:200])
+cov71 = (m.tool_resolve_sample_roles({"study": "HRA000071"}) or {}).get("file_coverage") or {}
+check("HRA000071 无缺口（不误报）", cov71.get("t1_files_unlinked", -1) <= 2,
+      json.dumps(cov71, ensure_ascii=False))
+
+# ── 3c. 回归：0821 数据质量修复（数值类型 / HRA016026 角色 / format 撞车） ──
+sec("3c. 数据质量修复回归")
+# 数值属性必须是数值型。存成 STRING 时 Cypher 走字典序比较，不报错但静默给错答案：
+# 修前「生存>365 天」少算 355 人、「TMB>10」多算 783 人、data_level=1 查出 0 行、
+# 队列按 sample_count 排序把 '81' 排在 '698' 前面。这几条断言就是防它复发。
+types = m.neo4j_q([
+    "MATCH (i:individual) WHERE i.`13_survival_days` IS NOT NULL "
+    "RETURN head(collect(valueType(i.`13_survival_days`))), max(i.`13_survival_days`)",
+    "MATCH (f:T1) WHERE f.data_level = 1 RETURN count(*)",
+    "MATCH (s:study) WHERE s.sample_count IS NOT NULL "
+    "RETURN s.study_accession, s.sample_count ORDER BY s.sample_count DESC LIMIT 1",
+    "MATCH (i:individual) WHERE i.`11_tmb` > 10 RETURN count(*)"])
+vt, maxsurv = types[0][0]
+check("13_survival_days 是数值型（不是 STRING）", "STRING" not in str(vt), f"valueType={vt}")
+check("生存天数最大值 > 1000（字符串比较会卡在 995）", (maxsurv or 0) > 1000, f"max={maxsurv}")
+check("data_level = 1 用数字能查到文件（存 '1' 时返回 0 行）",
+      types[1][0][0] > 20000, f"count={types[1][0][0]}")
+check("study 按 sample_count 排序 top1 是最大队列 HRA000873",
+      types[2][0][0] == "HRA000873", str(types[2][0]))
+check("TMB>10 是数值比较的 102 人（字符串比较会给 885）",
+      types[3][0][0] == 102, f"count={types[3][0][0]}")
+# format 大小写撞车孤儿：小写变体零引用，留着会让「按格式查」得到 0 文件从而误判没数据
+fmt = m.neo4j_q(["MATCH (f:format) WHERE NOT (f)--() AND "
+                 "EXISTS { MATCH (g:format) WHERE g.format = toUpper(f.format) AND g <> f } "
+                 "RETURN collect(f.format)"])[0][0][0]
+check("无大小写撞车的 format 孤儿节点", not fmt, str(fmt))
+# HRA016026：tissue_type 全是多值 'Tumor,Normal'，默认规则一个都判不出来，
+# 靠 sample_name 后缀救回 350 对。这是图里第三大的可配对队列。
+r16 = m.tool_resolve_sample_roles({"study": "HRA016026"})
+check("HRA016026 角色可判（多值 tissue_type 不再拖垮整个队列）",
+      r16.get("role_resolved") is True, json.dumps(r16.get("sample_roles"), ensure_ascii=False))
+check("HRA016026 判成 350 tumor / 350 normal / 0 unresolved",
+      r16.get("sample_roles") == {"tumor": 350, "normal": 350, "unresolved": 0},
+      json.dumps(r16.get("sample_roles"), ensure_ascii=False))
+# SKILL 的配对队列发现配方必须能看见它（旧写法 'Tumor' IN tts 会整个漏掉）
+pair = m.neo4j_q([
+    "MATCH (sp:sample)-[:in_individual]->(i:individual) "
+    "WITH sp.study_accession AS study, i, "
+    "collect(DISTINCT toLower(coalesce(sp.tissue_type,''))) AS tts, "
+    "collect(DISTINCT toLower(coalesce(sp.sample_name,''))) AS nms "
+    "WHERE (any(t IN tts WHERE t CONTAINS 'tumor') OR any(n IN nms WHERE n ENDS WITH '_tumor')) "
+    "AND (any(t IN tts WHERE t CONTAINS 'normal') OR any(n IN nms WHERE n ENDS WITH '_normal')) "
+    "RETURN study, count(i) AS c ORDER BY c DESC"])[0]
+check("配对队列发现配方能看到 HRA016026（350 个体）",
+      ["HRA016026", 350] in [list(x) for x in pair], str(pair[:5]))
+# individual 的记账列按边重建过：HRA016026 那 349 行在 CSV 里整体错位一行
+ind = m.neo4j_q([
+    "MATCH (i:individual) WHERE i.`00_sample_accession` IS NOT NULL "
+    "OPTIONAL MATCH (sp:sample)-[:in_individual]->(i) "
+    "WITH i, collect(DISTINCT sp.sample_accession) AS real "
+    "WHERE any(s IN split(i.`00_sample_accession`, ';') WHERE NOT s IN real) "
+    "RETURN count(i)"])[0][0][0]
+check("individual.00_sample_accession 与 in_individual 边一致（CSV 错位已修）",
+      ind == 0, f"仍有 {ind} 个个体的记账列与边不符")
 
 # ── 4. execution_params：file_name → 图内真实路径回填 ──
 sec("4. validate_execution_chain：execution_params 查图回填 + submittable")

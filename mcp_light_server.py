@@ -94,6 +94,13 @@ STUDY_ROLE_OVERRIDES: dict = {
     # HRA000071（胶质瘤）：286 个 T_ 组织标 Tumor 没问题，286 个血样的 tissue_type
     # 却分裂成 104 Tumor / 182 Normal。血样在该研究里是配对对照，按 specimen 统一判。
     "HRA000071": ("specimen_type", {"blood": "normal", "patient solid tissue": "tumor"}),
+    # HRA016026：700 个样本的 tissue_type 全是多值 'Tumor,Normal'——上游把个体层面
+    # 两个样本的取值并进了同一个格子，逐样本看等于没有信息，默认规则一个都判不出来，
+    # 整个队列 role_resolved=false 被拒。但 sample_name 是干净的：350 个 L####_Tumor
+    # + 350 个 L####_Normal，且 350 个个体各正好 2 个样本，是一个完整的配对队列
+    # （0821 实测 350/350 成对）。这是图里最大的一个可配对队列，不救回来
+    # wes_somatic_pair 这类需求会白白错过它。按名字后缀判，不碰 tissue_type。
+    "HRA016026": ("name_suffix", {"_tumor": "tumor", "_normal": "normal"}),
 }
 SAMPLE_ROLE_LABELS = {"tumor": "肿瘤样本（实验组）", "normal": "正常样本（对照组）"}
 
@@ -120,7 +127,8 @@ def sample_role(record: dict):
 
 # ---------- Neo4j 数据面（curl，只读守卫 + 隐私守卫） ----------
 _WRITE_RE = re.compile(
-    r"\b(CREATE|MERGE|DELETE|SET\s|REMOVE|DROP|DETACH|FOREACH)\b|CALL\s+dbms\.|db\.create",
+    r"\b(CREATE|MERGE|DELETE|SET\s|REMOVE|DROP|DETACH|FOREACH|LOAD\s+CSV)\b"
+    r"|CALL\s+dbms\.|db\.create|apoc\.(?:load|export|cypher|trigger)",
     re.IGNORECASE)
 # individual 的编号前缀临床属性是患者级敏感数据：01_ 人口学(年龄/性别/种族)、03_ 生活史、
 # 09_ 肿瘤病理、11_ 分子指标、13_ 生存。规划只允许聚合统计或存在性判断，不允许取个体值。
@@ -148,10 +156,36 @@ def _assert_privacy(query):
             f"read_cypher 隐私守卫：{hit.group(0)} 是患者级临床属性（01_人口学/03_生活史/09_病理/"
             "11_分子指标/13_生存），只允许聚合统计（count/avg/min/max…）或存在性判断（IS NOT NULL），"
             "不允许返回或按值筛选个体数据。请改写为聚合查询，或直接拒绝用户的隐私问询。")
-    # individual 绑定变量 + 一层别名追踪
-    ind_vars = set(re.findall(r"\(\s*(\w+)\s*:\s*individual\b", query, re.IGNORECASE))
-    for v in list(ind_vars):
-        ind_vars.update(re.findall(rf"\b{v}\s+AS\s+(\w+)", query, re.IGNORECASE))
+    # individual 绑定变量：inline 标签 (i:individual)、WHERE 标签谓词 n:individual、
+    # 以及 -[:in_individual]->(x) 这种目标端不写标签的写法（不认这两种就能整节点导出）
+    ind_vars = set(re.findall(r"(?<![\w.])(\w+)\s*:\s*individual\b", query, re.IGNORECASE))
+    ind_vars |= set(re.findall(r"-\s*\[[^\]]*in_individual[^\]]*\]\s*->\s*\(\s*(\w+)",
+                               query, re.IGNORECASE))
+    ind_vars.discard("")
+    # 别名追踪到不动点：collect(i) AS c / i{.*} AS m / i AS z 再 z AS y 都要跟上。
+    # 只在 WITH/RETURN 的投影项里找，且逐项按逗号切——否则 `MATCH (i:individual)
+    # RETURN i.individual_accession AS acc` 会从标签声明处一路匹配到 acc，把正常查询误杀。
+    # 先抹掉 count(i)/id(i) 这类合法聚合，否则 `RETURN count(i) AS n` 也会被误判成导出。
+    scrub = re.sub(r"\b(?:count|id|elementId)\s*\(\s*(?:DISTINCT\s+)?\w+\s*\)", " ",
+                   query, flags=re.IGNORECASE)
+    items = []
+    for mm in re.finditer(r"\b(?:WITH|RETURN)\b(.*?)(?=\b(?:MATCH|OPTIONAL|WHERE|UNWIND|CALL|"
+                          r"WITH|RETURN|UNION|ORDER|SKIP|LIMIT)\b|$)", scrub, re.IGNORECASE | re.S):
+        items += mm.group(1).split(",")
+    for _ in range(4):
+        grew = False
+        for item in items:
+            alias = re.search(r"\bAS\s+(\w+)\s*$", item.strip(), re.IGNORECASE)
+            if not alias or alias.group(1) in ind_vars:
+                continue
+            for v in ind_vars:
+                # v 后面不能跟 . 或 : —— 点取字段和标签声明都不算整节点别名
+                if re.search(rf"(?<![\w.]){re.escape(v)}(?![\w.:])", item):
+                    ind_vars.add(alias.group(1))
+                    grew = True
+                    break
+        if not grew:
+            break
     for v in ind_vars:
         if re.search(rf"\b(?:properties|keys)\s*\(\s*{v}\b", query, re.IGNORECASE) \
                 or re.search(rf"\b{v}\s*\[", query):
@@ -169,11 +203,102 @@ def _assert_privacy(query):
                     f"read_cypher 隐私守卫：禁止整体 RETURN individual 节点（变量 {v}）——"
                     "请显式点取所需的非临床字段（如 {v}.individual_accession）或用 count() 聚合。")
 
+def _assert_no_sensitive_payload(rows):
+    """结果面兜底守卫（与查询写法无关）。
+
+    查询面的正则只能识别它认得的写法；换个等价写法（无标签变量、WHERE 标签谓词、
+    collect() 打包、map projection、多级别名…）就能绕过。这一层改为检查**返回内容**：
+    只要结果里出现患者级临床属性——不管是 map 的键，还是 `UNWIND keys(x)` 把属性名
+    当值返回——整条拒绝。查询面守卫留着是为了快速失败和给出可操作的报错。"""
+    bad = set()
+
+    def walk(v, depth=0):
+        if depth > 12 or len(bad) >= 5:
+            return
+        if isinstance(v, dict):
+            for k, sub in v.items():
+                if _SENSITIVE_RE.fullmatch(str(k)):
+                    bad.add(str(k))
+                walk(sub, depth + 1)
+        elif isinstance(v, (list, tuple)):
+            for sub in v:
+                walk(sub, depth + 1)
+        elif isinstance(v, str) and _SENSITIVE_RE.fullmatch(v):
+            bad.add(v)
+
+    walk(rows)
+    if bad:
+        raise ValueError(
+            f"read_cypher 隐私守卫（结果面）：返回内容包含患者级临床属性 "
+            f"{sorted(bad)}——不论查询怎么写都不放行。请只点取非临床字段"
+            "（individual_accession 等），或改成 count/avg 等聚合。")
+
+MAX_ROWS = 500
+# resolve_sample_roles 的 samples 预览条数。给 20 是因为模型在选队列这一步只需要
+# sample_roles/role_resolved/file_coverage，明细看个形状就够；真要逐样本用 records 模式或
+# read_cypher 定向查。上限 200 保留给确实需要成批明细的调用方（显式传 sample_limit）。
+SAMPLE_PREVIEW = 20
+SAMPLE_LIMIT_MAX = 200
+
+def _scan(query, blank_strings):
+    """把注释替换成等长空白；blank_strings=True 时连字符串字面量一起抹掉。
+
+    等长替换是关键：抹完之后偏移量与原串一一对应，可以在 probe 上定位、在 clean 上改写。
+    """
+    out, i, n = [], 0, len(query)
+    while i < n:
+        c = query[i]
+        if c in "'\"`":
+            j = i + 1
+            while j < n:
+                if query[j] == "\\":
+                    j += 2
+                    continue
+                if query[j] == c:
+                    break
+                j += 1
+            lit = query[i:min(j + 1, n)]
+            out.append(" " * len(lit) if blank_strings else lit)
+            i += len(lit)
+        elif query.startswith("//", i) or query.startswith("/*", i):
+            if query[i + 1] == "/":
+                j = query.find("\n", i)
+                j = n if j < 0 else j
+            else:
+                j = query.find("*/", i + 2)
+                j = n if j < 0 else j + 2
+            out.append(" " * (j - i))
+            i = j
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
 def _ensure_limit(query):
-    """无 LIMIT 的查询自动加 LIMIT 500，防止整表拖库。"""
-    if re.search(r"\bLIMIT\s+\d+", query, re.IGNORECASE):
-        return query
-    return query.rstrip().rstrip(";") + " LIMIT 500"
+    """尽量把 LIMIT 收到 MAX_ROWS 以内。**这只是优化，不是防线**——真正的行数上限由
+    tool_read_cypher 的结果面截断兜底（与查询写法无关）。
+
+    0820 实测的四种绕过，都是"在原串上用正则找 LIMIT"这个思路本身的问题：
+      1. `... UNION ...`        —— 尾部 LIMIT 只作用于最后一支，前面几支整表返回（27,582 行）
+      2. `LIMIT 99999`          —— 有 LIMIT 就原样放行，上限形同虚设（27,196 行）
+      3. `// LIMIT 10\nMATCH…`  —— 注释里的 LIMIT 骗过检测，真查询没有上限（27,196 行）
+      4. `RETURN x // all`      —— 追加的 LIMIT 落进行尾注释被吞掉（27,196 行）
+    所以先 _scan 掉注释和字符串再判定，且判定不通过时不猜、交给结果面截断。
+    """
+    clean = _scan(query, blank_strings=False)   # 注释已变空白，可安全追加
+    probe = _scan(query, blank_strings=True)    # 再抹掉字面量，仅用于判定
+    if re.search(r"\bUNION\b", probe, re.IGNORECASE):
+        return clean
+    mm = re.search(r"\bLIMIT\s+(\d+)\s*;?\s*$", probe, re.IGNORECASE)
+    if mm:
+        if int(mm.group(1)) <= MAX_ROWS:
+            return clean
+        return clean[:mm.start()].rstrip() + f" LIMIT {MAX_ROWS}"
+    if re.search(r"\bLIMIT\b", probe, re.IGNORECASE):
+        return clean            # LIMIT 在中间子句/子查询里，改写风险大于收益
+    return clean.rstrip().rstrip(";") + f" LIMIT {MAX_ROWS}"
+
+NEO4J_TIMEOUT = os.environ.get("NEO4J_TIMEOUT", "20")
 
 def neo4j_q(statements):
     if not NEO4J_PASSWORD:
@@ -184,10 +309,22 @@ def neo4j_q(statements):
         tmp = f.name
     try:
         r = subprocess.run(
-            ["curl", "-s", "--max-time", "20", "-u", f"{NEO4J_USER}:{NEO4J_PASSWORD}",
+            ["curl", "-s", "--max-time", NEO4J_TIMEOUT, "-u", f"{NEO4J_USER}:{NEO4J_PASSWORD}",
              "-X", "POST", "-H", "Content-Type: application/json", "-d", "@" + tmp, NEO4J_URL],
             capture_output=True, text=True)
-        d = json.loads(r.stdout)
+        # curl 超时/连不上时 stdout 是空的，直接 json.loads 会抛 JSONDecodeError（"Expecting
+        # value: line 1 column 1"）——调用方模型看到这个完全不知道是数据库没连上还是查询写错了，
+        # 只会瞎改查询重试。这里把传输层失败和 Cypher 报错区分开，各自给可操作的信息。
+        if r.returncode != 0 or not r.stdout.strip():
+            hint = "查询超时" if r.returncode == 28 else f"curl 退出码 {r.returncode}"
+            raise RuntimeError(
+                f"Neo4j 请求失败（{hint}，上限 {NEO4J_TIMEOUT}s，地址 {NEO4J_URL}）："
+                f"{(r.stderr or '').strip()[:200] or '无响应'}。"
+                "这不是查询语法问题——请缩小查询范围（加过滤条件/改聚合），或让运维确认服务可达。")
+        try:
+            d = json.loads(r.stdout)
+        except json.JSONDecodeError:
+            raise RuntimeError(f"Neo4j 返回的不是 JSON（可能是认证失败或代理页面）：{r.stdout.strip()[:200]}")
         if d.get("errors"):
             raise RuntimeError("; ".join(e.get("message", "") for e in d["errors"])[:500])
         return [[row["row"] for row in res.get("data", [])] for res in d.get("results", [])]
@@ -210,7 +347,18 @@ def tool_read_cypher(args):
         _assert_read_only(query)
         _assert_privacy(query)
         rows = neo4j_q([_ensure_limit(query)])
-        return {"status": "ok", "columns_unknown": True, "rows": rows[0] if rows else []}
+        rows = rows[0] if rows else []
+        _assert_no_sensitive_payload(rows)
+        # 结果面硬截断：_ensure_limit 只能处理它看得懂的写法，UNION/子查询里的 LIMIT
+        # 一律漏网。这里按实际行数截断，并如实告知被截断——调用方模型不能拿半截结果当全集。
+        out = {"status": "ok", "columns_unknown": True,
+               "row_count": min(len(rows), MAX_ROWS), "rows": rows[:MAX_ROWS]}
+        if len(rows) > MAX_ROWS:
+            out["truncated"] = True
+            out["note"] = (f"结果 {len(rows)} 行，已截断为前 {MAX_ROWS} 行。"
+                           "请改用 count()/聚合或加更严格的过滤条件重查，"
+                           "不要基于截断结果下「共有多少/全部是」这类结论。")
+        return out
     except Exception as e:
         return {"status": "error", "detail": str(e)[:500]}
 
@@ -231,27 +379,79 @@ def tool_resolve_sample_roles(args):
         return {"status": "error", "detail": "需要 study（队列号）或 records（样本记录数组）参数"}
     if not _SAFE_FILE.fullmatch(study):
         return {"status": "error", "detail": "非法 study 格式"}
+    # samples 明细默认只回 SAMPLE_PREVIEW 条。0820 实测：上限写死 200 条时 HRA001272 的返回体
+    # 有 51,782 字符（其中 samples 占 99%），调用方 harness 按 12,000 字符截断后**是非法 JSON**
+    # ——模型收到一段砍断的记录，且没有任何"被截断了"的提示。这和 read_cypher 的行数上限是
+    # 同一类问题（那个修了，这个漏了）。而模型在这一步真正要的是 sample_roles / role_resolved /
+    # file_coverage（合计 200 多字符），逐样本明细该走 records 模式或 read_cypher 定向查。
+    try:
+        sample_limit = int(args.get("sample_limit", SAMPLE_PREVIEW))
+    except (TypeError, ValueError):
+        sample_limit = SAMPLE_PREVIEW
+    sample_limit = max(0, min(sample_limit, SAMPLE_LIMIT_MAX))
     try:
         rows = neo4j_q([
-            f"MATCH (f:T1)-[:in_sample]->(sp:sample) WHERE f.study_accession = '{study}' "
-            "RETURN DISTINCT sp.sample_accession, sp.sample_name, sp.tissue_type, sp.specimen_type"])
+            # 队列样本以 sample 节点为准（等价于 study<-individual<-sample 遍历，sample 自带
+            # study_accession）。不要走 (T1)-[:in_sample]->(sample)：只有挂到文件的样本才会
+            # 出现，无文件的样本会被静默丢掉（如 HRA006117 少 265/835）。
+            f"MATCH (sp:sample) WHERE sp.study_accession = '{study}' RETURN DISTINCT "
+            "sp.sample_accession, sp.sample_name, sp.tissue_type, sp.specimen_type, sp.run_accession",
+            # 文件侧可解析度：fastq 这类按 run 组织的文件靠 in_sample 边落到样本，
+            # 边缺失的部分是图谱里 run→sample 映射不全，如实报出来，不要让调用方看到裸 null。
+            f"MATCH (f:T1) WHERE f.study_accession = '{study}' RETURN count(*), "
+            "sum(CASE WHEN (f)-[:in_sample]->() THEN 1 ELSE 0 END)",
+            f"MATCH (f:T1) WHERE f.study_accession = '{study}' AND f.run_accession IS NOT NULL "
+            "WITH collect(DISTINCT f.run_accession) AS fr "
+            f"OPTIONAL MATCH (sp:sample) WHERE sp.study_accession = '{study}' AND sp.run_accession IS NOT NULL "
+            "WITH fr, collect(DISTINCT sp.run_accession) AS sr "
+            "RETURN size(fr), size(sr), size([r IN fr WHERE NOT r IN sr])"])
     except Exception as e:
         return {"status": "error", "detail": str(e)[:300]}
     counts = {"tumor": 0, "normal": 0, "unresolved": 0}
     samples = []
     for r in (rows[0] if rows else []):
         rec = {"study_accession": study, "sample_accession": r[0], "sample_name": r[1],
-               "tissue_type": r[2], "specimen_type": r[3]}
+               "tissue_type": r[2], "specimen_type": r[3], "run_accession": r[4]}
         role = sample_role(rec)
         counts[role if role in ("tumor", "normal") else "unresolved"] += 1
-        if len(samples) < 200:
+        if len(samples) < sample_limit:
             samples.append({**rec, "sample_role": role,
                             "sample_role_label": SAMPLE_ROLE_LABELS.get(role or "")})
-    return {"status": "ok", "study": study,
-            "sample_roles": counts,   # 按 distinct sample 计数（重版按 T1 文件计数，口径不同）
-            "role_resolved": counts["tumor"] > 0 and counts["normal"] > 0,
-            "samples": samples, "sample_count": sum(counts.values()),
-            "note": "聚合类文件（表达矩阵/MAF/临床表）无单样本角色，字段为 null 属正常，不是图谱缺数据"}
+    files, linked = (rows[1][0] if rows[1] else [0, 0])
+    file_runs, sample_runs, orphan_runs = (rows[2][0] if rows[2] else [0, 0, 0])
+    cover = {"t1_files": files, "t1_files_linked_to_sample": linked,
+             "t1_files_unlinked": files - linked, "runs_on_files": file_runs,
+             "runs_on_samples": sample_runs, "runs_without_sample_node": orphan_runs}
+    notes = ["聚合类文件（表达矩阵/MAF/临床表）本就跨样本，sample_accession 为 null 属正常"]
+    # 判缺口只看 t1_files_unlinked（真的没有 in_sample 边的文件数）。
+    # 0821 数据换代后 run→sample 不再是样本归属的依据：新导出把 sample_accession 直接
+    # 写在 T1 上，in_sample 边照它建。而 sample 节点仍然每个只记一个 run_accession，
+    # 所以 runs_without_sample_node 依旧很大（HRA000087 1492/1553、HRA001272 482/1180），
+    # 但同一批队列的 t1_files_linked_to_sample 是 3106/3108、2360/2362——文件全连上了。
+    # 旧口径拿 orphan_runs 报警会把好队列判死，这里降级成诊断字段，不再据它下结论。
+    if files - linked:
+        notes.append(f"本队列 {files - linked}/{files} 个 T1 文件没有 in_sample 边，"
+                     "无法定位到样本——如实标 missing_from_graph，不要猜测归属")
+    if orphan_runs:
+        notes.append(f"runs_without_sample_node={orphan_runs}/{file_runs} 只是诊断信息："
+                     "sample 节点每个仅记录一个 run_accession，所以按 run 反查必然对不齐。"
+                     "样本归属以 in_sample 边为准（见 t1_files_linked_to_sample），"
+                     "**不要拿这个数判断队列可不可用**。")
+    total = sum(counts.values())
+    out = {"status": "ok", "study": study,
+           "sample_roles": counts,
+           "role_resolved": counts["tumor"] > 0 and counts["normal"] > 0,
+           "samples": samples, "sample_count": total,
+           "file_coverage": cover, "notes": notes}
+    # 截断必须如实上报，否则模型会把预览当全集，下"这队列只有 N 个样本"这类全称结论。
+    if total > len(samples):
+        out["samples_truncated"] = True
+        out["samples_shown"] = len(samples)
+        notes.append(f"samples 只是前 {len(samples)} 条预览（该队列共 {total} 个样本），"
+                     f"角色统计以 sample_roles 为准（已覆盖全部 {total} 个）。"
+                     f"要更多明细：加大 sample_limit（上限 {SAMPLE_LIMIT_MAX}），"
+                     "或用 read_cypher 加过滤条件定向查——不要拿预览当全集。")
+    return out
 
 def tool_validate_atomic_chain(args):
     chain = args.get("chain") or []
@@ -385,9 +585,17 @@ def tool_validate_execution_chain(args):
             probes.append(probe)
     stages.append({"stage": "data_availability", "passed": True, "findings": [], "probes": probes})
     # ── stage 5 链流转（next_tool 邻接） ──
+    # tool_id 直接进 Cypher 字面量，**必须先过白名单**（同 validate_atomic_chain 的做法）。
+    # 0820 实测漏了这道校验的后果：steps=[{"tool_id": "zzz' RETURN 1 AS c UNION MATCH
+    # (n:study) RETURN 1 AS c //"}, ...] 能闭合引号注入任意 Cypher——既绕开 _assert_read_only
+    # （这条路径根本不经过它，写操作可达），又能把一条图里不存在的邻接伪造成 passed=True，
+    # 等于把提交前把关这道门整个架空。校验失败就不查图，直接记违规。
     flow_bad = []
     gids = [_norm(str(s.get("tool_id")))[0] for s in steps]
     for a, b in zip(gids[:-1], gids[1:]):
+        if not (_SAFE_TOKEN.fullmatch(a) and _SAFE_TOKEN.fullmatch(b)):
+            flow_bad.append((a, b))
+            continue
         rows = neo4j_q([f"MATCH (a:tool)-[:next_tool]->(b:tool) WHERE toLower(a.tool_name) = '{a.lower()}' AND toLower(b.tool_name) = '{b.lower()}' RETURN count(*) AS c"])
         if not (rows and rows[0] and rows[0][0][0] > 0):
             flow_bad.append((a, b))
@@ -558,9 +766,10 @@ TOOLS = {
         "handler": tool_validate_atomic_chain,
     },
     "resolve_sample_roles": {
-        "description": "确定性样本角色判定（tumor/normal，规则移植自重版，不猜）。传 study 查图统计角色分布（sample_roles/role_resolved），或传 records 对给定样本记录逐条判角色。配对/分组分析选数据前必须调用，不许模型自行推断角色。",
+        "description": "确定性样本角色判定（tumor/normal，规则移植自重版，不猜）。传 study 查图统计角色分布（sample_roles/role_resolved）+ 文件侧覆盖度（file_coverage），或传 records 对给定样本记录逐条判角色。配对/分组分析选数据前必须调用，不许模型自行推断角色。study 模式的 samples 默认只回 20 条预览，超出时带 samples_truncated——角色统计以 sample_roles 为准（已覆盖全部样本）。",
         "inputSchema": {"type": "object",
                         "properties": {"study": {"type": "string", "description": "队列号（如 HRA001272）"},
+                                       "sample_limit": {"type": "integer", "description": f"study 模式下 samples 明细条数，默认 {SAMPLE_PREVIEW}，上限 {SAMPLE_LIMIT_MAX}"},
                                        "records": {"type": "array", "items": {"type": "object"},
                                                    "description": "样本记录数组，字段含 study_accession/tissue_type/specimen_type/sample_name"}},
                         "required": []},

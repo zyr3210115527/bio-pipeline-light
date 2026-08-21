@@ -24,11 +24,20 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 | `T1` | 原始数据文件（FASTQ 等）：`t1_id`、`file_path`、`file_name`、`file_format`（字面格式）、`semantic_format`、`strategy` |
 | `T2` | 分析结果文件（VCF/BAM/MAF…）：`t2_id`、`file_path`、`size`、`format`、`semantic_format` |
 
-关键关系：`(tool)-[:next_tool]->(tool)` 链路；`(tool)-[:input|output]->(format)` I/O 契约；`(tool)-[:suitable_for]->(modal)`；`(tool)-[:has_function]->(function)`；`(T1|T2)-[:in_sample|in_format|in_modal|in_level|in_study]->(...)`；`(T2)-[:generated_from]->(T1)`；`(sample)-[:in_individual]->(individual)`。
+关键关系：`(tool)-[:next_tool]->(tool)` 链路；`(tool)-[:input|output]->(format)` I/O 契约；`(tool)-[:suitable_for]->(modal)`；`(tool)-[:has_function]->(function)`；`(T1|T2)-[:in_sample|in_format|in_modal|in_level|in_study]->(...)`；`(T2)-[:generated_from]->(T1)`；`(sample)-[:in_individual]->(individual)`；`(individual)-[:in_study]->(study)`；`(study)-[:in_project]->(project)`；`(format)-[:subclass_of]->(format)`（具体格式→通用格式，按语义格式找工具时可沿边向上找）。
+
+**数值字段用数字比较，别加引号（0821 已改过类型）**：`data_level`、`size`、`sample_count`、
+`individual_count`、`01_age`、`11_tmb`、`11_msi_score`、`13_survival_days`/`13_dfs_time`/
+`13_efs_time`/`13_pfs_time` 等在图里是 INTEGER/FLOAT，写 `f.data_level = 1`、
+`i.13_survival_days > 365`、`ORDER BY s.sample_count DESC` 即可，**不要写成 `= '1'` / `> '365'`**
+（会查不到或匹配不上），也不需要再套 `toInteger()`。
+换代前这些字段是字符串、按字典序比较，静默给错答案——`'9' > '60'` 成立、生存天数最大值显示成
+995（实际 7061）、`data_level = 1` 返回 0 行、队列按 `sample_count` 排序把 `'81'` 排在 `'698'` 前面。
+如果你看到这类反常结果，先确认字段类型，不要在结论里照搬。
 
 ## 闭集工具目录（0812，真源 = bio-pipeline-kg-matcher repo）
 
-运行时目录 **50 个**：**11 个 atomic**（可编排）+ **38 个 pipeline** + **1 个 task_pipeline**。完整字段（catalog_id、input/output format、omics、变体、slot 绑定）见 `references/tool_catalog.csv`；ArtifactType 词表见 `references/artifact_type.csv`。
+运行时目录 **51 个**：**12 个 atomic**（其中 **11 个可编排**，`multiqc` 仅收尾不参与编排）+ **38 个 pipeline** + **1 个 task_pipeline**，与图内 51 个 `tool` 节点**一一对应，无缺无多**（0821 实测双向差集为空）。完整字段（catalog_id、input/output format、omics、变体、slot 绑定）见 `references/tool_catalog.csv`；ArtifactType 词表见 `references/artifact_type.csv`。
 
 - **atomic 闭集（11）**：`bwa` `fastp` `fastqc` `featurecounts` `gatk` `bcftools` `snpeff` `samtools` `star` `trim_galore` `rsem`（`multiqc` 仅收尾，不参与编排）
 - **task_pipeline（1）**：`rnaseq_singletask`
@@ -66,15 +75,44 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
    - 队列：`tumor_type` 是**英文**（`Liver Cancer`/`Glioma`/`Melanoma`/`Esophageal Cancer`…），用 `toLower(s.tumor_type) CONTAINS 'liver'` 等英文关键词；中文查不到。
    - **现成表达矩阵在 T2**（文件名含 `Genes`，如 `HRA001272-Genes-TPM-1.0.tsv`），不在 T1；T1 是原始 FASTQ。格式字段：`semantic_format`（语义格式，如 `TABULAR_BIO_DATA`）≠ `format`/`file_format`（字面格式）。
    - 中间结果复用：T2 已有现成 VCF/MAF/BAM 则标注"复用"，跳过上游重复计算；样本约束用 `tissue_type`/`specimen_type`/`gender`，配对需求用 `find_paired_tumor_normal_samples`。
-   - **配对分析先做队列发现**：不要假设某队列可配对，先聚合查询哪些 study 有同个体 Tumor+Normal：
+   - **配对分析先做队列发现**：不要假设某队列可配对，先聚合查询哪些 study 有同个体 Tumor+Normal。
+     **注意 `tissue_type` 有多值格子**（HRA016026 的 700 个样本全是 `'Tumor,Normal'`——上游把个体
+     层面两个样本的取值并进了同一格），所以判定要同时容多值和名字后缀，不能只写 `'Tumor' IN tts`：
      ```cypher
      MATCH (sp:sample)-[:in_individual]->(i:individual)
-     WITH sp.study_accession AS study, i, collect(DISTINCT sp.tissue_type) AS tts
-     WHERE 'Tumor' IN tts AND 'Normal' IN tts
+     WITH sp.study_accession AS study, i,
+          collect(DISTINCT toLower(coalesce(sp.tissue_type,''))) AS tts,
+          collect(DISTINCT toLower(coalesce(sp.sample_name,''))) AS nms
+     WHERE (any(t IN tts WHERE t CONTAINS 'tumor')  OR any(n IN nms WHERE n ENDS WITH '_tumor'))
+       AND (any(t IN tts WHERE t CONTAINS 'normal') OR any(n IN nms WHERE n ENDS WITH '_normal'))
      RETURN study, count(i) AS pairable_individuals ORDER BY pairable_individuals DESC
      ```
-     已知陷阱：**HRA000071 的血液对照与肿瘤样本在图内不属于同一个体**（572 样本 1:1 对应 572 个体），能做 tumor/normal 分组（resolve_sample_roles 可判角色）但**做不了同个体配对**（wes_somatic_pair 不适用），如实告知用户。
-   - **样本角色（tumor/normal）必须用 MCP 工具 `resolve_sample_roles` 判定，绝不自行按名称/直觉猜**：配对或分组分析（wes_somatic_pair、生存、差异表达分组等）选队列前先传 `study` 查 `role_resolved`——为 false 的队列做不了配对/分组，如实报告；逐文件的 `sample_role`/`sample_role_label` 用 `records` 模式判。聚合类文件（表达矩阵/MAF/临床表）无单样本角色，相关字段置 null 属正常，不是图谱缺数据。
+     0821 实测可配对队列（个体数）：HRA000873 1015、HRA000021 508、**HRA016026 350**、
+     HRA001272 206、HRA003107 155、HRA001749 84、HRA007169 76、HRA006499 72。
+     用旧写法（`'Tumor' IN tts`）会**整个漏掉 HRA016026**，而它是第三大的配对队列。
+     已知陷阱：**HRA000071 的血液对照与肿瘤样本在图内不属于同一个体**（572 样本 1:1 对应 572 个体），
+     能做 tumor/normal 分组（resolve_sample_roles 可判角色）但**做不了同个体配对**
+     （wes_somatic_pair 不适用），如实告知用户。要现成的配对队列优先考虑 HRA016026
+     （350 个个体各正好 2 个样本，`L####_Tumor`/`L####_Normal`，0821 实测 350/350 成对）。
+   - **样本角色（tumor/normal）必须用 MCP 工具 `resolve_sample_roles` 判定，绝不自行按名称/直觉猜**：配对或分组分析（wes_somatic_pair、生存、差异表达分组等）选队列前先传 `study` 查 `role_resolved`——为 false 的队列做不了配对/分组，如实报告；逐文件的 `sample_role`/`sample_role_label` 用 `records` 模式判。
+     **已知判不出角色的队列（0821 实测，别浪费轮数反复试）**：HRA000001（557 个全是 Blood，
+     图里没有区分肿瘤/对照的信号）、HRA000074（543/693 无 `tissue_type`）、HRA005191（243 全无）、
+     HRA002693（213/655 无）、HRA006117（265/835 无）、HRA000122（6/287 无）。
+     这些是上游本来就没给值，**不是查询写错**，换个写法也查不出来——如实告诉用户该队列角色不全，
+     或改用上面那批可配对队列。
+   - **队列样本清单以 `sample` 节点为准**：`MATCH (sp:sample) WHERE sp.study_accession = '<HRA*>'`（等价于 `study<-individual<-sample` 遍历）。**不要用 `(T1)-[:in_sample]->(sample)` 数样本**——那只能看到挂了文件的样本，无文件的样本会被静默漏掉（HRA006117 实有 835 个，走文件路径只剩 570）。
+   - **文件为什么会 `sample_accession = null`，分两种，不要混为一谈**：
+     1. **聚合类文件**（表达矩阵/MAF/临床表/MetaInfo）本就跨样本，无单样本归属，字段 null 属正常；
+     2. **按 run 组织的 fastq**（`data_level=1`）应当有样本。**0821 数据换代后这一类基本清零**：新导出把
+        `sample_accession` 直接写在 T1 上（不再经 run 中转），28,229 个 T1 里 28,184 个有 `in_sample` 边，
+        剩下 45 个全是聚合类（Clinical/各种 *_META）。带 `run_accession` 的 T1 无一遗漏。
+        换代前的老图是 T1→run→sample 两跳，而 sample 节点每个只记**一个** run，导致 3,758 个 run
+        （29%，牵连 7,516 个 T1）连不上——**那个缺口已经不存在了，不要再按老结论拒绝队列**。
+     **判缺口只看 `resolve_sample_roles(study=...)` 的 `file_coverage.t1_files_unlinked`**（真的没有
+     `in_sample` 边的文件数，如 HRA000087 是 2/3108、HRA001272 是 2/2362，都是聚合文件）。
+     同一返回体里的 `runs_without_sample_node` 仍然很大（1492/1553、482/1180），那是**诊断字段不是缺口**：
+     sample 节点每个只记一个 run，按 run 反查必然对不齐，跟文件能不能定位到样本无关。拿它判队列会误杀。
+     真出现 `t1_files_unlinked` 很大时，如实输出 `missing_from_graph`，**绝不按文件名/顺序猜样本归属**。
 
 ## 接地纪律（最高优先级：答案只能来自本手册与图谱查询结果）
 
@@ -87,19 +125,32 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 
 ## 执行纪律（步数优化，必须遵守）
 
-目标：**工具调用 ≤ 3 轮（每轮 ≤ 2 条查询），总查询 ≤ 6 条**；证据充分立即输出，不反复核实。
+目标：**总轮数 ≤ 3 轮，总查询 ≤ 6 条**。轮数是墙钟成本的唯一来源（一轮 = 一次完整推理，
+几十秒量级），查询条数几乎不要钱（MCP 单次 < 0.5s）。所以：**同一轮里能并行发的查询要一次全发出去，
+每轮 2–3 条是常态，1 条是例外**——把 6 条查询摊成 6 轮，比压进 3 轮慢一倍以上。证据充分立即输出，
+不反复核实。
 
-1. **禁止 `get_schema`**：图谱模型、标签、关键关系已在本手册列出，不需要整库 schema；需要具体字段时用定向查询。
-2. **一次查全，禁止零碎查询**：优先用合并查询，例如"候选队列 + 每队列 T1/T2 文件清单"一条语句带回：
+1. **同一轮并行发起多个 tool_call（最重要）**：只要下一条查询的参数不依赖上一条的返回值，就必须
+   在**同一轮**里一起发出，不要一条一条来回。典型可并行组合：
+   - 「按功能找工具」+「按癌种找队列」——互不依赖，第 1 轮同时发；
+   - 「查队列的 T2 现成矩阵」+「resolve_sample_roles 判角色」——都只依赖已知的 study_accession，同一轮发；
+   - 「validate_atomic_chain」+「查上游 T1 文件」——同一轮发。
+   只有真正的串行依赖（拿到 study_accession 才能查它的文件）才允许分轮。
+2. **禁止 `get_schema`**：图谱模型、标签、关键关系已在本手册列出，不需要整库 schema；需要具体字段时用定向查询。
+3. **一次查全，禁止零碎查询**：优先用合并查询，例如"候选队列 + 每队列 T1/T2 文件清单"一条语句带回：
    ```cypher
    MATCH (s:study) WHERE toLower(s.tumor_type) CONTAINS 'liver'
    OPTIONAL MATCH (f:T1)-[:in_study]->(s) RETURN s.study_accession, s.sample_count,
      collect(DISTINCT f.format) AS t1_formats LIMIT 10
    ```
-3. **查过即用，不重复核实**：同一工具契约/同一队列只查一次；后续步骤引用已查结果，不再重复发相同查询。
-4. **先想后查**：每次查询前明确"这条要回答什么问题、用什么配方"；想不清楚就先按配方走，不要自由发挥新查询。
-5. **按配方优先**：15 条模板能覆盖的查询直接用模板，不要自行改写结构。
-6. **收敛**：证据足够（工具确定 + 数据现状清楚）即停止查询，直接输出 Plan；若查询结果为空，先检查关键词语言（中文/英文）与目标表（T1/T2），不要重复同一失败查询。
+   合并查询（一条语句查多件事）与并行发起（一轮发多条语句）是两个独立手段，能叠加用。
+4. **查过即用，不重复核实**：同一工具契约/同一队列只查一次；后续步骤引用已查结果，不再重复发相同查询。
+5. **先想后查**：每次查询前明确"这条要回答什么问题、用什么配方"；想不清楚就先按配方走，不要自由发挥新查询。
+6. **按配方优先**：15 条模板能覆盖的查询直接用模板，不要自行改写结构。
+7. **收敛**：证据足够（工具确定 + 数据现状清楚）即停止查询，直接输出 Plan；若查询结果为空，先检查关键词语言（中文/英文）与目标表（T1/T2），不要重复同一失败查询。
+8. **`validate_plan` 返回 `grounded=true` 后必须立即输出最终 JSON**，不得再发任何工具调用——
+   重复调 `validate_plan` 不会让答案更对，只会空转。（0821 实测：低思考档下有模型连调 7–10 次
+   `validate_plan` 直到轮数耗尽，全程 grounded 都是 true。）
 
 ## 提交前把关（执行契约校验，场景1）
 
@@ -129,6 +180,8 @@ whenToUse: 用户提出生信分析需求、询问"能做哪些分析"、"方法
 - **无关问题**（闲聊、代码求助、留学/生活咨询等一切与生信分析规划无关的请求）→ 输出 `{"status":"rejected","reason":"off_topic: <一句话说明>"}` 单对象。
 - **患者隐私问询**（询问个体层面的临床信息：某个/某些病人的年龄、性别、种族、吸烟史、病理分期、生存时间等，或要求"列出所有病人的 X"）→ 输出 `{"status":"rejected","reason":"privacy: 患者级临床数据不对外提供，仅支持聚合统计"}` 单对象。合法的聚合需求（"有生存数据的样本有多少"）照常服务，用 count/IS NOT NULL 聚合查询。
 - 服务端双保险：`read_cypher` 会拒绝对 `01_/03_/09_/11_/13_` 前缀临床属性的非聚合查询——收到该拒绝时不要改写绕过，向用户如实说明隐私边界。
+
+**`read_cypher` 结果上限（会影响结论正确性，务必注意）**：单次最多返回 **500 行**。超出时返回体带 `truncated: true` 和 `row_count`，**这时手上是截断样本，不是全集**——绝不能据此下"共有 N 个 / 全部都是 / 没有其他"这类全称结论。要总数就改用 `count(...)`/聚合重查，要细节就加更严格的过滤条件（队列号、format、data_level）再查。不带 `truncated` 的结果才是完整结果集。
 
 **命名契约（Knowledge Card 对齐）**：原子工具的 `tool_id` 必须用 Knowledge Card 的 `meta.id`（如 `bwa_mem_paired` 而非 `bwa`），`tool_chain.inputs` 与输出引用用卡内定义的输入输出名称（如 `read1`/`aligned_sam`）。映射表见 `references/knowledge_cards_map.json`（12 张原子卡）。pipeline 级工具（无卡，如 `diff_expr_go`）维持图谱 tool_id，并在 `tool_id` 旁标注 `"card": null`。
 
