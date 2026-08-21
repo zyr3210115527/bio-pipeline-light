@@ -18,7 +18,8 @@ SKILL_REF = os.path.expanduser("~/.dsh/skills/bio-pipeline-planning/references")
 NEO4J_USER = os.environ.get("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "")
 NEO4J_AUTH = f"{NEO4J_USER}:{NEO4J_PASSWORD}"
-NEO4J_URL = "http://127.0.0.1:7474/db/neo4j/tx/commit"
+# 默认值只适用于本机开发；0821 现网要显式设 NEO4J_URL=http://192.168.130.24:7480/db/neo4j/tx/commit
+NEO4J_URL = os.environ.get("NEO4J_URL", "http://127.0.0.1:7474/db/neo4j/tx/commit")
 
 # ---------- 工具语义判别规则（skill 词汇表） ----------
 # (触发词列表, pipeline_id, 权重)。顺序即特异性优先级。

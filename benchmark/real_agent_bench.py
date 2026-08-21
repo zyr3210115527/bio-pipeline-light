@@ -19,8 +19,11 @@ def log(msg):
 class MCPClient:
     def __init__(self):
         env = dict(os.environ)
-        env.update(NEO4J_URI="bolt://localhost:7687", NEO4J_USERNAME="neo4j",
-                   NEO4J_PASSWORD="neo4jneo4j", NEO4J_DATABASE="neo4j",
+        # 地址/口令一律走环境变量：此处原先硬编码 bolt://localhost:7687 与明文口令，
+        # 0821 现网是 bolt://192.168.130.24:7690，硬编码会连到不存在的本机实例。
+        env.update(NEO4J_URI=os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
+                   NEO4J_USERNAME=os.environ.get("NEO4J_USER", "neo4j"),
+                   NEO4J_PASSWORD=os.environ["NEO4J_PASSWORD"], NEO4J_DATABASE="neo4j",
                    NEO4J_READ_ONLY="true", NEO4J_TELEMETRY="false")
         self.p = subprocess.Popen([MCP_PY, "-m", "neo4j_mcp_server"],
                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE,

@@ -57,7 +57,7 @@
 仓库自带 `mcp_light_server.py`（无第三方依赖的 stdio MCP server，v2.1），前端 agent 直接接。**推理只能来自调用方自己的模型**（规则规划接口已删除，无降级路径）：
 
 - `get_planning_guide()` —— 返回 SKILL.md 全文，调用方模型读后自行规划
-- `read_cypher(query)` —— 数据面：通用只读查询（三重守卫：拒写入；患者级临床属性 `01_/03_/09_/11_/13_` 仅允许聚合统计或 IS NOT NULL，含整节点导出/properties()/动态下标防绕过；无 LIMIT 自动限流 500）
+- `read_cypher(query)` —— 数据面：通用只读查询（三重守卫：拒写入；患者级临床属性 `01_`–`13_`（全部编号前缀，只放行 `00_*` 操作性标识）仅允许聚合统计或 IS NOT NULL，含整节点导出/properties()/动态下标防绕过；无 LIMIT 自动限流 500）
 - `resolve_sample_roles(study | records)` —— 确定性样本角色判定（tumor/normal，规则移植自重版 `_sample_role`）：`study` 模式返回队列角色分布 `sample_roles` 与 `role_resolved`，`records` 模式对给定样本记录逐条判角色。配对/分组分析选数据前必须调用
 - `validate_atomic_chain(chain)` —— 确定性闭集校验（11 个 atomic + 图内 next_tool 邻接；输出 Knowledge Card meta.id + 卡内 IO 名，图谱 id / meta.id 均可入参）
 - `validate_execution_chain(steps)` —— **提交前把关（场景1）**：五阶段探查（注册/卡契约必填输入/绑定结构/数据探查/链流转），输出 tool-chain-validation/v1.1 逐阶段报告 + `execution_params`（输入名→图内真实路径）+ `execution_params_missing` + `submittable`；errors 清零且 submittable=true 才可提交
@@ -93,9 +93,9 @@
 | 样本角色 | 重版内置推断 / v2.0 输出恒 null | `resolve_sample_roles` 确定性工具（study/records 两模式，规则与重版对齐并适配 0819 图谱） |
 | 提交判定 | 重版有 `execution_params`/`submittable` / v2.0 没有 | `validate_execution_chain` 补齐：`execution_params` + `execution_params_missing` + `submittable` |
 | 拒绝无关问题 | `rule_baseline_plan` 内置词表相关性门 | 拒绝纪律在 SKILL.md（`off_topic`/`privacy` 两类 reason），由调用方模型执行 |
-| 患者隐私 | 无专门防护 | `read_cypher` 服务端守卫：临床属性（`01_/03_/09_/11_/13_`）仅聚合/存在性判断，防整节点导出/别名/动态下标绕过，自动 LIMIT 500 |
-| 图谱 | 0812 交付 | 0819 交付（列名规范/数据补充/值清洗），SKILL.md 已同步 |
-| 回归手段 | 96 例含水测试集 | `benchmark/system_test.py`（9 场景 44 断言）+ `integration_test.py`，图谱更新后必跑 |
+| 患者隐私 | 无专门防护 | `read_cypher` 服务端守卫：临床属性（`01_`–`13_` 全部编号前缀，只放行 `00_*`）仅聚合/存在性判断，防整节点导出/别名/动态下标绕过，自动 LIMIT 500 |
+| 图谱 | 0812 交付 | 0821 交付（81,621 节点 / 364,184 关系；0819 列名规范 + 0821 数值字段改类型/清洗），SKILL.md 已同步 |
+| 回归手段 | 96 例含水测试集 | `benchmark/system_test.py`（12 场景 101 断言）+ `integration_test.py` + `benchmark/template_audit.py`（15 条官方模板逐条实跑，断言返回行且无整列 null），图谱更新后必跑 |
 
 ## 目录结构
 

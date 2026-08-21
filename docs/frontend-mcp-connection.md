@@ -7,7 +7,7 @@
 | 工具 | 作用 |
 |---|---|
 | `get_planning_guide()` | 返回 SKILL.md 全文（调用方模型自己读、自己规划——**本 server 不做推理**） |
-| `read_cypher(query)` | 数据面：通用只读 Cypher 查询（三重守卫：拒写入；患者级临床属性 `01_/03_/09_/11_/13_` 仅聚合/存在性判断；无 LIMIT 自动加 LIMIT 500） |
+| `read_cypher(query)` | 数据面：通用只读 Cypher 查询（三重守卫：拒写入；患者级临床属性 `01_`–`13_`（全部编号前缀，只放行 `00_*` 操作性标识）仅聚合/存在性判断；无 LIMIT 自动加 LIMIT 500） |
 | `resolve_sample_roles(study \| records)` | 确定性样本角色判定（tumor/normal）：队列角色分布 + `role_resolved`，或对给定样本记录逐条判角色 |
 | `validate_atomic_chain(chain)` | 确定性闭集校验：11 个 atomic 工具 + 图内 next_tool 邻接 |
 | `validate_execution_chain(steps)` | 提交前把关：五阶段报告 + `execution_params` + `submittable` |
@@ -50,8 +50,8 @@ DeepSeek 实操建议：`temperature` 调低（≤0.3）；若客户端支持 `r
 
 ## 前置条件
 
-- 本机 Neo4j 运行中（bolt 7687），账号 `neo4j`
-- 环境变量：`NEO4J_PASSWORD`（必填）、`NEO4J_USER`（默认 neo4j）、`NEO4J_URL`（默认 `http://127.0.0.1:7474/db/neo4j/tx/commit`）
+- 可达的 Neo4j 实例，账号 `neo4j`。**默认值是本机开发地址，现网不是本机**——0821 现网为 HTTP `http://192.168.130.24:7480/db/neo4j/tx/commit`、bolt `bolt://192.168.130.24:7690`，接前必须显式设 `NEO4J_URL`，否则会静默连本机 7474 然后报「Neo4j 请求失败」。
+- 环境变量：`NEO4J_PASSWORD`（必填）、`NEO4J_USER`（默认 neo4j）、`NEO4J_URL`（默认 `http://127.0.0.1:7474/db/neo4j/tx/commit`，仅适用于本机开发）。口令走环境变量，不要写进仓库文件。
 - 依赖：仅 `python3` 标准库 + 本机 `curl`（无 pip 依赖）
 
 ## 连接方式（按前端 agent 类型）
@@ -80,7 +80,7 @@ claude
       "env": {
         "NEO4J_USER": "neo4j",
         "NEO4J_PASSWORD": "***",
-        "NEO4J_URL": "http://127.0.0.1:7474/db/neo4j/tx/commit"
+        "NEO4J_URL": "http://192.168.130.24:7480/db/neo4j/tx/commit"
       }
     }
   }

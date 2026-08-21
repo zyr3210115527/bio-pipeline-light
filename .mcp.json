@@ -7,7 +7,7 @@
       "env": {
         "NEO4J_USER": "${NEO4J_USER}",
         "NEO4J_PASSWORD": "${NEO4J_PASSWORD}",
-        "NEO4J_URL": "http://127.0.0.1:7474/db/neo4j/tx/commit"
+        "NEO4J_URL": "${NEO4J_URL:-http://127.0.0.1:7474/db/neo4j/tx/commit}"
       }
     }
   }
