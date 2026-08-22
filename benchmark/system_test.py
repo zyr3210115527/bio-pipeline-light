@@ -328,7 +328,7 @@ check("小队列不误报 truncated", ("samples_truncated" in r5) == (r5["sample
 # ────────────────────────────────────────────────────────────────────
 sec("S9 拒绝纪律指引（无关问题/隐私问询，调用方模型主路径）")
 g = m.tool_get_planning_guide({})["skill"]
-for key in ("拒绝纪律", "off_topic", "privacy", "隐私红线", "不要改写绕过"):
+for key in ("Rejection discipline", "off_topic", "privacy", "Privacy red line", "bypass"):
     check(f"手册含「{key}」", key in g)
 
 # ────────────────────────────────────────────────────────────────────

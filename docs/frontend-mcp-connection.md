@@ -8,6 +8,8 @@
 |---|---|
 | `get_planning_guide()` | 返回 SKILL.md 全文（调用方模型自己读、自己规划——**本 server 不做推理**） |
 | `read_cypher(query)` | 数据面：通用只读 Cypher 查询（三重守卫：拒写入；患者级临床属性 `01_`–`13_`（全部编号前缀，只放行 `00_*` 操作性标识）仅聚合/存在性判断；无 LIMIT 自动加 LIMIT 500） |
+| `read_cypher_batch(queries)` | 批量只读 Cypher：多条独立查询一次调用（逐条同等守卫），打包省轮数 |
+| `get_study_overview(study)` | 队列画像一包到底：study 信息 + 样本数 + T1/T2 分布与文件样例 + 角色分布（替代多查组合） |
 | `resolve_sample_roles(study \| records)` | 确定性样本角色判定（tumor/normal）：队列角色分布 + `role_resolved`，或对给定样本记录逐条判角色 |
 | `validate_atomic_chain(chain)` | 确定性闭集校验：11 个 atomic 工具 + 图内 next_tool 邻接 |
 | `validate_execution_chain(steps)` | 提交前把关：五阶段报告 + `execution_params` + `submittable` |

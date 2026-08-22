@@ -58,6 +58,8 @@
 
 - `get_planning_guide()` —— 返回 SKILL.md 全文，调用方模型读后自行规划
 - `read_cypher(query)` —— 数据面：通用只读查询（三重守卫：拒写入；患者级临床属性 `01_`–`13_`（全部编号前缀，只放行 `00_*` 操作性标识）仅允许聚合统计或 IS NOT NULL，含整节点导出/properties()/动态下标防绕过；无 LIMIT 自动限流 500）
+- `read_cypher_batch(queries)` —— 批量只读查询：多条独立 Cypher 一次调用（逐条同等守卫），打包省轮数
+- `get_study_overview(study)` —— 队列画像一包到底：study 信息 + 样本数 + T1/T2 分布/文件样例 + 角色分布（替代「队列信息+文件清单+角色」多查组合）
 - `resolve_sample_roles(study | records)` —— 确定性样本角色判定（tumor/normal，规则移植自重版 `_sample_role`）：`study` 模式返回队列角色分布 `sample_roles` 与 `role_resolved`，`records` 模式对给定样本记录逐条判角色。配对/分组分析选数据前必须调用
 - `validate_atomic_chain(chain)` —— 确定性闭集校验（11 个 atomic + 图内 next_tool 邻接；输出 Knowledge Card meta.id + 卡内 IO 名，图谱 id / meta.id 均可入参）
 - `validate_execution_chain(steps)` —— **提交前把关（场景1）**：五阶段探查（注册/卡契约必填输入/绑定结构/数据探查/链流转），输出 tool-chain-validation/v1.1 逐阶段报告 + `execution_params`（输入名→图内真实路径）+ `execution_params_missing` + `submittable`；errors 清零且 submittable=true 才可提交
@@ -111,6 +113,9 @@
 │   └── bench_light_96_report.json  # 逐 case 明细
 ├── examples/
 │   └── plan_immune_infiltration_v2.json  # tool-chain/v2 示例 plan（真实数据）
+├── web/                            # Kimi 风格网页前端（思考段 + 工具调用可视化，见 web/README.md）
+│   ├── server.py                   #   纯标准库后端：MCP stdio 桥接 + Gemini SSE agent 循环
+│   └── index.html                  #   单文件聊天界面（无 npm 依赖）
 └── docs/integration.md             # dsh-mcp-client 配置 + skill 安装
 ```
 

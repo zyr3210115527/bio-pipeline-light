@@ -370,6 +370,65 @@ def tool_read_cypher(args):
     except Exception as e:
         return {"status": "error", "detail": str(e)[:500]}
 
+def tool_read_cypher_batch(args):
+    """批量只读查询：一次调用执行多条相互独立的 Cypher（等效于同一轮并行多个 read_cypher）。
+    供调用方模型把互不依赖的查询打包，直接减少推理轮数。每条独立走完整守卫与截断。"""
+    queries = args.get("queries")
+    if not isinstance(queries, list) or not queries:
+        return {"status": "error", "detail": "queries 必须是非空字符串数组"}
+    if len(queries) > 8:
+        return {"status": "error", "detail": "单次最多 8 条；更多请拆分批次，避免把整库探索塞进一轮"}
+    results = []
+    for q in queries:
+        if not isinstance(q, str) or not q.strip():
+            results.append({"status": "error", "detail": "空查询"})
+            continue
+        results.append(tool_read_cypher({"query": q}))
+    return {"status": "ok", "count": len(results), "results": results}
+
+
+def tool_get_study_overview(args):
+    """队列画像一包到底（确定性聚合，替代「队列信息 + T1/T2 清单 + 角色分布」这组高频多查组合）：
+    study 基本信息 + sample 节点数 + T1/T2 格式与策略分布 + T2 现成文件样例 + 样本角色分布。
+    文件级明细仍走 read_cypher 定向查；本工具回答「这个队列有什么、能不能配对/分组」。"""
+    study = (args.get("study") or "").strip()
+    if not study or not _SAFE_FILE.fullmatch(study):
+        return {"status": "error", "detail": "需要合法 study 队列号（如 HRA001272）"}
+    try:
+        base = neo4j_q([f"MATCH (s:study {{study_accession: '{study}'}}) RETURN s.tumor_type, "
+                        f"s.title, s.individual_count, s.sample_count"])[0]
+        if not base:
+            return {"status": "error", "detail": f"图内无队列 {study}"}
+        n_samples = neo4j_q([f"MATCH (sp:sample) WHERE sp.study_accession = '{study}' "
+                             f"RETURN count(sp)"])[0][0][0]
+        t1 = neo4j_q([f"MATCH (f:T1) WHERE f.study_accession = '{study}' "
+                      f"RETURN count(f), collect(DISTINCT f.format), collect(DISTINCT f.strategy)"])[0]
+        t2 = neo4j_q([f"MATCH (f:T2) WHERE f.study_accession = '{study}' "
+                      f"RETURN count(f), collect(DISTINCT f.format), collect(DISTINCT f.strategy)"])[0]
+        t2_files = neo4j_q([f"MATCH (f:T2) WHERE f.study_accession = '{study}' "
+                            f"RETURN f.file_name, f.format, f.file_path LIMIT 20"])[0]
+    except Exception as e:
+        return {"status": "error", "detail": str(e)[:300]}
+    roles = tool_resolve_sample_roles({"study": study, "sample_limit": 0})
+    out = {
+        "status": "ok", "study_accession": study,
+        "tumor_type": base[0][0], "title": base[0][1],
+        "individual_count": base[0][2], "sample_count_prop": base[0][3],
+        "sample_nodes": n_samples,
+        "t1": {"count": t1[0][0] if t1 else 0,
+               "formats": t1[0][1] if t1 else [], "strategies": t1[0][2] if t1 else []},
+        "t2": {"count": t2[0][0] if t2 else 0,
+               "formats": t2[0][1] if t2 else [], "strategies": t2[0][2] if t2 else [],
+               "sample_files": [{"file_name": r[0], "format": r[1], "file_path": r[2]}
+                                 for r in t2_files]},
+    }
+    # 角色分布整段并入（配对/分组判定的唯一权威来源）
+    for k in ("sample_roles", "role_resolved", "file_coverage"):
+        if k in roles:
+            out[k] = roles[k]
+    return out
+
+
 def tool_resolve_sample_roles(args):
     """确定性样本角色判定（不查 LLM、不猜）。两种用法：
     - records: 对调用方提供的样本记录逐条判 tumor/normal（离线，不查图）
@@ -767,6 +826,16 @@ TOOLS = {
         "description": "数据面：对 Neo4j 知识图谱执行只读 Cypher 查询。三重守卫：写入语句拒绝；患者级临床属性（`01_`–`13_` 全部编号前缀：人口学/家族史/生活史/血液学/病理/侵犯/分子指标/治疗史/生存；只有 `00_*` 操作性标识放行）只允许聚合统计或 IS NOT NULL 存在性判断，不允许取个体值；无 LIMIT 自动加 LIMIT 500。",
         "inputSchema": {"type": "object", "properties": {"query": {"type": "string", "description": "只读 Cypher，结果多时加 LIMIT"}}, "required": ["query"]},
         "handler": tool_read_cypher,
+    },
+    "read_cypher_batch": {
+        "description": "批量只读 Cypher：一次调用执行多条相互独立的查询（每条与 read_cypher 同等守卫），结果按序返回 results[]。凡是不依赖上一条返回值的查询都必须打包进一次 batch，不要在多轮里逐条发。",
+        "inputSchema": {"type": "object", "properties": {"queries": {"type": "array", "items": {"type": "string"}, "description": "相互独立的只读 Cypher 数组，单次最多 8 条"}}, "required": ["queries"]},
+        "handler": tool_read_cypher_batch,
+    },
+    "get_study_overview": {
+        "description": "队列画像一包到底：study 基本信息 + sample 节点数 + T1/T2 格式/策略分布 + T2 现成文件样例 + 样本角色分布（sample_roles/role_resolved/file_coverage）。选定队列后优先调它，一次拿齐「有什么数据、能不能配对/分组」，不要再用多条 read_cypher 分头查。",
+        "inputSchema": {"type": "object", "properties": {"study": {"type": "string", "description": "队列号（如 HRA001272）"}}, "required": ["study"]},
+        "handler": tool_get_study_overview,
     },
     "validate_atomic_chain": {
         "description": "确定性闭集校验：给定 atomic 工具链，校验闭集成员 + 图内 next_tool 邻接；输出 tool_chain 使用 Knowledge Card 的 meta.id 与卡内输入输出名称。",
