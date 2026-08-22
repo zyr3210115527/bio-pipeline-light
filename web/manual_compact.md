@@ -11,17 +11,19 @@ Neo4j 图谱（库 `neo4j`）是唯一事实源。只读：禁止 CREATE/MERGE/D
 | `read_cypher(query)` | 只读 Cypher（守卫：拒写入；individual 的 `01_`–`13_` 仅聚合/IS NOT NULL；无 LIMIT 自动 500） | 单条定向查询 |
 | `read_cypher_batch(queries)` | 多条独立查询一次调用（≤8 条，逐条同守卫），结果按序在 results[] | **取数默认用它**：互不依赖的查询全部打包一轮 |
 | `get_study_overview(study)` | 队列画像：基本信息+样本数+T1/T2 分布+T2 文件样例+角色分布 | 选定队列后优先调，替代「信息+清单+角色」多查组合 |
-| `resolve_sample_roles(study\|records)` | 确定性 tumor/normal 判定 | 配对/分组选数据前必须调；角色不许自己猜 |
+| `resolve_sample_roles(study\|records)` | 确定性 tumor/normal 判定 | **只在要逐样本挑 tumor/normal 文件时调**（配对 WES、原子链）；pipeline 自带分组，选矩阵/MAF 不需要它 |
 | `validate_atomic_chain(chain)` | atomic 闭集+next_tool 邻接校验 | 链组装完后**仅 1 次** |
 | `validate_execution_chain(steps)` | 提交执行端前的五阶段把关 → execution_params/submittable | 仅提交场景 |
-| `validate_plan(plan)` | 最终 Plan 接地校验 | **仅最终输出前 1 次**；中途不校验草稿 |
 | `health_check()` | 连通性/规模/闭集 | 仅诊断 |
+
+**`hydrate_plan` 与 `validate_plan` 不在本会话工具列表里**：你输出终答后，服务端自动依次跑
+「确定性补全 → 接地校验」。所以样板字段不用你写（见 §9），也不要为了自检多花一轮。
 
 ## 2. 图谱模型（0821 交付：81,621 节点 / 364,184 关系）
 
 - `tool`(51)：`tool_name`、`function`（中文整句，CONTAINS 子串匹配）、`semantic_output`（`;` 分隔）、`catalog_id`
 - `function`(90) / `format`(35) / `modal`(6) / `datalevel`(4)
-- **modal 只有 6 个**：`WES`/`WGS`/`bulk_RNA`/`sc-RNA`/`Clinical`/`Meta`，别编 `RNA-seq`
+- **modal 只有 6 个**：`WES`/`WGS`/`bulk_RNA`/`sc-RNA`/`Clinical`/`Meta`，别编 `RNA-seq`。**节点属性叫 `modal` 不是 `name`**（写 `(:modal {name:'sc-RNA'})` 静默 0 行）；找某模态的文件直接用 `T1.strategy='sc-RNA'`，别绕 `in_modal`
 - **datalevel 节点属性是 `level`/`name`/`description`，不是 data_level**（1 原始→4 知识）；文件侧的 `T1.data_level`/`T2.data_level` 才叫 data_level
 - `study`(20)/`project`(18)：`study_accession`、`tumor_type`（英文，toLower+CONTAINS 查）、`individual_count`、`sample_count`（**6 队列无值**：HRA000073/HRA000087/HRA002693/HRA006117/HRA007413/HRA016026——按它过滤会静默漏，要规模就数 sample 节点）
 - `individual`(7131)：**只有 `00_*` 是操作性标识**（00_sample_accession/00_run_accession/00_platform/00_strategy…）；**`01_`–`13_` 全是患者级敏感**：01_ 人口学、02_ 家族史、03_ 生活史、04_ 血液学、09_ 病理、10_ 侵犯、11_ 分子（`11_tmb`/`11_msi_score`）、12_ 治疗、**13_ 生存（`13_survival_days`/`13_survival_status`/`13_pfs_time`…生存分析用这里）**——只许聚合，个体取值被服务端拒
@@ -76,26 +78,26 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
      RETURN study, count(i) AS pairable_individuals ORDER BY pairable_individuals DESC
      ```
    - **可配对队列（0821 实测个体数）**：HRA000873 1015、HRA000021 508、HRA016026 350、HRA001272 206、HRA003107 155、HRA001749 84、HRA007169 76、HRA006499 72。陷阱：**HRA000071 血液对照与肿瘤不属同一个体**——能分组不能同个体配对；要现成配对优先 HRA016026（350 个体各 2 样本）
-   - **判不出角色的队列（别浪费轮数）**：HRA000001（全 Blood）、HRA000074、HRA005191、HRA002693、HRA006117、HRA000122（大量缺 tissue_type）——如实告知或换队列
+   - **判不出角色的队列（别浪费轮数）**：HRA000001（全 Blood）、HRA000074、HRA005191、HRA002693、HRA006117、HRA000122（大量缺 tissue_type）——如实告知或换队列。**这只卡「逐样本配对」这一件事**：这些队列的队列级矩阵/MAF 分析（差异、富集、聚类、免疫浸润、生存）照常可做，不要因为角色判不出就报 `no_candidate`
    - **队列样本清单以 sample 节点为准**（`MATCH (sp:sample) WHERE sp.study_accession='HRA*'`）；别用 `(T1)-[:in_sample]->(sample)` 数样本（漏无文件样本）
    - 文件缺口判定只看 `resolve_sample_roles` 的 `file_coverage.t1_files_unlinked`（真无 in_sample 边的文件数，正常是聚合文件个位数）；`runs_without_sample_node` 是诊断字段不是缺口，拿它判队列会误杀。真缺口如实 `missing_from_graph`，绝不按文件名/顺序猜样本归属
 
-## 5. 效率纪律（硬约束：≤3 轮、≤6 条查询）
+## 5. 效率纪律（硬约束：≤3 轮、≤6 条查询；取数轮预算由服务端强制）
 
 轮数是墙钟唯一来源（一轮=一次完整推理，几十秒）；查询几乎免费（<0.5s）。
 1. **先列后射**：每轮开前列出所有待答问题，参数已知的**全部在同一轮发出**（一轮 2-4 个调用是常态）；`read_cypher_batch` 一条调用可带 8 条
 2. **快照优先**：工具匹配/选队列查 §8 快照，零查询；`read_cypher` 只花在文件级明细与新鲜度核实
-3. **标准轨迹 3 轮**：R1 = `get_study_overview`（选定队列）+ 一个 `read_cypher_batch`（overview 答不了的定向查询）+（要原子链时）`validate_atomic_chain`；R2 = 组 Plan + `validate_plan`；R3 = grounded=true 立即输出。拒绝题 1 轮零调用
+3. **标准轨迹 2 轮**：R1 = `get_study_overview`（选定队列）+ 一个 `read_cypher_batch`（overview 答不了的定向查询）+（要原子链时）`validate_atomic_chain`；R2 = **直接输出最终 JSON**（接地校验由服务端在其后自动跑，不占你的轮次）。拒绝题 1 轮零调用
 4. 禁止整库 get_schema；一次查全（合并查询+并行发起可叠加）；同一对象不重复查；查询为空先查关键词语言/目标表，不重复同一失败查询
 5. **收敛**：证据足够即停。6 轮查询是硬上限——同族工具分不清（生存族 km_survival/cox_model/survival_analysis/tmb_survival_analysis 重叠）或需求超出闭集时，选证据最充分的、match_note 注明分歧、如实 unsupported，禁止继续空转
-6. validate_plan 每次会话 ≤2 次（校验+修正后复验），grounded=true 后必须立即输出；validate_atomic_chain 每条最终链 1 次
+6. **不要自检、不要等校验**：证据够了就出终答；服务端会补全样板字段并跑接地校验，只在 grounded=false 时把 violations 回传给你修一次。validate_atomic_chain 每条最终链 1 次
 
 ## 6. 接地纪律（最高优先级）
 
 1. **名词白名单**：答案/Plan 里每个 tool_id/pipeline_id、队列号（HRA*）、文件名、路径、格式名、样本号必须逐字来自本手册（含 references/）或本会话工具返回；没查过的名词绝不出现——即使它真实存在（DESeq2/Seurat），不在闭集就不能用
 2. 图里查不到 → 如实 `missing_from_graph`/`no_candidate`/`unsupported`，**绝不虚构**，不用训练知识补全
 3. **证据可追溯**：match_note/match_reason 对应到某次查询；样本角色只来自 resolve_sample_roles；路径只来自图谱记录或 validate_execution_chain 的 execution_params
-4. **输出前自检**：最终 JSON 先给 validate_plan；grounded=false 按 violations 用已有证据修正（最多定向补查违规项）再验，直到 grounded=true
+4. **服务端兜底自检**：终答输出后服务端自动跑接地校验；若回传 violations，用已有证据（最多定向补查违规项）修正后重出完整 JSON——不要因为怕违规而在输出前反复自查
 
 ## 7. 拒绝纪律（先判再查，命中即拒，不调任何查询工具）
 
@@ -107,130 +109,148 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 
 ### 8.1 工具目录快照（51）
 
-| tool | 功能摘要 | modal | in → out |
+| tool | 功能摘要（**加粗处是同族流程的判别点**，按用户问句里出现的那个词选） | modal | 需要的输入语义格式 |
 |---|---|---|---|
-| `bcftools` | 对 GATK 过滤后的体细胞 VCF 文件进行后处理 | WES | DNA_VARIANT_VCF_GENERAL,DNA_VARIANT_INDEX_TBI,REFERENCE_GENOME_FASTA → DNA_VARIANT_VCF_GENERAL,TABULAR_BIO_DATA,DNA_VARIANT_INDEX_TBI |
-| `bootstrap_stability` | 对聚类分析执行Bootstrap重采样，通过比较不同 | bulk_RNA | - → TABULAR_BIO_DATA,VISUALIZATION_RESULT |
-| `breast_cellchat` | 基于CellChat方法分析乳腺癌单细胞转录组数据中 | bulk_RNA,sc-RNA | SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA → VISUALIZATION_RESULT,QC_STATS_REPORT |
-| `bwa` | 基于 BWA-MEM 算法的双端测序比对流程 | WES | REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ → DNA_GENOMIC_ALIGNMENT_BAM |
-| `cellranger_workflow` | 基于 10x Genomics CellRanger | sc-RNA,bulk_RNA | RAW_SINGLE_END_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM → TABULAR_BIO_DATA,DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT |
-| `celltype_case_control_de` | 对单细胞RNA-seq数据中指定的细胞类型进行病例- | sc-RNA,bulk_RNA | SCRNA_OBJECT_RDS,TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA → QC_STATS_REPORT |
-| `cnvkit_cnv_clinical` | 对肿瘤队列的配对肿瘤/正常 WGS 或 WES BA | Clinical,WES,WGS | DNA_GENOMIC_ALIGNMENT_BAM,CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA → VISUALIZATION_RESULT,TABULAR_BIO_DATA |
-| `cox_model` | 整合基因表达矩阵与临床元数据，执行 Cox 比例风险 | Clinical,bulk_RNA | CLINICAL_DATA_EXCEL,METADATA_SAMPLE_INFO,TABULAR_BIO_DATA → QC_STATS_REPORT,TABULAR_BIO_DATA |
-| `dataset_downstream` | 对单细胞RNA-seq数据集进行标准化下游分析，包括 | sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,SCRNA_OBJECT_RDS → QC_STATS_REPORT |
-| `dataset_matrix_annotation` | 该流程用于对单细胞RNA-seq数据集进行矩阵注释和 | sc-RNA | TABULAR_BIO_DATA,SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA → QC_STATS_REPORT |
-| `de_enrichment` | 本流程整合 CNCB 元数据，执行差异表达分析并生成 | bulk_RNA,Clinical | METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA → QC_STATS_REPORT,TABULAR_BIO_DATA |
-| `deg_enrichment` | 本流程整合表达矩阵、样本元数据和临床信息，执行差异表 | bulk_RNA,Clinical | TABULAR_BIO_DATA,METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL → TABULAR_BIO_DATA,QC_STATS_REPORT |
-| `deg_trend` | 本流程用于差异表达基因(DEG)的趋势分析与可视化 | bulk_RNA,Clinical | METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA → TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
-| `diff_expr_go` | 基于表达矩阵进行差异基因分析（limma）并针对上下 | bulk_RNA | TABULAR_BIO_DATA → TABULAR_BIO_DATA |
-| `diff_expr_kegg` | 基于 limma 包进行两组样本差异表达分析，并使用 | bulk_RNA | TABULAR_BIO_DATA → TABULAR_BIO_DATA |
-| `driver_gene_gender_analysis` | 该流程基于 WES MAF 文件、临床表和 Meta | Clinical,WES | CLINICAL_DATA_EXCEL,MUTATION_ANNOTATION_FORMAT_MAF → TABULAR_BIO_DATA,VISUALIZATION_RESULT,MUTATION_ANNOTATION_FORMAT_MAF |
-| `fastp` | 对双端测序FASTQ文件进行质量过滤、接头修剪和质控 | WES | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ → QC_STATS_REPORT,RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ |
-| `fastqc` | 对输入的 FASTQ 文件进行质量评估，生成 HTM | bulk_RNA,sc-RNA,WES,WGS | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ → QC_STATS_REPORT |
-| `featurecounts` | 该流程使用 featureCounts 工具对 RN | bulk_RNA | DNA_GENOMIC_ALIGNMENT_BAM → QC_STATS_REPORT,TABULAR_BIO_DATA |
-| `gatk` | 基于 GATK 最佳实践的全外显子组（WES）肿瘤- | WES | DNA_ALIGNMENT_INDEX_BAI,REFERENCE_GENOME_FASTA,TARGET_INTERVAL_LIST,DNA_GENOMIC_ALIGNMENT_BAM → DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT,DNA_VARIANT_INDEX_TBI,DNA_VARIANT_VCF_GENERAL |
-| `gene_boxplot` | 基于基因表达矩阵和临床元数据生成箱线图、火山图、热图 | Clinical,bulk_RNA | METADATA_SAMPLE_INFO,TABULAR_BIO_DATA,CLINICAL_DATA_EXCEL → QC_STATS_REPORT,TABULAR_BIO_DATA |
-| `gsea_pathway_enrichment` | 本流程基于limma moderated t统计量构 | bulk_RNA | TABULAR_BIO_DATA → VISUALIZATION_RESULT,TABULAR_BIO_DATA,QC_STATS_REPORT |
-| `her2_pfs_survival` | 基于 TPM 表达矩阵、临床信息及样本元信息，分析特 | Clinical,bulk_RNA | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA → VISUALIZATION_RESULT,QC_STATS_REPORT,TABULAR_BIO_DATA |
-| `hvg_pca_gmm` | 从logCPM表达矩阵中筛选高变基因，执行PCA降维 | bulk_RNA,sc-RNA | - → TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
-| `immune_infiltration_iobr` | 基于 IOBR 包的 CIBERSORT 算法进行免 | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA → TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
-| `immunotherapy_cellchat` | 基于CellChat的免疫治疗细胞通讯分析流程 | sc-RNA | SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA → VISUALIZATION_RESULT,QC_STATS_REPORT |
-| `ipf_trajectory_regulon` | 对特发性肺纤维化(IPF)单细胞RNA-seq数据进 | bulk_RNA,sc-RNA | SCRNA_OBJECT_RDS,METADATA_SAMPLE_INFO,REFERENCE_GENOME_FASTA → QC_STATS_REPORT |
-| `km_survival` | 整合基因表达矩阵与临床元数据，执行 Kaplan-M | bulk_RNA,Clinical | TABULAR_BIO_DATA,METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL → TABULAR_BIO_DATA,QC_STATS_REPORT |
-| `lung_tme_annotation_cnv` | 基于单细胞RNA-seq数据对肺癌肿瘤微环境进行细胞 | sc-RNA | SCRNA_OBJECT_RDS,TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA → QC_STATS_REPORT |
-| `multiqc` | 接收任意数量的上游质控文件（如 FastQC、fas | bulk_RNA,WES,WGS | - → QC_STATS_REPORT |
-| `paired_fastq_to_unmapped_bam` | 将双端 FASTQ 测序数据转换为未比对的 BAM  | WES | RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM → DNA_GENOMIC_ALIGNMENT_BAM |
-| `preprocess_counts` | 对RNA-seq原始count矩阵执行样本质量控制、 | bulk_RNA | TABULAR_BIO_DATA → TABULAR_BIO_DATA,QC_STATS_REPORT |
-| `rmats_alternative_splicing` | 比较两组 bulk RNA-seq 数据中的差异剪接 | bulk_RNA | RNA_TRANSCRIPTOME_ALIGNMENT_BAM,REFERENCE_GENOME_FASTA → TABULAR_BIO_DATA,QC_STATS_REPORT,DNA_GENOMIC_ALIGNMENT_BAM,VISUALIZATION_RESULT |
-| `rnaseq_singletask` | 涵盖从原始测序数据到表达量定量的全流程分析，包括质控 | bulk_RNA | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ,REFERENCE_GENOME_FASTA → DNA_GENOMIC_ALIGNMENT_BAM,RNA_TRANSCRIPTOME_ALIGNMENT_BAM,RAW_PAIRED_END_R2_FASTQ,TABULAR_BIO_DATA |
-| `rnaseq_unsupervised_cluster` | 本流程针对 RNA-seq count 矩阵进行无监 | bulk_RNA | TABULAR_BIO_DATA → TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
-| `rsem` | 该流程基于 RSEM 工具，接收 STAR 比对生成 | bulk_RNA | RNA_TRANSCRIPTOME_ALIGNMENT_BAM → TABULAR_BIO_DATA,QC_STATS_REPORT |
-| `samtools` | 基于SAMtools工具集的比对后处理流程，支持对B | WGS,bulk_RNA,WES | DNA_GENOMIC_ALIGNMENT_BAM → DNA_ALIGNMENT_INDEX_BAI,DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT |
-| `scrna_cell_communication` | 该流程整合 CellPhoneDB 和 NicheN | sc-RNA,bulk_RNA | TABULAR_BIO_DATA,SCRNA_OBJECT_RDS,METADATA_SAMPLE_INFO → VISUALIZATION_RESULT,SCRNA_OBJECT_RDS,QC_STATS_REPORT,TABULAR_BIO_DATA |
-| `snpeff` | 基于 SnpEff 工具对 VCF 文件进行变异效应 | WES,WGS | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA → DNA_VARIANT_VCF_GENERAL,QC_STATS_REPORT |
-| `stage_heatmap` | 本流程用于生成基于肿瘤分期的基因表达热图可视化 | Clinical,bulk_RNA | TABULAR_BIO_DATA,METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL → VISUALIZATION_RESULT,TABULAR_BIO_DATA,QC_STATS_REPORT |
-| `star` | 该流程使用 STAR 比对工具对 RNA-seq 数 | bulk_RNA | REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ → RNA_TRANSCRIPTOME_ALIGNMENT_BAM,DNA_GENOMIC_ALIGNMENT_BAM,REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ |
-| `survival_analysis` | 基于 WDL 1.0 和 Cromwell 的生存分 | WES,Clinical | CLINICAL_DATA_EXCEL,MUTATION_ANNOTATION_FORMAT_MAF → QC_STATS_REPORT,VISUALIZATION_RESULT,CLINICAL_DATA_EXCEL |
-| `tcell_intervention` | 该流程用于对单细胞RNA-seq数据进行T细胞干预前 | bulk_RNA,sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,METADATA_SAMPLE_INFO,SCRNA_OBJECT_RDS → QC_STATS_REPORT |
-| `tmb_survival_analysis` | 从MAF文件和临床数据计算病人级肿瘤突变负荷（TMB | WES,Clinical | MUTATION_ANNOTATION_FORMAT_MAF,CLINICAL_DATA_EXCEL → QC_STATS_REPORT,TABULAR_BIO_DATA,VISUALIZATION_RESULT |
-| `trim_galore` | 基于 Trim Galore 工具的 FASTQ 文 | bulk_RNA | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ → RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ,QC_STATS_REPORT |
-| `umap` | 基于基因表达矩阵进行 UMAP 降维可视化分析，整合 | Clinical,bulk_RNA | TABULAR_BIO_DATA,METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL → TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
-| `wes_somatic_maf_landscape` | 本流程用于全外显子测序（WES）队列的体细胞突变景观 | WES | MUTATION_ANNOTATION_FORMAT_MAF → TABULAR_BIO_DATA,VISUALIZATION_RESULT,MUTATION_ANNOTATION_FORMAT_MAF |
-| `wes_somatic_pair` | 用于单个病人配对 tumor-normal WES  | WGS,WES | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ → DNA_VARIANT_INDEX_TBI,DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT,DNA_VARIANT_VCF_GENERAL |
-| `wgcna` | 基于基因表达矩阵和临床表型数据执行 WGCNA 共表 | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA → TABULAR_BIO_DATA,VISUALIZATION_RESULT |
-| `wgcna_hub` | 基于 WGCNA 算法构建基因共表达网络，识别与表型 | Clinical,bulk_RNA | METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA → TABULAR_BIO_DATA,QC_STATS_REPORT |
-| `wgcna_module_trait` | 基于 WGCNA 算法构建基因共表达网络，识别功能模 | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,METADATA_SAMPLE_INFO,TABULAR_BIO_DATA → TABULAR_BIO_DATA,QC_STATS_REPORT |
+| `bcftools` | 对 GATK 过滤后的体细胞 VCF 文件进行后处理 | WES | DNA_VARIANT_VCF_GENERAL,DNA_VARIANT_INDEX_TBI,REFERENCE_GENOME_FASTA |
+| `bootstrap_stability` | 上面整链拆出的**单步**：聚类稳定性重采样 | bulk_RNA | - |
+| `breast_cellchat` | 基于CellChat方法分析乳腺癌单细胞转录组数据中 | bulk_RNA,sc-RNA | SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA |
+| `bwa` | 基于 BWA-MEM 算法的双端测序比对流程 | WES | REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
+| `cellranger_workflow` | 基于 10x Genomics CellRanger | sc-RNA,bulk_RNA | RAW_SINGLE_END_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM |
+| `celltype_case_control_de` | 对单细胞RNA-seq数据中指定的细胞类型进行病例- | sc-RNA,bulk_RNA | SCRNA_OBJECT_RDS,TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA |
+| `cnvkit_cnv_clinical` | 对肿瘤队列的配对肿瘤/正常 WGS 或 WES BA | Clinical,WES,WGS | DNA_GENOMIC_ALIGNMENT_BAM,CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA |
+| `cox_model` | 同 km_survival，**只在明确要多因素 Cox 回归时选**；表达分组比生存一律 her2_pfs_survival | Clinical,bulk_RNA | CLINICAL_DATA_EXCEL,METADATA_SAMPLE_INFO,TABULAR_BIO_DATA |
+| `dataset_downstream` | 对单细胞RNA-seq数据集进行标准化下游分析，包括 | sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,SCRNA_OBJECT_RDS |
+| `dataset_matrix_annotation` | 该流程用于对单细胞RNA-seq数据集进行矩阵注释和 | sc-RNA | TABULAR_BIO_DATA,SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA |
+| `de_enrichment` | 同 deg_enrichment，输入为 **CNCB 原始元数据** | bulk_RNA,Clinical | METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA |
+| `deg_enrichment` | 差异+富集，但**用户要显式给样本元数据与临床表**（或要生存关联）才选它；只说「病例组/对照组」不算——分组是任何差异流程都做的事 | bulk_RNA,Clinical | TABULAR_BIO_DATA,METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL |
+| `deg_trend` | 本流程用于差异表达基因(DEG)的趋势分析与可视化 | bulk_RNA,Clinical | METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA |
+| `diff_expr_go` | limma 两组差异 + 上下调基因分别做 **GO 功能**富集；只吃表达矩阵 | bulk_RNA | TABULAR_BIO_DATA |
+| `diff_expr_kegg` | limma 两组差异 + 上下调基因分别做 **通路/Reactome** 富集；只吃表达矩阵 | bulk_RNA | TABULAR_BIO_DATA |
+| `driver_gene_gender_analysis` | 该流程基于 WES MAF 文件、临床表和 Meta | Clinical,WES | CLINICAL_DATA_EXCEL,MUTATION_ANNOTATION_FORMAT_MAF |
+| `fastp` | 对双端测序FASTQ文件进行质量过滤、接头修剪和质控 | WES | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
+| `fastqc` | 对输入的 FASTQ 文件进行质量评估，生成 HTM | bulk_RNA,sc-RNA,WES,WGS | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
+| `featurecounts` | 该流程使用 featureCounts 工具对 RN | bulk_RNA | DNA_GENOMIC_ALIGNMENT_BAM |
+| `gatk` | 基于 GATK 最佳实践的全外显子组（WES）肿瘤- | WES | DNA_ALIGNMENT_INDEX_BAI,REFERENCE_GENOME_FASTA,TARGET_INTERVAL_LIST,DNA_GENOMIC_ALIGNMENT_BAM |
+| `gene_boxplot` | 基于基因表达矩阵和临床元数据生成箱线图、火山图、热图 | Clinical,bulk_RNA | METADATA_SAMPLE_INFO,TABULAR_BIO_DATA,CLINICAL_DATA_EXCEL |
+| `gsea_pathway_enrichment` | **不先筛差异基因**，全基因排序做预排序 GSEA（fgsea） | bulk_RNA | TABULAR_BIO_DATA |
+| `her2_pfs_survival` | 按**基因表达高低分组**做生存/PFS 的**默认流程**（基因不限 HER2/ERBB2，问句点名任何基因都算）；要 TPM+临床+元信息 | Clinical,bulk_RNA | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA |
+| `hvg_pca_gmm` | 上面整链拆出的**单步**：logCPM→HVG→PCA→GMM | bulk_RNA,sc-RNA | - |
+| `immune_infiltration_iobr` | 基于 IOBR 包的 CIBERSORT 算法进行免 | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA |
+| `immunotherapy_cellchat` | 基于CellChat的免疫治疗细胞通讯分析流程 | sc-RNA | SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA |
+| `ipf_trajectory_regulon` | 对特发性肺纤维化(IPF)单细胞RNA-seq数据进 | bulk_RNA,sc-RNA | SCRNA_OBJECT_RDS,METADATA_SAMPLE_INFO,REFERENCE_GENOME_FASTA |
+| `km_survival` | her2_pfs_survival 的泛化变体，**只在用户明确要 OS/多因素 Cox 建模（而非按表达分组比 PFS）时选** | bulk_RNA,Clinical | TABULAR_BIO_DATA,METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL |
+| `lung_tme_annotation_cnv` | 基于单细胞RNA-seq数据对肺癌肿瘤微环境进行细胞 | sc-RNA | SCRNA_OBJECT_RDS,TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA |
+| `multiqc` | 接收任意数量的上游质控文件（如 FastQC、fas | bulk_RNA,WES,WGS | - |
+| `paired_fastq_to_unmapped_bam` | 将双端 FASTQ 测序数据转换为未比对的 BAM  | WES | RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM |
+| `preprocess_counts` | 上面整链拆出的**单步**：counts→QC→过滤→logCPM | bulk_RNA | TABULAR_BIO_DATA |
+| `rmats_alternative_splicing` | 比较两组 bulk RNA-seq 数据中的差异剪接 | bulk_RNA | RNA_TRANSCRIPTOME_ALIGNMENT_BAM,REFERENCE_GENOME_FASTA |
+| `rnaseq_singletask` | 涵盖从原始测序数据到表达量定量的全流程分析，包括质控 | bulk_RNA | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ,REFERENCE_GENOME_FASTA |
+| `rnaseq_unsupervised_cluster` | 从 **counts 起步的整链**无监督聚类：预处理+HVG+PCA+GMM+bootstrap | bulk_RNA | TABULAR_BIO_DATA |
+| `rsem` | 该流程基于 RSEM 工具，接收 STAR 比对生成 | bulk_RNA | RNA_TRANSCRIPTOME_ALIGNMENT_BAM |
+| `samtools` | 基于SAMtools工具集的比对后处理流程，支持对B | WGS,bulk_RNA,WES | DNA_GENOMIC_ALIGNMENT_BAM |
+| `scrna_cell_communication` | 该流程整合 CellPhoneDB 和 NicheN | sc-RNA,bulk_RNA | TABULAR_BIO_DATA,SCRNA_OBJECT_RDS,METADATA_SAMPLE_INFO |
+| `snpeff` | 基于 SnpEff 工具对 VCF 文件进行变异效应 | WES,WGS | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA |
+| `stage_heatmap` | 本流程用于生成基于肿瘤分期的基因表达热图可视化 | Clinical,bulk_RNA | TABULAR_BIO_DATA,METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL |
+| `star` | 该流程使用 STAR 比对工具对 RNA-seq 数 | bulk_RNA | REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ |
+| `survival_analysis` | 按**指定基因的突变状态**（MAF）分组做 PFS：KM+log-rank+Cox | WES,Clinical | CLINICAL_DATA_EXCEL,MUTATION_ANNOTATION_FORMAT_MAF |
+| `tcell_intervention` | 该流程用于对单细胞RNA-seq数据进行T细胞干预前 | bulk_RNA,sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,METADATA_SAMPLE_INFO,SCRNA_OBJECT_RDS |
+| `tmb_survival_analysis` | 按 **TMB 中位数**分高低组做 KM 生存（先从 MAF 算病人级 TMB） | WES,Clinical | MUTATION_ANNOTATION_FORMAT_MAF,CLINICAL_DATA_EXCEL |
+| `trim_galore` | 基于 Trim Galore 工具的 FASTQ 文 | bulk_RNA | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
+| `umap` | 基于基因表达矩阵进行 UMAP 降维可视化分析，整合 | Clinical,bulk_RNA | TABULAR_BIO_DATA,METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL |
+| `wes_somatic_maf_landscape` | 本流程用于全外显子测序（WES）队列的体细胞突变景观 | WES | MUTATION_ANNOTATION_FORMAT_MAF |
+| `wes_somatic_pair` | 用于单个病人配对 tumor-normal WES  | WGS,WES | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
+| `wgcna` | WGCNA 整链（QC+模块+模块-性状+hub+bootstrap）；**共表达/hub 基因一律默认选它**，问句里要「稳定模块」「功能通路」也不换变体 | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA |
+| `wgcna_hub` | wgcna 变体，**只在用户要求从 CNCB 原始元数据自动解析分组时选** | Clinical,bulk_RNA | METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA |
+| `wgcna_module_trait` | wgcna 变体，**只在用户明确要在共表达之上再做生存分析时选**（只要富集不够） | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,METADATA_SAMPLE_INFO,TABULAR_BIO_DATA |
 
-### 8.2 队列快照（20；sample_count 属性 6 队列为 null，样本数以 sample 节点数为准）
+### 8.2 队列快照（20；样本数以 sample 节点数为准，sample_count 属性有 6 队列为 null）
 
-| study_accession | tumor_type | sample_count(prop) | sample nodes |
-|---|---|---|---|
-| HRA000001 | Natural | 557 | 557 |
-| HRA000021 | esophageal cancer | 1016 | 1016 |
-| HRA000071 | malignant glioma | 572 | 572 |
-| HRA000073 | malignant glioma | null | 325 |
-| HRA000074 | malignant glioma | 572 | 693 |
-| HRA000087 | nasopharynx carcinoma | null | 61 |
-| HRA000122 | acute T cell leukemia | 287 | 287 |
-| HRA000873 | colorectal adenocarcinoma | 2030 | 2030 |
-| HRA001272 | hepatocellular carcinoma | 698 | 698 |
-| HRA001748 | liver cancer | 160 | 160 |
-| HRA001749 | liver cancer | 178 | 178 |
-| HRA002693 | acute myeloid leukemia | null | 655 |
-| HRA003107 | esophageal cancer | 310 | 310 |
-| HRA005191 | non-small cell lung carcinoma | 243 | 243 |
-| HRA006117 | acute myeloid leukemia | null | 835 |
-| HRA006499 | liver cancer | 482 | 523 |
-| HRA007167 | melanoma | 168 | 81 |
-| HRA007169 | melanoma | 81 | 168 |
-| HRA007413 | acute myeloid leukemia | null | 373 |
-| HRA016026 | lung cancer | null | 700 |
+| study_accession | tumor_type | sample nodes |
+|---|---|---|
+| HRA000001 | Natural | 557 |
+| HRA000021 | esophageal cancer | 1016 |
+| HRA000071 | malignant glioma | 572 |
+| HRA000073 | malignant glioma | 325 |
+| HRA000074 | malignant glioma | 693 |
+| HRA000087 | nasopharynx carcinoma | 61 |
+| HRA000122 | acute T cell leukemia | 287 |
+| HRA000873 | colorectal adenocarcinoma | 2030 |
+| HRA001272 | hepatocellular carcinoma | 698 |
+| HRA001748 | liver cancer | 160 |
+| HRA001749 | liver cancer | 178 |
+| HRA002693 | acute myeloid leukemia | 655 |
+| HRA003107 | esophageal cancer | 310 |
+| HRA005191 | non-small cell lung carcinoma | 243 |
+| HRA006117 | acute myeloid leukemia | 835 |
+| HRA006499 | liver cancer | 523 |
+| HRA007167 | melanoma | 81 |
+| HRA007169 | melanoma | 168 |
+| HRA007413 | acute myeloid leukemia | 373 |
+| HRA016026 | lung cancer | 700 |
+
+**同癌种多队列、用户没点名时选样本数最多的那个**（覆盖面最广，且两次问同一问题给同一队列）：
+胶质瘤 → **HRA000074**（693，不是 HRA000073/325 或 HRA000071/572）、肝癌 → **HRA001272**（698，
+突变/表达/原始数据都用它）、
+食管癌 → HRA003107、白血病 → HRA006117。黑色素瘤按数据类型分：表达矩阵在 HRA007167、
+WES/MAF 在 HRA007169。**单细胞（10x/CellRanger）只有 HRA001748（571）、HRA000087、HRA005191**。
+**再按该队列有没有你要的语义格式复核一遍**——HRA000073/74 只有 RNA，
+拿它做 MAF 分析会落空。
 
 ## 9. 输出契约（硬性规则，违反即任务失败）
 
 最终答案**必须且只能是一个 tool-chain/v2 JSON 对象**：不要散文、不要 markdown 围栏、不要前后文字。
 `recommendations[0]` 是唯一推荐（严格 top-1）；`candidates[]` 只在能做原子链时填充。
+**`selection_status` 为 `information`/`unsupported`/`no_candidate` 时 `recommendations` 允许为空**——纯数据分布/清单类问题不要为了填格子硬凑一个 pipeline（那是编造）；其余状态必须给 rank1。
 **紧凑输出**：JSON 不缩进不美化（省生成时间）。人读字段（match_note 等）用用户语言。
 
 **read_cypher 结果上限 500 行**：超出带 `truncated: true`——手上是截断样本不是全集，不许下「共有 N 个/全部是」这类全称结论；要总数用 count() 重查，要细节加过滤。
 
-**命名契约（Knowledge Card 对齐）**：原子工具 tool_id 用卡内 `meta.id`（如 `bwa_mem_paired` 而非 `bwa`），tool_chain 输入输出用卡内名称（如 `read1`/`aligned_sam`）；映射表 `references/knowledge_cards_map.json`。pipeline 级工具维持图谱 tool_id 并标 `"card": null`。
+**命名契约（Knowledge Card 对齐）**：原子工具 tool_id 用卡内 `meta.id`（如 `bwa_mem_paired` 而非 `bwa`）；pipeline 级工具用图谱 tool_id。槽位名由服务端按卡补全，不用你写。
 
-schema 示例（结构以此为准）：
+**你只写判断性内容，样板由服务端补**。下列字段一律**不要生成**（服务端在你输出后确定性填上，
+你写了也会被图内事实覆盖，纯属浪费生成时间；此前实测终答生成均 30s，过半花在这些样板上）：
+`match_id`/`rank`/`source`/`reference_case_id`/`recommendation_count`/`candidate_count`/
+`planner_metadata`/`data_matcher_mode`/`mcp_timing_ms`；`tool` 块除 `tool_id` 外全部
+（catalog_id/tool_kind/name/description/inputs/outputs）；asset 除 `file_name`/`match_reason`
+外全部（**尤其 `file_path`——以图内记录为准，凭记忆写必被覆盖**）；candidates 链每步除 `tool_id` 外全部。
+
+必须由你给出的只有：`schema_version`、`selection_status`、`intent`、每条 recommendation 的
+`pipeline_id`/`match_note`/`data.assets[].file_name`+`match_reason`、candidates 的 tool_chain 顺序。
+
+**assets 只需给"主数据"一条**：主数据 = 该流程的核心输入（表达矩阵 / MAF / FASTQ）。
+流程声明需要 `CLINICAL_DATA_EXCEL` 时，服务端会自动把同队列的临床表与样本元信息表补齐，
+你不用写；表达矩阵选错定量口径（FPKM/TPM/counts）也会被按该流程的默认口径自动换成正确的那份，
+逐样本文件（`HRR*.maf`）也会被换成队列级汇总交付（`HRA*-SomaticSNV-1.0.maf`）。
+但**主数据必须你来选，且必须是图内真实存在的文件**——`selection_status` 为 `ok` 时
+`assets` 不许为空；图里确实找不到可用数据就把状态改成 `no_candidate` 并在 `match_note` 说明。
+用户没点名队列时也照选：按癌种/组学定位队列，再按 `semantic_format` 过滤、
+**`ORDER BY n.file_name` 取最靠前的一份**作为代表样本（配对测序取 f1/r2 一对）——
+定序是为了同一个问题两次规划给出同一份文件，别随手 LIMIT。
+
+schema 示例（**这就是你该输出的完整长度**）：
 
 ```json
 {
   "schema_version": "tool-chain/v2",
-  "selection_status": "information | ok | no_candidate | unsupported | ...",
-  "candidate_count": 0, "candidates": [],
-  "recommendation_count": 1,
+  "selection_status": "ok | information | no_candidate | unsupported | ...",
+  "candidates": [],
   "recommendations": [{
-    "rank": 1, "match_id": "recommendation-<hex>", "pipeline_id": "immune_infiltration_iobr",
+    "pipeline_id": "immune_infiltration_iobr",
     "match_note": "命中 xxx，适合 yyy。",
-    "tool": {"tool_id": "immune_infiltration_iobr", "catalog_id": null, "tool_kind": "pipeline",
-      "name": "免疫浸润分析 (IOBR CIBERSORT)", "description": "...",
-      "inputs": [{"name":"expression_tsv","type":"File","is_file":true,"optional":false,
-                  "artifact":"expression_tpm_matrix","formats":["tsv"]}],
-      "outputs": [{"name":"cibersort_full_tsv","artifact":"...","formats":["tsv"]}]},
-    "data": {"status": "available", "source": "neo4j",
-      "assets": [{"file_name":"HRA001272-Genes-TPM-1.0.tsv","format":"tsv","strategy":"","data_level":"",
-                  "study_accession":"HRA001272","sample_accession":"","run_accession":"",
-                  "individual_accession":"","specimen_types":"","read_pair":null,
-                  "file_path":"/hpcdisk1/.../HRA001272-Genes-TPM-1.0.tsv",
-                  "match_reason":"癌种/队列匹配; 格式匹配 tsv"}],
-      "matched_count": 3, "expected_count": 3, "missing_asset_names": [], "study_accessions": ["HRA001272"]},
-    "source": "deterministic_rule+neo4j", "reference_case_id": null
+    "tool": {"tool_id": "immune_infiltration_iobr"},
+    "data": {"status": "available",
+      "assets": [{"file_name": "HRA001272-Genes-TPM-1.0.tsv",
+                  "match_reason": "癌种/队列匹配; 格式匹配 tsv"}],
+      "study_accessions": ["HRA001272"]}
   }],
   "intent": {"query_text":"...","analysis_goal":"免疫浸润分析","disease":"肝癌","omics_type":"bulk RNA-seq",
-             "input_hint":"tpm","quant_hint":null,"requested_outputs":[],"study_accessions":[],
-             "source":"rule","ambiguous":false},
-  "planner_metadata": {"used":false,"status":"force_rule","calls":0,"stages":[]},
-  "data_matcher_mode": "neo4j", "mcp_timing_ms": 1151.2
+             "input_hint":"tpm","requested_outputs":[],"study_accessions":[],"source":"rule","ambiguous":false}
 }
 ```
 
-要点：assets 逐文件带溯源与 match_reason；inputs/outputs 的 artifact 用 `references/artifact_type.csv` 词表；
-**单样本资产（FASTQ/BAM）必须带 sample_role/sample_role_label（resolve_sample_roles 判定），聚合类资产（矩阵/MAF/临床表）置 null**；
+要点：assets 逐文件带 match_reason（溯源字段服务端补）；
+**单样本资产（FASTQ/BAM）手上有 resolve_sample_roles 结果时才带 sample_role/sample_role_label，没有就置 null**（聚合类资产——矩阵/MAF/临床表——一律 null）；
+**任何契约字段填不出来都置 null 并在 match_note 说明一句，绝不为一个字段多查一轮、更不许因此不出推荐**——实测有例子为了 sample_role 反复纠结 4 万字推理，撞满 token 上限后交了空答案；
 配对/分组分析 data 下附 alternatives[]（其他可选队列：study_accession/label/sample_roles/role_resolved/selected）；
 执行参数一律转录自 validate_execution_chain 的 execution_params/submittable，不自行拼路径。
 

@@ -2,3 +2,10 @@ __pycache__/
 *.pyc
 .DS_Store
 *.log
+
+# 本地密钥（LLM_API_KEY / NEO4J_PASSWORD），绝不入库
+web/config.local
+
+# 回归轨迹逐例落盘在这里（单次跑 ~10M），只提交 report.md / summary.json
+web/tests/acc_*/c*.json
+web/tests/batch_*/c*.json

@@ -20,12 +20,14 @@ mcp_light_server.py — 轻架构 stdio MCP server（无第三方依赖）
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
 import tempfile
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NEO4J_URL = os.environ.get("NEO4J_URL", "http://127.0.0.1:7474/db/neo4j/tx/commit")
@@ -769,14 +771,38 @@ def tool_validate_plan(args):
         v.append("schema_version 缺失或不是 tool-chain/v2")
     meta_to_graph = {c["meta_id"]: gid for gid, c in KC_MAP.items() if gid != c["meta_id"]}
     recs = plan.get("recommendations") or []
-    if not recs:
-        v.append("recommendations 为空（信息型回答也应有 rank1 推荐或改用 rejected/unsupported）")
+    # 空 recommendations 只在「本来就没有推荐可给」的状态下合法：information（纯数据分布/
+    # 清单类回答）、unsupported（需求超出闭集）、no_candidate（图内查无）。此前一律判违规，
+    # 逼得模型为「HRA001272 角色分布如何」这类信息题硬凑一个 rank1 推荐——既是编造，又白烧
+    # 一轮修正（实测 q03/q06/q24 每次多花 20s）。
+    _NO_REC_OK = {"information", "unsupported", "no_candidate", "missing_from_graph"}
+    if not recs and str(plan.get("selection_status") or "").lower() not in _NO_REC_OK:
+        v.append("recommendations 为空（selection_status 不是 information/unsupported/"
+                 "no_candidate 时必须有 rank1 推荐，否则改用 rejected）")
     for i, rec in enumerate(recs):
+        # 调用方偶发把整条推荐写成字符串（或把 assets 写成裸文件名数组）。以前这里直接
+        # 抛 'str' object has no attribute 'get'，整轮校验丢失、模型收到一句无从修起的
+        # 报错——校验器自己必须对畸形输入免疫，把畸形本身报成违规。
+        if not isinstance(rec, dict):
+            v.append(f"recommendations[{i}] 不是对象（应为 JSON 对象，不是字符串）")
+            continue
         pid = rec.get("pipeline_id") or (rec.get("tool") or {}).get("tool_id")
         gid = meta_to_graph.get(pid, pid)
         if gid not in CATALOG:
             v.append(f"recommendations[{i}] 工具不在闭集目录（疑似模型编造）: {pid}")
+        # 没有数据的推荐不可执行：selection_status 说 ok 就必须指出图内的具体文件。
+        # 实测调用方对「我有 10x 单细胞 FASTQ」这类没点名队列的问题会直接交空 assets——
+        # 等于把选数据这一半的活儿留给了用户。
+        if not ((rec.get("data") or {}).get("assets") or []) and \
+                str(plan.get("selection_status") or "").lower() == "ok":
+            v.append(f"recommendations[{i}] data.assets 为空（selection_status=ok 必须给出"
+                     f"图内真实文件；图里确实没有可用数据就改判 no_candidate）")
         for a in (rec.get("data") or {}).get("assets") or []:
+            if isinstance(a, str):        # 裸文件名数组：当成只有 file_name 的资产
+                a = {"file_name": a}
+            elif not isinstance(a, dict):
+                v.append(f"recommendations[{i}] asset 不是对象")
+                continue
             fn = a.get("file_name") or a.get("name")
             if not fn:
                 v.append(f"recommendations[{i}] asset 缺 file_name")
@@ -807,6 +833,331 @@ def tool_validate_plan(args):
                 v.append(f"candidates[{i}] 工具链含非闭集 atomic: {tid}")
     return {"status": "ok", "grounded": not v, "violations": v,
             "hint": "grounded=false 说明 Plan 含图谱无法证实的内容——回到查询结果修正，不要用模型内部知识补全"}
+
+def _card_slots(card):
+    """Knowledge Card 的 inputs/outputs → Plan 契约的槽位形态。"""
+    def _slot(d, is_in):
+        s = {"name": d.get("name"), "type": d.get("type") or "File",
+             "optional": not bool(d.get("required", True)),
+             "formats": [d["format"]] if d.get("format") else []}
+        if is_in:
+            s["is_file"] = (d.get("type") or "File") == "File"
+        return s
+    return ([_slot(d, True) for d in card.get("inputs") or []],
+            [_slot(d, False) for d in card.get("outputs") or []])
+
+def _graph_tool_io(gid):
+    """pipeline 级工具无 Knowledge Card：I/O 槽位从图内 (tool)-[:input|output]->(format) 取。
+
+    两个坑（都会静默返回空，不报错）：
+    ① 图内匹配一律走 `t.tool_id` = 闭集的 `catalog_id`（T033 这类）。闭集的 `tool_name`
+       与图内 `t.tool_name` 未必一致（T033 闭集写 immune_infiltration、图内是
+       immune_infiltration_iobr），catalog_id 则 51/51 全对得上。
+    ② format 节点的标识属性是 `f.format`，不是 `f.name`——写成 f.name 返回一行 null。"""
+    cat = CATALOG.get(gid) or {}
+    tid = str(cat.get("catalog_id") or "")
+    if not _SAFE_TOKEN.fullmatch(tid):
+        return [], []
+    rows = neo4j_q([
+        f"MATCH (t:tool)-[:input]->(f:format) WHERE t.tool_id = '{tid}' RETURN DISTINCT f.format",
+        f"MATCH (t:tool)-[:output]->(f:format) WHERE t.tool_id = '{tid}' RETURN DISTINCT f.format"])
+    def _names(r):
+        return [x[0] for x in (r or []) if x and x[0]]
+    ins = _names(rows[0] if rows else [])
+    outs = _names(rows[1] if len(rows) > 1 else [])
+    exts = [e.strip() for e in str(cat.get("input_format") or "").split(",") if e.strip()]
+    oexts = [e.strip() for e in str(cat.get("output_format") or "").split(",") if e.strip()]
+    return ([{"name": n.lower(), "type": "File", "is_file": True, "optional": False,
+              "artifact": n.lower(), "formats": exts} for n in ins],
+            [{"name": n.lower(), "artifact": n.lower(), "formats": oexts} for n in outs])
+
+_ASSET_FIELDS = ("format", "file_format", "strategy", "data_level", "study_accession",
+                 "sample_accession", "run_accession", "file_path", "specimen_type")
+
+def _asset_facts(names):
+    """按 file_name 批量取图内权威字段（T1/T2 通用），供 assets 补全。"""
+    qs, keys = [], []
+    for fn in dict.fromkeys(names):            # 去重但保序
+        if _SAFE_FILE.fullmatch(str(fn)):
+            qs.append(f"MATCH (n) WHERE (n:T1 OR n:T2) AND n.file_name = '{fn}' "
+                      f"RETURN properties(n) LIMIT 1")
+            keys.append(fn)
+    if not qs:
+        return {}
+    rows = neo4j_q(qs)                         # 一次批量往返，别逐个查
+    facts = {}
+    for fn, r in zip(keys, rows):
+        if r and r[0]:
+            facts[fn] = r[0][0] or {}
+    return facts
+
+# 定量口径：同一队列的表达矩阵在图内有 FPKM/TPM/counts 三份，节点属性完全一致
+# （semantic_format 都是 TABULAR_BIO_DATA、data_level 都是 2），只有文件名能区分。
+# 该选哪一份由流程自己说了算——闭集描述里点名的口径就是它的默认口径。
+_FLAVOR_PAT = re.compile(r"(?<![A-Za-z])(logCPM|FPKM|TPM|counts?)(?![A-Za-z])", re.I)
+_FLAVOR_CANON = {"logcpm": "logCPM", "fpkm": "FPKM", "tpm": "TPM",
+                 "count": "counts", "counts": "counts"}
+_MATRIX_NAME = re.compile(r"^(.*-Genes-)([A-Za-z]+)(-.*\.tsv)$", re.I)
+
+# 描述里没点名口径的流程，按方法本身要求的输入定：不定就等于让调用方随口挑一份，
+# 同一个问题两次规划给出不同文件。只收方法学上没有争议的两族：
+#   · WGCNA 族按官方推荐从原始 counts（VST）起步，不吃 TPM/FPKM；
+#   · 跨样本比较某个基因的表达高低（生存分组、箱线图、热图、降维、预排序 GSEA）
+#     必须先做长度+深度归一，counts 不可比 —— TPM。
+_FLAVOR_FALLBACK = {
+    "wgcna": "counts", "wgcna_hub": "counts", "wgcna_module_trait": "counts",
+    "km_survival": "TPM", "cox_model": "TPM", "gene_boxplot": "TPM",
+    "umap": "TPM", "stage_heatmap": "TPM", "gsea_pathway_enrichment": "TPM",
+}
+
+def _pipeline_flavor(gid):
+    """闭集描述里**首个**点名的定量口径 = 该流程的默认矩阵形态。
+
+    描述里写「适用于 FPKM/TPM 定量数据」这类并列时取首个：两份都能跑，但交付要有
+    唯一口径，否则同一个问题两次规划会给出不同文件。描述整句不提口径时落
+    `_FLAVOR_FALLBACK`（仍拿不到才 None——那种流程就随调用方选）。"""
+    m = _FLAVOR_PAT.search((CATALOG.get(gid) or {}).get("description") or "")
+    if m:
+        return _FLAVOR_CANON.get(m.group(1).lower())
+    return _FLAVOR_FALLBACK.get(gid)
+
+def _study_assets(acc):
+    """一个队列在图内的交付文件：{semantic_format: [file_name, ...]}。"""
+    if not _SAFE_TOKEN.fullmatch(str(acc or "")):
+        return {}
+    rows = neo4j_q([f"MATCH (n) WHERE (n:T1 OR n:T2) AND n.study_accession = '{acc}' "
+                    f"AND n.semantic_format IS NOT NULL "
+                    f"RETURN n.semantic_format, collect(n.file_name)"])
+    out = {}
+    for r in (rows[0] if rows else []) or []:
+        if r and r[0]:
+            out[r[0]] = r[1] or []
+    return out
+
+# 临床表与样本元信息表必须成对：MetaInfo 是 sample↔patient 的连接表，缺了它临床字段
+# 接不到表达矩阵/MAF 上。图内这两张表也确实每个队列各一份、总是成对交付。
+_CLINICAL_PAIR = ("CLINICAL_DATA_EXCEL", "METADATA_SAMPLE_INFO")
+
+# 队列级交付文件：`HRA*-SomaticSNV-1.0.maf` 是全队列汇总，`HRR1725089.maf` 只有一个病人。
+# 突变景观/TMB 分组/生存这类队列级分析拿后者等于只分析了 1/77 的人。
+_STUDY_LEVEL = re.compile(r"^HRA\d+-", re.I)
+
+# 双端测序的 R1/R2 是同一次测序的两半，任何流程都必须成对拿。图内命名有 `_f1/_r2`、
+# `_R1/_R2`、`.R1./.R2.` 几种，统一按这张表找对家。
+_MATE = ((("_f1", "_r2"), ("_r1", "_r2"), ("_R1", "_R2"), (".R1.", ".R2.")))
+
+def _mate_name(fn):
+    """双端文件的对家文件名（不是双端命名则 None）。"""
+    for a, b in _MATE:
+        if a in fn:
+            return fn.replace(a, b)
+        if b in fn:
+            return fn.replace(b, a)
+    return None
+
+def _complete_assets(gid, assets, facts):
+    """按流程在图内声明的输入槽位补全 assets——只在图里挑，不发明文件。
+
+    三条规则，都对应 96 例标准答案对照表里暴露的系统性缺项：
+    ① 流程声明需要 CLINICAL_DATA_EXCEL 时，把该队列的临床表与样本元信息表补齐（见
+       `_CLINICAL_PAIR`）。实测调用方十次有八次只给表达矩阵/MAF 就交卷。
+    ② 表达矩阵口径按 `_pipeline_flavor` 归一：调用方选了同队列的其它口径就换成默认
+       口径。换的是同一队列同一张表的另一个定量版本，不是换数据源。
+    ③ 该语义格式在队列里**恰好**有一份队列级交付文件（见 `_STUDY_LEVEL`）时，把调用方
+       选的逐样本文件换成它。恰好一份是关键：FASTQ 一份都没有（不动），表达矩阵有三份
+       （口径之争交给 ②），只有 MAF/CNV 这类「汇总一份 + 逐样本 N 份」才落到这条上。
+    只在能从已选资产反查到唯一 study_accession 时生效；资产为空时不做任何事——
+    队列没定，图里 576 个 FASTQ 挑哪个都是猜。"""
+    req = {s["name"].upper() for s in _graph_tool_io(gid)[0]}
+    if not req or not assets:
+        return assets, []
+    acc = next((f.get("study_accession") for a in assets
+                if (f := facts.get(a.get("file_name")) or {}).get("study_accession")), None)
+    if not acc:
+        return assets, []
+    pool = _study_assets(acc)
+    if not pool:
+        return assets, []
+    notes = []
+
+    # ② 先归一口径（在补全之前做，免得补进来的表被当成"已有 TABULAR_BIO_DATA"）
+    flav = _pipeline_flavor(gid)
+    if flav and "TABULAR_BIO_DATA" in req:
+        mats = {n.lower(): n for n in pool.get("TABULAR_BIO_DATA") or []}
+        for a in assets:
+            m = _MATRIX_NAME.match(str(a.get("file_name") or ""))
+            if not m or m.group(2).lower() == flav.lower():
+                continue
+            tgt = mats.get(f"{m.group(1)}{flav}{m.group(3)}".lower())
+            if tgt:
+                notes.append(f"{a['file_name']}→{tgt}")
+                a["file_name"] = tgt
+                a["match_reason"] = f"{gid} 默认使用 {flav} 定量矩阵"
+                for k in _ASSET_FIELDS:      # 换了文件，旧文件的图内字段全部失效
+                    a.pop(k, None)
+
+    # ③ 逐样本文件 → 队列级交付文件
+    for fmt, files in pool.items():
+        if fmt not in req:
+            continue
+        lvl = [f for f in files if _STUDY_LEVEL.match(str(f))]
+        if len(lvl) != 1:                    # 0 份（FASTQ）或多份（矩阵三口径）都不动
+            continue
+        for a in assets:
+            fn = str(a.get("file_name") or "")
+            if fn in files and not _STUDY_LEVEL.match(fn):
+                notes.append(f"{fn}→{lvl[0]}")
+                a["file_name"] = lvl[0]
+                a["match_reason"] = f"{gid} 是队列级分析，用 {acc} 的汇总交付文件"
+                for k in _ASSET_FIELDS:
+                    a.pop(k, None)
+
+    # ① 临床/元信息成对补全
+    if "CLINICAL_DATA_EXCEL" in req:
+        have = {str(a.get("file_name") or "").lower() for a in assets}
+        for fmt in _CLINICAL_PAIR:
+            files = sorted(pool.get(fmt) or [])   # 定序：同一问题两次规划给同一份
+            if files and not (have & {f.lower() for f in files}):
+                assets.append({"file_name": files[0],
+                               "match_reason": f"{gid} 声明需要 {fmt} 输入槽位，"
+                                               f"按队列 {acc} 补全"})
+                notes.append("+" + files[0])
+
+    # ④ 双端补对家：调用方十次有九次只给 R1（实测 c01 只交 HRR572934_f1.fq.gz），
+    # 而没有 R2 的双端流程根本跑不起来。只补图内确实存在的那一半。
+    allf = {f for fs in pool.values() for f in fs}
+    have = {str(a.get("file_name") or "") for a in assets}
+    for fn in sorted(have):
+        mate = _mate_name(fn)
+        if mate and mate in allf and mate not in have:
+            assets.append({"file_name": mate,
+                           "match_reason": f"{fn} 的双端对家文件"})
+            have.add(mate)
+            notes.append("+" + mate)
+
+    seen, uniq = set(), []                # 口径归一后同一张表可能出现两遍
+    for a in assets:
+        fn = str(a.get("file_name") or "").lower()
+        if fn and fn in seen:
+            continue
+        seen.add(fn)
+        uniq.append(a)
+    if len(uniq) != len(assets):
+        notes.append(f"去重 {len(assets) - len(uniq)}")
+    return uniq, notes
+
+def tool_hydrate_plan(args):
+    """确定性补全：把 Plan 里所有「图谱/闭集目录本来就知道」的字段由服务端填上。
+
+    调用方模型只需给出判断性内容（选哪个 pipeline、match_note、asset 的 file_name 与
+    match_reason、intent），tool 的 description/inputs/outputs、asset 的
+    format/data_level/file_path、原子链槽位、planner_metadata 等一律在此补全。
+    好处有两个：省掉调用方逐 token 生成大段样板的时间；这些字段不再有被编造的机会
+    （此前实测到模型自行编造 mcp_timing_ms 与 file_path）。"""
+    t0 = time.time()
+    plan = args.get("plan")
+    if isinstance(plan, str):
+        try:
+            plan = json.loads(plan)
+        except json.JSONDecodeError as e:
+            return {"status": "error", "detail": f"plan 不是合法 JSON: {e}"}
+    if not isinstance(plan, dict):
+        return {"status": "error", "detail": "plan 必须是 JSON 对象或其字符串"}
+    if plan.get("status") == "rejected":
+        return {"status": "ok", "plan": plan, "filled": []}
+
+    meta_to_graph = {c["meta_id"]: gid for gid, c in KC_MAP.items() if gid != c["meta_id"]}
+    filled = []
+
+    def _hydrate_tool(block, pid):
+        gid = meta_to_graph.get(pid, pid)
+        cat = CATALOG.get(gid)
+        if not cat:
+            return block          # 不在闭集：留给 validate_plan 报违规，不代为圆场
+        card = KC_MAP.get(gid)
+        block = dict(block or {})
+        block.setdefault("tool_id", card["meta_id"] if card else gid)
+        block["catalog_id"] = cat.get("catalog_id")
+        block["tool_kind"] = cat.get("tool_kind")
+        block.setdefault("name", cat.get("tool_name") or gid)
+        if not block.get("description"):
+            block["description"] = cat.get("description")
+            filled.append(f"{pid}.description")
+        if not block.get("inputs") or not block.get("outputs"):
+            ins, outs = _card_slots(card) if card else _graph_tool_io(gid)
+            block["inputs"] = block.get("inputs") or ins
+            block["outputs"] = block.get("outputs") or outs
+            filled.append(f"{pid}.io")
+        return block
+
+    # —— recommendations ——
+    recs = plan.get("recommendations") or []
+    want = [a.get("file_name") for r in recs for a in ((r.get("data") or {}).get("assets") or [])
+            if a.get("file_name")]
+    facts = _asset_facts(want)
+    # 先按流程声明补齐/归一资产（会引入新文件名），再统一取图内字段
+    for rec in recs:
+        pid = rec.get("pipeline_id") or (rec.get("tool") or {}).get("tool_id")
+        data = rec.get("data")
+        if not pid or not isinstance(data, dict) or not isinstance(data.get("assets"), list):
+            continue
+        data["assets"], notes = _complete_assets(
+            meta_to_graph.get(pid, pid), data["assets"], facts)
+        if notes:
+            filled.append(f"assets({pid}): " + ",".join(notes))
+            data.pop("matched_count", None)      # 数量变了，别沿用调用方给的旧值
+    facts.update(_asset_facts(
+        [a.get("file_name") for r in recs for a in ((r.get("data") or {}).get("assets") or [])
+         if a.get("file_name") and a.get("file_name") not in facts]))
+    for i, rec in enumerate(recs):
+        pid = rec.get("pipeline_id") or (rec.get("tool") or {}).get("tool_id")
+        if not rec.get("match_id"):
+            rec["match_id"] = "recommendation-" + hashlib.sha1(
+                f"{pid}|{i}".encode()).hexdigest()[:6]
+            filled.append(f"recommendations[{i}].match_id")
+        rec.setdefault("rank", i + 1)
+        rec.setdefault("source", "deterministic_rule+neo4j")
+        rec.setdefault("reference_case_id", None)
+        if pid:
+            rec["tool"] = _hydrate_tool(rec.get("tool"), pid)
+        data = rec.get("data")
+        if isinstance(data, dict):
+            for a in data.get("assets") or []:
+                f = facts.get(a.get("file_name"))
+                if not f:
+                    continue
+                for k in _ASSET_FIELDS:
+                    if f.get(k) is not None and not a.get(k):
+                        a[k] = f[k]
+                if f.get("file_path"):        # 路径以图内记录为准，覆盖调用方给的值
+                    a["file_path"] = f["file_path"]
+                a.setdefault("read_pair", None)
+                filled.append("asset:" + str(a.get("file_name")))
+            data.setdefault("source", "neo4j")
+            if data.get("assets"):
+                data.setdefault("matched_count", len(data["assets"]))
+                data.setdefault("missing_asset_names", [])
+    plan["recommendation_count"] = len(recs)
+
+    # —— candidates：原子链槽位一律按 Knowledge Card 补全 ——
+    for c in plan.get("candidates") or []:
+        for step in (c.get("tool_chain") or c.get("chain") or []):
+            tid = step.get("tool_id")
+            card = KC_MAP.get(meta_to_graph.get(tid, tid))
+            if card and (not step.get("inputs") or not step.get("outputs")):
+                ins, outs = _card_slots(card)
+                step["tool_id"] = card["meta_id"]
+                step["inputs"] = step.get("inputs") or ins
+                step["outputs"] = step.get("outputs") or outs
+                filled.append(f"chain:{tid}")
+    plan["candidate_count"] = len(plan.get("candidates") or [])
+
+    # —— 服务端元数据：这些是本 server 的运行事实，调用方不该也无法自行填写 ——
+    plan.setdefault("schema_version", "tool-chain/v2")
+    plan["planner_metadata"] = {"used": False, "status": "force_rule", "calls": 0, "stages": []}
+    plan["data_matcher_mode"] = "neo4j"
+    plan["mcp_timing_ms"] = round((time.time() - t0) * 1000, 1)
+    return {"status": "ok", "plan": plan, "filled": filled}
 
 def tool_health_check(args):
     try:
@@ -867,6 +1218,13 @@ TOOLS = {
                         "properties": {"plan": {"description": "最终要输出的 tool-chain/v2 JSON（对象或字符串）"}},
                         "required": ["plan"]},
         "handler": tool_validate_plan,
+    },
+    "hydrate_plan": {
+        "description": "确定性补全：把 Plan 中图谱/闭集目录本来就知道的字段由 server 填上（tool 的 description/inputs/outputs、asset 的 format/data_level/file_path、原子链的卡内槽位、match_id、planner_metadata/mcp_timing_ms）。调用方只需给判断性内容：pipeline_id、match_note、asset 的 file_name 与 match_reason、intent、selection_status。省生成时间，也杜绝这些字段被编造。",
+        "inputSchema": {"type": "object",
+                        "properties": {"plan": {"description": "精简版 tool-chain/v2 JSON（对象或字符串）"}},
+                        "required": ["plan"]},
+        "handler": tool_hydrate_plan,
     },
     "health_check": {
         "description": "检查 Neo4j 连通性、图谱规模与 atomic 闭集。",
