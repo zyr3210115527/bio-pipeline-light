@@ -15,7 +15,7 @@ provides knowledge and deterministic checks — there is **no "one-call Plan" en
   queries or answers.
 - **Never** run CREATE/MERGE/DELETE/SET/LOAD CSV. This graph is a read-only advisory surface.
 
-## 1. Tools (9)
+## 1. Tools (10)
 
 | Tool | Purpose | When to call |
 |---|---|---|
@@ -30,7 +30,7 @@ provides knowledge and deterministic checks — there is **no "one-call Plan" en
 | `validate_plan(plan)` | Grounding check of the final Plan | **Once** before final output; re-call only to verify fixes of listed violations |
 | `health_check()` | Connectivity, graph size, atomic closed set | Diagnostics only |
 
-## 2. Graph model (0821 delivery: 81,621 nodes / 364,184 relations)
+## 2. Graph model (0821 delivery: 81,628 nodes / 364,184 relations)
 
 | Node | Key properties (caveats) |
 |---|---|
@@ -41,7 +41,7 @@ provides knowledge and deterministic checks — there is **no "one-call Plan" en
 | `datalevel` (4) | Properties are `level` / `name` / `description`, **not** `data_level`; 1 raw → 4 knowledge. (File-side `T1.data_level` / `T2.data_level` ARE called data_level.) |
 | `study` (20) / `project` (18) | `study_accession`, `tumor_type` (Title Case English, e.g. `Liver Cancer`; query with toLower + CONTAINS — one cancer has multiple spellings, see §4 recipe 3), `title`, `study_description`, `individual_count`, `sample_count` (**only 14/20 studies have it**: HRA000073/HRA000087/HRA002693/HRA006117/HRA007413/HRA016026 are null — sorting/filtering by it silently drops those 6; to size a cohort count `sample` nodes) |
 | `individual` (7131) | `individual_accession`; other properties are prefix-grouped: **only `00_*` is operational** (`00_sample_accession` / `00_run_accession` / `00_platform` / `00_strategy` …). **`01_`–`13_` are all patient-level sensitive**: 01_ demographics, 02_ family history, 03_ lifestyle, 04_ hematology, 09_ tumor pathology, 10_ invasion, 11_ molecular (`11_tmb` / `11_msi_score`), 12_ treatment, **13_ survival (`13_survival_days` / `13_survival_status` / `13_pfs_time` … — survival-analysis data lives here)**. Aggregates only (count / avg / IS NOT NULL); per-individual reads are refused by the server guard (§8) |
-| `sample` (10465) | `sample_accession`, `sample_name`, `tissue_type`, `specimen_type` (underscore style, e.g. `Patient_Solid_Tissue`), `gender`. **`tissue_type` is not a clean Tumor/Normal binary** (0821: Tumor 5469, Normal 2469, null 1270, multi-value `Tumor,Normal` 700, Blood 557); `specimen_type` also has `;`-separated multi-values. Always judge roles via `resolve_sample_roles`, never equality-matching |
+| `sample` (10465) | `sample_accession`, `sample_name`, `tissue_type`, `specimen_type` (underscore style, e.g. `Patient_Solid_Tissue`), `gender`. **`tissue_type` is not a clean Tumor/Normal binary** (0821: Tumor 6258, Normal 2821, null 829, Blood 557 — no multi-value cells left, but null and `Blood` still break equality matching); `specimen_type` does still have `;`-separated multi-values (486 `Organoid;Patient_Solid_Tissue`). Always judge roles via `resolve_sample_roles`, never equality-matching |
 | `T1` | Raw files (FASTQ etc.): `t1_id`, `file_name`, `file_format` (literal), `semantic_format`, `data_level`, `study_accession` (all 6 populated for 28,229); `strategy` 28,222; `platform` / `sample_accession` / `individual_accession` / `sample_name` 28,184; `run_accession` / `experiment_accession` 27,070; `file_path` 26,879; `size` 25,417. **The 45 files missing those values are Clinical / `*_META` aggregate files** (not per-sample by nature) — do not conclude "no platform/sample info in graph" from them |
 | `T2` | Result files (VCF/BAM/MAF…): `t2_id`, `file_name`, `format`, `strategy`, `data_level`, `size`, `study_accession` (all 35,572); `semantic_format` 35,570; `file_path` 35,566; `run_accession` 31,717. **T2 has no `platform` / `sample_accession`** — for sample ownership walk `(T2)-[:generated_from]->(T1)-[:in_sample]->(sample)` |
 
@@ -55,24 +55,20 @@ when matching tools by semantic format).
 **Numeric fields are INTEGER/FLOAT (0821 re-typed) — compare unquoted, no `toInteger()`**:
 `data_level`, `size`, `sample_count`, `individual_count`, `01_age`, `11_tmb`, `11_msi_score`,
 `13_survival_days` / `13_dfs_time` / `13_efs_time` / `13_pfs_time`. Write `f.data_level = 1`,
-`i.\`13_survival_days\` > 365`, `ORDER BY s.sample_count DESC`. Writing `= '1'` or `> '365'` silently
-returns wrong/empty results (pre-0821 these were strings compared lexicographically: `'9' > '60'` held,
-max survival days showed 995 instead of 7061, `data_level = 1` returned 0 rows). If results look anomalous
-like this, check field types first — do not copy the anomaly into your conclusion.
+`i.\`13_survival_days\` > 365`, `ORDER BY s.sample_count DESC`. Quoting them (`= '1'`, `> '365'`) does
+not error — it compares lexicographically and silently returns wrong or empty results. If a result looks
+anomalous that way, check field types before copying the anomaly into your conclusion.
 
 ## 3. Closed tool catalog (truth = bio-pipeline-kg-matcher `data/csv/catalog`, rebuilt from the WDLs on 0823)
 
-> The copies under `references/` are a **snapshot** of that truth, not the truth itself. All three
-> (`tool_catalog.csv`, `knowledge_cards_map.json`, `io_slot.csv`) are current as of 0823.
-> `io_slot.csv` was resynced from upstream commit `58f6be6` (246 rows / 19 cols — the WDL rebuild
-> added `cardinality`, dropped 23 phantom slots, split 7, and bound 68 previously-empty
-> `builder_param`s); it is byte-identical to upstream. Its only reader is `light_router.py`'s
-> `load_slots()`, the decommissioned offline comparison arm — nothing on the serving path reads it.
+> The copies under `references/` (`tool_catalog.csv`, `knowledge_cards_map.json`, `io_slot.csv`) are a
+> **snapshot** of that truth, current as of 0823 and byte-identical to upstream `58f6be6`. `io_slot.csv`
+> is read only by `light_router.py`'s `load_slots()` — the decommissioned offline arm; nothing on the
+> serving path reads it.
 >
-> ⚠️ **`~/bio-pipeline-kg-matcher` on this machine is NOT the upstream truth.** It is an unversioned
-> pre-0823 copy (no `.git`, no `58f6be6`) whose `io_slot.csv` / `tool_id.csv` / `relationships.csv`
-> all predate the WDL rebuild. The live repo is at **`/tmp/kgm`** (`git log -1` → `58f6be6`).
-> Verify with `git log --oneline -1` before treating any local copy as contract truth.
+> ⚠️ **`~/bio-pipeline-kg-matcher` on this machine is NOT the upstream truth** — it is an unversioned
+> pre-0823 copy (no `.git`). The live repo is **`/tmp/kgm`**; verify with `git log --oneline -1` →
+> `58f6be6` before treating any local copy as contract truth.
 
 Runtime catalog: **51 tools = 12 atomic (11 orchestrable; `multiqc` is terminal-only, never orchestrated)
 + 38 pipeline + 1 task_pipeline**, 1:1 with the 51 graph `tool` nodes. Full fields (catalog_id, I/O
@@ -102,10 +98,9 @@ Catalog rules (decide Plan shape):
 
 ## 4. Query cookbook
 
-**15 official Cypher templates** live in `references/query_templates/`, use by name (all directly
-executable via `read_cypher`; 0821 audit: 15/15 return rows, see `benchmark/template_audit.py`).
-**Copy property names with exact case** — writing `t1_id` as `T1_id` does not error, it silently
-returns 0 rows:
+**15 official Cypher templates** live in `references/query_templates/`, use by name (all runnable as-is
+via `read_cypher`). **Copy property names with exact case** — writing `t1_id` as `T1_id` does not error,
+it silently returns 0 rows:
 
 | Template | Purpose |
 |---|---|
@@ -149,8 +144,8 @@ Standard recipes:
      Sample constraints use `tissue_type` / `specimen_type` / `gender`; pairing needs use
      `find_paired_tumor_normal_samples`.
    - **Paired analysis: cohort discovery first** — never assume a cohort is pairable; aggregate which
-     studies have same-individual Tumor+Normal first. `tissue_type` has multi-value cells (HRA016026's
-     700 samples are all `'Tumor,Normal'`), so tolerate both multi-values and name suffixes:
+     studies have same-individual Tumor+Normal first. `tissue_type` is clean in 0821 (HRA016026 is
+     350 `Tumor` + 350 `Normal`), but tolerate name suffixes as a fallback:
      ```cypher
      MATCH (sp:sample)-[:in_individual]->(i:individual)
      WITH sp.study_accession AS study, i,
@@ -187,21 +182,18 @@ Standard recipes:
      (equivalent to the `study<-individual<-sample` traversal). **Do not count samples via
      `(T1)-[:in_sample]->(sample)`** — that only sees file-attached samples and silently drops the rest
      (HRA006117 has 835 samples; via files only 570 remain).
-   - **Two kinds of `sample_accession = null` on files — do not conflate**:
-     1. **Aggregate files** (expression matrices / MAF / clinical tables / MetaInfo) are cross-sample by
-        nature; null is normal;
-     2. **run-organized fastq** (`data_level=1`) should have samples. **Post-0821 this class is basically
-        zero**: the new export puts `sample_accession` directly on T1 (no run hop) — 28,184 of 28,229 T1
-        have `in_sample` edges, the remaining 45 are all aggregates; every T1 with `run_accession` is
-        linked. (Pre-0821 the graph was T1→run→sample two-hop and each sample recorded only one run,
-        orphaning 3,758 runs / 7,516 T1 — **that gap no longer exists; do not reject cohorts on the old
-        conclusion**.)
+   - **Two kinds of `sample_accession = null` on files — do not conflate**: **aggregate files**
+     (expression matrices / MAF / clinical tables / MetaInfo) are cross-sample by nature, null is normal;
+     **run-organized fastq** (`data_level=1`) should have samples, but post-0821 that class is basically
+     zero — `sample_accession` sits directly on T1 (no run hop), 28,184 of 28,229 T1 have `in_sample`
+     edges and the remaining 45 are all aggregates. **Do not reject cohorts on the pre-0821 conclusion
+     that runs orphan files.**
      Judge gaps **only** by `resolve_sample_roles(study=...)` → `file_coverage.t1_files_unlinked`
      (files truly lacking `in_sample` edges; e.g. HRA000087 2/3108, HRA001272 2/2362, all aggregates).
-     The sibling field `runs_without_sample_node` stays large (1492/1553, 482/1180) — it is a
-     **diagnostic field, not a gap**: each sample node records only one run, so run-based back-lookup
-     never reconciles; using it to judge cohorts kills good cohorts. If `t1_files_unlinked` really is
-     large, output `missing_from_graph` honestly — **never guess sample ownership from file names or order**.
+     Its sibling `runs_without_sample_node` stays large (1492/1553, 482/1180) and is a **diagnostic
+     field, not a gap** — each sample node records only one run, so run-based back-lookup never
+     reconciles; judging cohorts by it kills good cohorts. If `t1_files_unlinked` really is large, output
+     `missing_from_graph` honestly — **never guess sample ownership from file names or order**.
 
 ## 5. Planning pipeline (5 steps)
 
@@ -266,8 +258,7 @@ model inference, tens of seconds); queries are nearly free (< 0.5s each). Conseq
    clustering), pick the best-supported option, state the ambiguity in `match_note`, set
    `selection_status` accordingly (`unsupported` when nothing fits), and output — do not keep querying.
 8. **After `validate_plan` returns `grounded=true`, output the final JSON immediately** — no further tool
-   calls; re-validating does not improve the answer, it only burns rounds. (0821 observation: a model on
-   low thinking budget called `validate_plan` 7–10 times until the round cap, `grounded` true throughout.)
+   calls; re-validating does not improve the answer, it only burns rounds.
    **Budget: at most 2 `validate_plan` calls per session** (one check + one re-check after fixing
    violations) and **at most 1 `validate_atomic_chain` call per final chain** — assemble the chain from
    the §12.1 I/O formats and `next_tool` adjacency first, validate the finished chain once.
@@ -334,8 +325,7 @@ cards). Pipeline-level tools (no card, e.g. `diff_expr_go`) keep the graph tool_
 
 **Author judgment fields only — `hydrate_plan` fills the rest.** Do not hand-write any field the
 catalog/graph already knows; `hydrate_plan` fills them deterministically and overwrites what you wrote
-with the graph's own facts, so authoring them only costs generation time and invites fabrication
-(measured: models invented `mcp_timing_ms` and `file_path` values). Leave out
+with the graph's own facts, so authoring them only costs generation time and invites fabrication. Leave out
 `match_id` / `rank` / `source` / `reference_case_id` / `recommendation_count` / `candidate_count` /
 `planner_metadata` / `data_matcher_mode` / `mcp_timing_ms`; inside `tool` write only `tool_id`
 (catalog_id, tool_kind, name, description, inputs, outputs are filled); inside each asset write only
@@ -352,55 +342,50 @@ expression matrix, the MAF, or the FASTQ pair. `hydrate_plan` completes the rest
   it the clinical fields cannot be attached to the matrix/MAF, and the graph always delivers the two
   together, one of each per study). **So do not write them — and do not query for them either.** The
   server fetches both from the study accession alone; you never need to know their file names or whether
-  they live on `T1` or `T2`. Hunting for them is the single largest waste of wall-clock in this project:
-  in a measured 96-case run, 13 of the 29 cases that spent three or more query rounds spent the extra
-  ones guessing predicates for these two tables — probing `T2` by `format`, coming back empty, then
-  re-probing `T1` by `strategy`, at tens of seconds per round.
-- The expression matrix is normalised to the pipeline's default quantification flavour. A study carries
-  FPKM, TPM and counts versions whose graph properties are identical
-  (`semantic_format` = `TABULAR_BIO_DATA`, `data_level` = 2) — only the file name distinguishes them, so
-  the pipeline decides, not the caller. The **first** flavour named in the catalog description wins, so
-  that a description like "适用于 FPKM/TPM 定量数据" resolves to one file rather than two possible
-  answers. When the description names no flavour, the method itself decides: the **WGCNA family runs on
-  raw `counts`** (its own guidance is counts/VST, not TPM), while anything that **compares one gene's
+  they live on `T1` or `T2`. **Hunting for them is the single largest waste of wall-clock in this
+  project** — probing `T2` by `format`, coming back empty, then re-probing `T1` by `strategy`, at tens of
+  seconds a round.
+- The expression matrix is normalised to the pipeline's default quantification flavour. A study's FPKM,
+  TPM and counts versions have identical graph properties (`semantic_format` = `TABULAR_BIO_DATA`,
+  `data_level` = 2) — only the file name distinguishes them, so the pipeline decides, not the caller.
+  The **first** flavour named in the catalog description wins ("适用于 FPKM/TPM 定量数据" → FPKM). When
+  the description names none: the **WGCNA family takes raw `counts`**; anything **comparing one gene's
   level across samples** — KM/Cox survival grouping, box plots, stage heatmaps, UMAP, pre-ranked GSEA —
-  needs length- and depth-normalised **TPM**, since counts are not comparable between samples.
+  takes **TPM**.
 - When the required semantic format has **exactly one** study-level delivery file in that cohort — a name
   beginning `HRA<digits>-`, e.g. `HRA007169-SomaticSNV-1.0.maf` — a per-sample file you picked
-  (`HRR1725089.maf`, one patient out of 77) is swapped for it. "Exactly one" is what keeps this safe:
-  FASTQ has no study-level file so nothing moves, and expression matrices have three, so the flavour rule
-  above decides those instead. Only the aggregate-plus-per-sample formats (MAF, somatic CNV) land here.
+  (`HRR1725089.maf`) is swapped for it. "Exactly one" keeps this safe: FASTQ has no study-level file so
+  nothing moves, expression matrices have three so the flavour rule decides instead. Only MAF and
+  somatic CNV land here.
 
 What is not completed for you: the primary datum itself. It must be a file that actually exists in the
 graph, and `assets` must be non-empty whenever `selection_status` is `ok` — if the graph holds no usable
 data, say so with `no_candidate` plus a `match_note`, rather than shipping a recommendation with no data.
-This holds even when the request names no cohort: locate a cohort by cancer type / omics, filter by
+This holds even when the request names no cohort: locate one by cancer type / omics, filter by
 `semantic_format`, and take the **first file under `ORDER BY n.file_name`** as the representative sample
-(an f1/r2 pair for paired-end sequencing). Order it explicitly — a bare `LIMIT` makes the same question
-resolve to different files on different runs. When a cancer type spans several cohorts and the user named
-none, take the one with the most samples — it has the widest coverage and, being a property of the graph
-rather than of the phrasing, makes the same question resolve to the same cohort every time: glioma →
-**HRA000074** (693 samples, over HRA000073's 325 and HRA000071's 572), liver → **HRA001272** (698;
-use it for mutation, expression and raw data alike),
-esophageal → HRA003107, AML → HRA006117. Melanoma splits by data type instead: expression matrices live
-in HRA007167, WES/MAF in HRA007169. **Glioma splits the same way**: expression is HRA000074, but the
-only glioma cohort carrying a MAF is **HRA000071**, and it carries exactly one —
-`HRA000071-SomaticSNV-1.0.maf`. HRA000073 and HRA000074 have no MAF at all, so a glioma
-mutation-landscape / Oncoplot request resolves to HRA000071 and must **not** be answered
-`no_candidate`. Graph-wide, only seven cohorts carry any MAF: HRA000873, HRA016026, HRA001272,
-HRA006499, HRA001749, HRA007169 and HRA000071 (the last one cohort-level only; the others also
-carry per-run `HRR*.maf`).
+(an f1/r2 pair for paired-end). Order explicitly — a bare `LIMIT` resolves the same question to different
+files on different runs. When a cancer type spans several cohorts and the user named none, take the one
+with the most samples, so the same question always resolves the same way:
+
+| Cancer type | Expression / raw | Mutation (MAF) |
+|---|---|---|
+| Glioma | **HRA000074** (693, over HRA000073's 325 and HRA000071's 572) | **HRA000071** — the only glioma cohort with a MAF, exactly one file `HRA000071-SomaticSNV-1.0.maf`. HRA000073/74 have none, so an Oncoplot request resolves here and must **not** be answered `no_candidate` |
+| Liver | **HRA001272** (698) — mutation, expression and raw alike | HRA001272 |
+| Melanoma | HRA007167 | HRA007169 |
+| Esophageal | HRA003107 | — |
+| AML | HRA006117 | — |
+
+Graph-wide, only seven cohorts carry any MAF: HRA000873, HRA016026, HRA001272, HRA006499, HRA001749,
+HRA007169 and HRA000071 (the last cohort-level only; the others also carry per-run `HRR*.maf`).
 
 Three cohorts carry single-cell data, and you should **name them directly rather than filter on
 `strategy`**: **HRA001748** (10x, liver cancer, 320 paired FASTQ files named like
 `HRR572934_f1.fq.gz` / `HRR572934_r2.fq.gz` — the default cohort for any 10x / CellRanger request),
 HRA000087 (Smart-seq2, nasopharyngeal carcinoma; its *samples* are tagged sc-RNA but it holds **no
 sc-RNA files**), and HRA005191 (NSCLC, whose 484 files are the only `strategy = 'sc-RNA'` files in the
-graph). The 0821 delivery **mislabelled HRA001748 and HRA000087 as `bulk_RNA`**, contradicting their
-own metadata: HRA001748's study title is `DAC for scPLC_A160` with description `scRNA-seq of liver
-cancer`, and HRA000087's reads `Single-cell transcriptomic analysis ... nasopharyngeal carcinoma`.
-Both are unambiguously single-cell. Consequently `t.strategy = 'sc-RNA'` returns HRA005191 alone and
-**silently misses the real 10x cohort** — decide single-cell from the study title / description
+graph). The 0821 delivery **mislabelled HRA001748 and HRA000087 as `bulk_RNA`** even though their study
+titles/descriptions say `scRNA-seq` / `Single-cell`, so `t.strategy = 'sc-RNA'` returns HRA005191 alone
+and **silently misses the real 10x cohort** — decide single-cell from the study title / description
 (`scRNA`, `Single-cell`), or just use the three names above.
 
 **`RAW_SINGLE_END_FASTQ` matches zero files in the whole graph.** `cellranger_workflow` declares it
@@ -470,9 +455,8 @@ atomic chains, else empty with `selection_status` explaining why. **Single-sampl
 carry `sample_role` / `sample_role_label` only when you already hold a `resolve_sample_roles` result;
 otherwise set them to null. Aggregate assets (matrices/MAF/clinical tables) are always null.** More
 generally: **any contract field you cannot fill goes to null with a one-line note in `match_note` — never
-spend a round chasing a single field, and never withhold a recommendation over one.** (Measured failure:
-a case deliberating over `sample_role` produced 40k characters of reasoning, hit the token ceiling, and
-returned an empty answer after 200s.) For paired/grouped analyses, attach `alternatives[]`
+spend a round chasing a single field, and never withhold a recommendation over one.** For paired/grouped
+analyses, attach `alternatives[]`
 under `data` (other viable cohorts: `study_accession` / `label` / `sample_roles` stats / `role_resolved` /
 `selected`, sourced likewise from `resolve_sample_roles` and cohort queries). Execution parameters are
 transcribed only from `validate_execution_chain`'s `execution_params` / `submittable` — never assemble
@@ -549,7 +533,6 @@ Five things to get right when transcribing execution params:
   into chains for families of interest.
 - For execution by front/back-ends: `file_path` in a plan is a graph record (it may point to another
   server) — state its source honestly.
-- Read-only throughout; any write intent is explained first, executed only after approval.
 
 ## 12. Appendix: measured snapshots (whitelist sources; re-verify after graph updates)
 

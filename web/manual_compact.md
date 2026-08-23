@@ -19,7 +19,7 @@ Neo4j 图谱（库 `neo4j`）是唯一事实源。只读：禁止 CREATE/MERGE/D
 **`hydrate_plan` 与 `validate_plan` 不在本会话工具列表里**：你输出终答后，服务端自动依次跑
 「确定性补全 → 接地校验」。所以样板字段不用你写（见 §9），也不要为了自检多花一轮。
 
-## 2. 图谱模型（0821 交付：81,621 节点 / 364,184 关系）
+## 2. 图谱模型（0821 交付：81,628 节点 / 364,184 关系）
 
 - `tool`(51)：`tool_name`、`function`（中文整句，CONTAINS 子串匹配）、`semantic_output`（`;` 分隔）、`catalog_id`
 - `function`(90) / `format`(35) / `modal`(6) / `datalevel`(4)
@@ -27,7 +27,7 @@ Neo4j 图谱（库 `neo4j`）是唯一事实源。只读：禁止 CREATE/MERGE/D
 - **datalevel 节点属性是 `level`/`name`/`description`，不是 data_level**（1 原始→4 知识）；文件侧的 `T1.data_level`/`T2.data_level` 才叫 data_level
 - `study`(20)/`project`(18)：`study_accession`、`tumor_type`（英文，toLower+CONTAINS 查）、`individual_count`、`sample_count`（**6 队列无值**：HRA000073/HRA000087/HRA002693/HRA006117/HRA007413/HRA016026——按它过滤会静默漏，要规模就数 sample 节点）
 - `individual`(7131)：**只有 `00_*` 是操作性标识**（00_sample_accession/00_run_accession/00_platform/00_strategy…）；**`01_`–`13_` 全是患者级敏感**：01_ 人口学、02_ 家族史、03_ 生活史、04_ 血液学、09_ 病理、10_ 侵犯、11_ 分子（`11_tmb`/`11_msi_score`）、12_ 治疗、**13_ 生存（`13_survival_days`/`13_survival_status`/`13_pfs_time`…生存分析用这里）**——只许聚合，个体取值被服务端拒
-- `sample`(10465)：`sample_accession`、`sample_name`、`tissue_type`（**不是干净二值**：有 null 1270、多值 `Tumor,Normal` 700、Blood 557；判角色一律用 resolve_sample_roles）、`specimen_type`（分号多值）、`gender`
+- `sample`(10465)：`sample_accession`、`sample_name`、`tissue_type`（**不是干净二值**：0821 为 Tumor 6258 / Normal 2821 / null 829 / Blood 557，已无多值单元，但 null 和 `Blood` 仍会让等值匹配漏样本；判角色一律用 resolve_sample_roles）、`specimen_type`（仍有分号多值，486 个 `Organoid;Patient_Solid_Tissue`）、`gender`
 - `T1` 原始文件：`t1_id`/`file_name`/`file_format`/`semantic_format`/`data_level`/`study_accession`（全量有值）；`strategy`/`platform`/`sample_accession`/`sample_name` 28,184；`file_path` 26,879。**缺值的 45 个是 Clinical/`*_META` 聚合文件**（本就跨样本），别据此判「无样本信息」
 - `T2` 结果文件：`t2_id`/`file_name`/`format`/`strategy`/`data_level`/`study_accession`（全量）；`file_path` 35,566。**T2 无 platform/sample_accession**——样本归属走 `(T2)-[:generated_from]->(T1)-[:in_sample]->(sample)`
 
@@ -67,7 +67,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 3. **选数据**：
    - `tumor_type` 用英文 toLower+CONTAINS；**肝癌必须 `'liver' OR 'hepatocell'`**（只写 liver 漏 HRA001272=Hepatocellular Carcinoma）；肺癌写 `'lung'` 即可。拿不准就用 §8.2 队列表直接选
    - **现成表达矩阵在 T2**（文件名含 `Genes`，如 HRA001272-Genes-TPM-1.0.tsv），T1 是原始 FASTQ；`semantic_format`≠`format`/`file_format`
-   - T2 有现成 VCF/MAF/BAM 就标「复用」跳过上游；配对发现先聚合哪些 study 有同个体 Tumor+Normal（多值格子要兼容）：
+   - T2 有现成 VCF/MAF/BAM 就标「复用」跳过上游；配对发现先聚合哪些 study 有同个体 Tumor+Normal（0821 的 `tissue_type` 已是干净二值，HRA016026 为 350 `Tumor` + 350 `Normal`；下面的写法同时兼容名称后缀兜底）：
      ```cypher
      MATCH (sp:sample)-[:in_individual]->(i:individual)
      WITH sp.study_accession AS study, i,
@@ -195,12 +195,15 @@ HRA007413/HRA016026），另有 2 个数值是错的（HRA000074 写 572 实为 
 | HRA016026 | lung cancer | 700 |
 
 **同癌种多队列、用户没点名时选样本数最多的那个**（覆盖面最广，且两次问同一问题给同一队列）：
-胶质瘤 → **HRA000074**（693，不是 HRA000073/325 或 HRA000071/572）、肝癌 → **HRA001272**（698，
-突变/表达/原始数据都用它）、
-食管癌 → HRA003107、白血病 → HRA006117。黑色素瘤按数据类型分：表达矩阵在 HRA007167、
-WES/MAF 在 HRA007169。**胶质瘤同理按数据类型分**：表达在 HRA000074，
-**MAF 只有 HRA000071 有（全队列就 1 份 `HRA000071-SomaticSNV-1.0.maf`）**——
-HRA000073/74 一个 MAF 都没有，问胶质瘤突变景观/Oncoplot 一律 HRA000071，不许判 `no_candidate`。
+
+| 癌种 | 表达/原始 | 突变（MAF） |
+|---|---|---|
+| 胶质瘤 | **HRA000074**（693，不是 HRA000073/325 或 HRA000071/572） | **HRA000071**——全图唯一带胶质瘤 MAF 的队列，就 1 份 `HRA000071-SomaticSNV-1.0.maf`；HRA000073/74 一个都没有，问突变景观/Oncoplot 一律走它，不许判 `no_candidate` |
+| 肝癌 | **HRA001272**（698） | HRA001272（突变/表达/原始数据都用它） |
+| 黑色素瘤 | HRA007167 | HRA007169 |
+| 食管癌 | HRA003107 | — |
+| 白血病 | HRA006117 | — |
+
 **全图带 MAF 的队列只有 7 个**：HRA000873、HRA016026、HRA001272、HRA006499、HRA001749、
 HRA007169、HRA000071（最后一个只有队列级汇总，其余还各带逐 run 的 `HRR*.maf`）。
 
@@ -208,10 +211,9 @@ HRA007169、HRA000071（最后一个只有队列级汇总，其余还各带逐 r
 FASTQ，形如 `HRR572934_f1.fq.gz`/`_r2.fq.gz`——10x/CellRanger 类问题的默认队列）、
 HRA000087（Smart-seq2，鼻咽癌，样本级标了 sc-RNA 但**没有 sc-RNA 文件**）、
 HRA005191（NSCLC，484 个文件是全图仅有的 `strategy='sc-RNA'`）。
-**0821 交付把 HRA001748 和 HRA000087 的 strategy 误标成了 `bulk_RNA`**——但 HRA001748 的
-study 标题就是 `DAC for scPLC_A160`、描述是 `scRNA-seq of liver cancer`，HRA000087 的描述是
-`Single-cell transcriptomic analysis ... nasopharyngeal carcinoma`，两者都确凿是单细胞。
-所以 `t.strategy='sc-RNA'` 只捞得到 HRA005191，**拿它筛单细胞会漏掉真正的 10x 队列**；
+**0821 交付把 HRA001748 和 HRA000087 的 strategy 误标成了 `bulk_RNA`**（两者的 study
+title/description 里明写 `scRNA-seq`/`Single-cell`）。所以 `t.strategy='sc-RNA'` 只捞得到
+HRA005191，**拿它筛单细胞会漏掉真正的 10x 队列**；
 判单细胞看 study 的 title/description 里有没有 `scRNA`/`Single-cell`，或直接用上面这张表。
 
 **`RAW_SINGLE_END_FASTQ` 全图 0 个文件**——`cellranger_workflow` 虽声明要它，10x 原始下机数据
@@ -296,7 +298,7 @@ Clinical/Meta 六种，0821 起 WXS 已并入 WES，Targeted-Capture/TCR-Seq/Unk
 **命名契约（Knowledge Card 对齐）**：原子工具 tool_id 用卡内 `meta.id`（如 `bwa_mem_paired` 而非 `bwa`）；pipeline 级工具用图谱 tool_id。槽位名由服务端按卡补全，不用你写。
 
 **你只写判断性内容，样板由服务端补**。下列字段一律**不要生成**（服务端在你输出后确定性填上，
-你写了也会被图内事实覆盖，纯属浪费生成时间；此前实测终答生成均 30s，过半花在这些样板上）：
+你写了也会被图内事实覆盖，纯属浪费生成时间）：
 `match_id`/`rank`/`source`/`reference_case_id`/`recommendation_count`/`candidate_count`/
 `planner_metadata`/`data_matcher_mode`/`mcp_timing_ms`；`tool` 块除 `tool_id` 外全部
 （catalog_id/tool_kind/name/description/inputs/outputs）；asset 除 `file_name`/`match_reason`
@@ -308,8 +310,8 @@ Clinical/Meta 六种，0821 起 WXS 已并入 WES，Targeted-Capture/TCR-Seq/Unk
 **assets 只需给"主数据"一条**：主数据 = 该流程的核心输入（表达矩阵 / MAF / FASTQ）。
 流程声明需要 `CLINICAL_DATA_EXCEL` 时，服务端会自动把同队列的临床表与样本元信息表补齐，
 **不用写，也不用查**——这两张表每队列各一份、服务端按队列号直接取，你连它们叫什么、
-在 T1 还是 T2 都不需要知道。**为找它们再开一轮取数是本项目最大的时间浪费**（实测 29 个
-多轮例子里 13 个栽在这：先在 T2 按 format 猜、查空了再去 T1 按 strategy 猜，一轮几十秒）；
+在 T1 还是 T2 都不需要知道。**为找它们再开一轮取数是本项目最大的时间浪费**（先在 T2 按 format 猜、
+查空了再去 T1 按 strategy 猜，一轮几十秒）；
 表达矩阵选错定量口径（FPKM/TPM/counts）也会被按该流程的默认口径自动换成正确的那份，
 逐样本文件（`HRR*.maf`）也会被换成队列级汇总交付（`HRA*-SomaticSNV-1.0.maf`）。
 但**主数据必须你来选，且必须是图内真实存在的文件**——`selection_status` 为 `ok` 时
@@ -341,7 +343,7 @@ schema 示例（**这就是你该输出的完整长度**）：
 
 要点：assets 逐文件带 match_reason（溯源字段服务端补）；
 **单样本资产（FASTQ/BAM）手上有 resolve_sample_roles 结果时才带 sample_role/sample_role_label，没有就置 null**（聚合类资产——矩阵/MAF/临床表——一律 null）；
-**任何契约字段填不出来都置 null 并在 match_note 说明一句，绝不为一个字段多查一轮、更不许因此不出推荐**——实测有例子为了 sample_role 反复纠结 4 万字推理，撞满 token 上限后交了空答案；
+**任何契约字段填不出来都置 null 并在 match_note 说明一句，绝不为一个字段多查一轮、更不许因此不出推荐**；
 配对/分组分析 data 下附 alternatives[]（其他可选队列：study_accession/label/sample_roles/role_resolved/selected）；
 执行参数一律转录自 validate_execution_chain 的 execution_params/submittable，不自行拼路径。
 
