@@ -113,14 +113,55 @@
 │   └── bench_light_96_report.json  # 逐 case 明细
 ├── examples/
 │   └── plan_immune_infiltration_v2.json  # tool-chain/v2 示例 plan（真实数据）
+├── scripts/
+│   └── load_graph.cypher           # 从 import/ 的 CSV 全量重建图谱（数据本身不入库，见下节）
 ├── web/                            # Kimi 风格网页前端（思考段 + 工具调用可视化，见 web/README.md）
 │   ├── server.py                   #   纯标准库后端：MCP stdio 桥接 + Gemini SSE agent 循环
 │   └── index.html                  #   单文件聊天界面（无 npm 依赖）
 └── docs/integration.md             # dsh-mcp-client 配置 + skill 安装
 ```
 
+## 准备图谱数据（clone 完第一件事）
+
+**本仓库不含图谱数据，clone 下来是跑不起来的**——`skill/` 和 `web/` 全部依赖一个已经灌好的
+Neo4j。这不是遗漏：`entities/individual.csv` 是 7290 行患者级记录，带 `01_age` / `01_gender` /
+`01_race` / `01_country` / `09_tumor_stage` / `13_vital_status` / `13_survival_days`，正是
+`read_cypher` 的隐私守卫明令不许模型逐行读的 `01_`–`13_` 列。把它提交进公开仓等于把守卫绕过去，
+所以数据走线下交付。
+
+1. **要数据**：向图谱交付方索取 `import 0821.zip`（约 4.4 MB 压缩 / 64 MB 解压，31 个 CSV）。
+2. **解压到 Neo4j 的 import 目录**（`LOAD CSV` 的 `file:///` 只认这里）：
+   ```
+   $NEO4J_HOME/import/
+   ├── entities/     study, project, individual, sample, T1, T2, tool
+   ├── relations/    19 个关系文件
+   └── reference/    formats, function, multimodal, data_level, format_subclass
+   ```
+3. **建图**（约 40 秒。注意必须用 cypher-shell：脚本里的 `CALL {} IN TRANSACTIONS` 在 HTTP
+   `/tx/commit` 端点上跑不了）：
+   ```bash
+   $NEO4J_HOME/bin/cypher-shell -a bolt://127.0.0.1:7687 -u neo4j -p <密码> \
+     --fail-at-end --format plain --file scripts/load_graph.cypher
+   ```
+   **脚本第 0 步会 `DETACH DELETE` 清空当前库**，别对着有别的数据的实例跑。
+4. **校验加载没截断**——对上这几个数才算成功（0821 交付）：
+   ```cypher
+   MATCH (n) RETURN count(n);                      // 81628
+   MATCH ()-[r]->() RETURN count(r);               // 364184
+   MATCH (n:T1) RETURN count(n);                   // 28229
+   MATCH (n:T2) RETURN count(n);                   // 35572
+   MATCH (n:individual) RETURN count(n);           // 7131（CSV 7290 行，按 accession 去重）
+   MATCH ()-[r:in_sample]->() RETURN count(r);     // 28184
+   ```
+   `individual` 少于 CSV 行数是正常的：159 个患者同时进了两个研究，按 accession MERGE 成一个
+   节点，多研究归属由 `in_study` 边承载（7290 条边 > 7131 个节点）。
+
+数据换版本后，`SKILL.md` / `manual_compact.md` 第 8、12 节的实测快照（队列样本数、T2 产物清单、
+脏字段警告）是照 0821 逐条查出来写的，**必须重新推导**，否则模型会拿旧数字做规划。
+
 ## 快速开始
 
+0. **先备好图谱**（见上节「准备图谱数据」）——没有这一步，下面三步全部无效。
 1. **配 MCP**（DSH）：在 profile 的 `cordis.patch.yml` 加 `dsh-mcp-client` 行，指向官方 `neo4j-mcp-server`（stdio，`NEO4J_READ_ONLY=true`），详见 `docs/integration.md`。
 2. **装 skill**：`cp -r skill ~/.dsh/skills/bio-pipeline-planning`，新会话即可见。
 3. **跑评测**：
