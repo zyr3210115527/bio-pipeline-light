@@ -336,7 +336,12 @@ expression matrix, the MAF, or the FASTQ pair. `hydrate_plan` completes the rest
 - When the pipeline declares a `CLINICAL_DATA_EXCEL` input slot, the study's clinical table **and** its
   sample-metadata table are appended (`METADATA_SAMPLE_INFO` is the sample↔patient join table — without
   it the clinical fields cannot be attached to the matrix/MAF, and the graph always delivers the two
-  together, one of each per study).
+  together, one of each per study). **So do not write them — and do not query for them either.** The
+  server fetches both from the study accession alone; you never need to know their file names or whether
+  they live on `T1` or `T2`. Hunting for them is the single largest waste of wall-clock in this project:
+  in a measured 96-case run, 13 of the 29 cases that spent three or more query rounds spent the extra
+  ones guessing predicates for these two tables — probing `T2` by `format`, coming back empty, then
+  re-probing `T1` by `strategy`, at tens of seconds per round.
 - The expression matrix is normalised to the pipeline's default quantification flavour. A study carries
   FPKM, TPM and counts versions whose graph properties are identical
   (`semantic_format` = `TABULAR_BIO_DATA`, `data_level` = 2) — only the file name distinguishes them, so
@@ -364,8 +369,25 @@ rather than of the phrasing, makes the same question resolve to the same cohort 
 **HRA000074** (693 samples, over HRA000073's 325 and HRA000071's 572), liver → **HRA001272** (698;
 use it for mutation, expression and raw data alike),
 esophageal → HRA003107, AML → HRA006117. Melanoma splits by data type instead: expression matrices live
-in HRA007167, WES/MAF in HRA007169. Single-cell (10x / CellRanger) exists in only three cohorts —
-**HRA001748** (571 files), HRA000087, HRA005191. Always re-check that the chosen cohort actually
+in HRA007167, WES/MAF in HRA007169. **Glioma splits the same way**: expression is HRA000074, but the
+only glioma cohort carrying a MAF is **HRA000071**, and it carries exactly one —
+`HRA000071-SomaticSNV-1.0.maf`. HRA000073 and HRA000074 have no MAF at all, so a glioma
+mutation-landscape / Oncoplot request resolves to HRA000071 and must **not** be answered
+`no_candidate`. Graph-wide, only seven cohorts carry any MAF: HRA000873, HRA016026, HRA001272,
+HRA006499, HRA001749, HRA007169 and HRA000071 (the last one cohort-level only; the others also
+carry per-run `HRR*.maf`).
+
+Single-cell (10x / CellRanger) exists in only three cohorts —
+**HRA001748** (571 files), HRA000087, HRA005191.
+
+**`RAW_SINGLE_END_FASTQ` matches zero files in the whole graph.** `cellranger_workflow` declares it
+as an input, but 10x raw reads are stored as ordinary paired-end FASTQ — `RAW_PAIRED_END_R1_FASTQ` /
+`RAW_PAIRED_END_R2_FASTQ` (320 files in HRA001748, 96 in HRA000087), named like
+`HRR572934_f1.fq.gz` / `HRR572934_r2.fq.gz`. So filtering by a pipeline's *declared* input format
+comes back empty and **must not be read as `no_candidate`** — for single-cell raw data, select on
+`t.strategy = 'sc-RNA'` plus the paired-end FASTQ semantic formats instead.
+
+Always re-check that the chosen cohort actually
 carries the semantic format you need — HRA000073/74 are RNA-only, so a MAF analysis against them
 finds nothing.
 

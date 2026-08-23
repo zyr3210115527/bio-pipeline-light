@@ -750,6 +750,17 @@ def _predict_baseline(query):
             scores.pop("diff_expr_go", None)
     return [pid for pid, _ in sorted(scores.items(), key=lambda kv: -kv[1])][:3]
 
+def _step_tool_id(step):
+    """原子链的一步 → tool_id。
+
+    契约里一步是 `{"tool_id": "..."}`，但手册说「链每步除 tool_id 外全部由服务端补」，
+    调用方很自然就写成裸名字数组 `["fastqc","star",...]`。以前这里直接 `step.get` 抛
+    `'str' object has no attribute 'get'`：**整个 validate_plan / hydrate_plan 崩掉**，
+    接地校验静默失效——实测 c56/c92 因此把 recommendations 为空的 Plan 直接交付了
+    （本该被「selection_status=ok 必须有 rank1」拦下并修一轮）。裸名字是合法写法，收下。
+    """
+    return step.get("tool_id") if isinstance(step, dict) else str(step)
+
 def tool_validate_plan(args):
     """接地校验：整份 tool-chain/v2 Plan 的名词必须图内/目录内可验证。
     模型输出前自检用——工具、文件、路径、队列号任一无法证实即 grounded=false，
@@ -776,7 +787,17 @@ def tool_validate_plan(args):
     # 逼得模型为「HRA001272 角色分布如何」这类信息题硬凑一个 rank1 推荐——既是编造，又白烧
     # 一轮修正（实测 q03/q06/q24 每次多花 20s）。
     _NO_REC_OK = {"information", "unsupported", "no_candidate", "missing_from_graph"}
-    if not recs and str(plan.get("selection_status") or "").lower() not in _NO_REC_OK:
+    _sel = str(plan.get("selection_status") or "").lower()
+    if _sel == "rejected":
+        # 拒绝写成了 v2 信封里的 selection_status，而契约要的是**裸对象**。以前这条落到下面
+        # 那句「必须有 rank1 推荐，否则改用 rejected」上——模型明明已经写了 rejected，这句
+        # 读起来就是个空操作，于是修正轮原样再交一遍（实测 q15 连续两轮同一违规）。
+        # 违规文案必须指出「形状错了」而不是「状态错了」，否则这一轮白烧。
+        v.append("拒绝不能包在 tool-chain/v2 信封里：请只输出裸对象 "
+                 '{"status":"rejected","reason":"off_topic: …"} 或 '
+                 '{"status":"rejected","reason":"privacy: …"}，'
+                 "不要 schema_version/candidates/recommendations 等任何其他字段")
+    elif not recs and _sel not in _NO_REC_OK:
         v.append("recommendations 为空（selection_status 不是 information/unsupported/"
                  "no_candidate 时必须有 rank1 推荐，否则改用 rejected）")
     for i, rec in enumerate(recs):
@@ -826,8 +847,11 @@ def tool_validate_plan(args):
             if not (rows and rows[0] and rows[0][0][0] > 0):
                 v.append(f"study 图内不存在（疑似模型编造）: {st}")
     for i, c in enumerate(plan.get("candidates") or []):
+        if not isinstance(c, dict):
+            v.append(f"candidates[{i}] 不是对象（应为 JSON 对象，不是字符串）")
+            continue
         for stp in c.get("tool_chain") or []:
-            tid = stp.get("tool_id")
+            tid = _step_tool_id(stp)
             gid = meta_to_graph.get(tid, tid)
             if gid not in CATALOG or CATALOG[gid].get("tool_kind") != "atomic":
                 v.append(f"candidates[{i}] 工具链含非闭集 atomic: {tid}")
@@ -1141,8 +1165,16 @@ def tool_hydrate_plan(args):
 
     # —— candidates：原子链槽位一律按 Knowledge Card 补全 ——
     for c in plan.get("candidates") or []:
-        for step in (c.get("tool_chain") or c.get("chain") or []):
-            tid = step.get("tool_id")
+        if not isinstance(c, dict):
+            continue
+        key = "tool_chain" if c.get("tool_chain") else "chain"
+        chain = c.get(key) or []
+        # 裸名字数组先就地升格成对象，后面的补全才有地方落（见 _step_tool_id）
+        if any(not isinstance(s, dict) for s in chain):
+            chain = [s if isinstance(s, dict) else {"tool_id": str(s)} for s in chain]
+            c[key] = chain
+        for step in chain:
+            tid = _step_tool_id(step)
             card = KC_MAP.get(meta_to_graph.get(tid, tid))
             if card and (not step.get("inputs") or not step.get("outputs")):
                 ins, outs = _card_slots(card)

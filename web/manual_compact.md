@@ -86,8 +86,10 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 
 轮数是墙钟唯一来源（一轮=一次完整推理，几十秒）；查询几乎免费（<0.5s）。
 1. **先列后射**：每轮开前列出所有待答问题，参数已知的**全部在同一轮发出**（一轮 2-4 个调用是常态）；`read_cypher_batch` 一条调用可带 8 条
-2. **快照优先**：工具匹配/选队列查 §8 快照，零查询；`read_cypher` 只花在文件级明细与新鲜度核实
-3. **标准轨迹 2 轮**：R1 = `get_study_overview`（选定队列）+ 一个 `read_cypher_batch`（overview 答不了的定向查询）+（要原子链时）`validate_atomic_chain`；R2 = **直接输出最终 JSON**（接地校验由服务端在其后自动跑，不占你的轮次）。拒绝题 1 轮零调用
+2. **快照优先**：工具匹配/选队列查 §8 快照，零查询；`read_cypher` 只花在文件级明细与新鲜度核实。
+   **临床表/样本元信息表一律不查**（服务端按队列补，见 §9）——查空了换个谓词再查是最常见的空转
+3. **标准轨迹 2 轮**：R1 = `get_study_overview`（选定队列）+ 一个 `read_cypher_batch`（overview 答不了的定向查询）+（要原子链时）`validate_atomic_chain`；R2 = **直接输出最终 JSON**（接地校验由服务端在其后自动跑，不占你的轮次）。拒绝题 1 轮零调用。
+   **`validate_atomic_chain` 和取数查询没有先后依赖，必须跟 R1 的查询同轮发出**，别单开一轮
 4. 禁止整库 get_schema；一次查全（合并查询+并行发起可叠加）；同一对象不重复查；查询为空先查关键词语言/目标表，不重复同一失败查询
 5. **收敛**：证据足够即停。6 轮查询是硬上限——同族工具分不清（生存族 km_survival/cox_model/survival_analysis/tmb_survival_analysis 重叠）或需求超出闭集时，选证据最充分的、match_note 注明分歧、如实 unsupported，禁止继续空转
 6. **不要自检、不要等校验**：证据够了就出终答；服务端会补全样板字段并跑接地校验，只在 grounded=false 时把 violations 回传给你修一次。validate_atomic_chain 每条最终链 1 次
@@ -192,7 +194,15 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 胶质瘤 → **HRA000074**（693，不是 HRA000073/325 或 HRA000071/572）、肝癌 → **HRA001272**（698，
 突变/表达/原始数据都用它）、
 食管癌 → HRA003107、白血病 → HRA006117。黑色素瘤按数据类型分：表达矩阵在 HRA007167、
-WES/MAF 在 HRA007169。**单细胞（10x/CellRanger）只有 HRA001748（571）、HRA000087、HRA005191**。
+WES/MAF 在 HRA007169。**胶质瘤同理按数据类型分**：表达在 HRA000074，
+**MAF 只有 HRA000071 有（全队列就 1 份 `HRA000071-SomaticSNV-1.0.maf`）**——
+HRA000073/74 一个 MAF 都没有，问胶质瘤突变景观/Oncoplot 一律 HRA000071，不许判 `no_candidate`。
+**全图带 MAF 的队列只有 7 个**：HRA000873、HRA016026、HRA001272、HRA006499、HRA001749、
+HRA007169、HRA000071（最后一个只有队列级汇总，其余还各带逐 run 的 `HRR*.maf`）。**单细胞（10x/CellRanger）只有 HRA001748（571）、HRA000087、HRA005191**。
+**`RAW_SINGLE_END_FASTQ` 全图 0 个文件**——`cellranger_workflow` 虽声明要它，10x 原始下机数据
+在图里一律存成 `RAW_PAIRED_END_R1_FASTQ`/`R2`（HRA001748 320 个、HRA000087 96 个，
+形如 `HRR572934_f1.fq.gz`/`_r2.fq.gz`）。**按流程声明的输入格式去查会查空，不许据此判
+`no_candidate`**：单细胞原始数据一律按 `t.strategy='sc-RNA'` + 配对 FASTQ 语义格式取。
 **再按该队列有没有你要的语义格式复核一遍**——HRA000073/74 只有 RNA，
 拿它做 MAF 分析会落空。
 
@@ -219,7 +229,10 @@ WES/MAF 在 HRA007169。**单细胞（10x/CellRanger）只有 HRA001748（571）
 
 **assets 只需给"主数据"一条**：主数据 = 该流程的核心输入（表达矩阵 / MAF / FASTQ）。
 流程声明需要 `CLINICAL_DATA_EXCEL` 时，服务端会自动把同队列的临床表与样本元信息表补齐，
-你不用写；表达矩阵选错定量口径（FPKM/TPM/counts）也会被按该流程的默认口径自动换成正确的那份，
+**不用写，也不用查**——这两张表每队列各一份、服务端按队列号直接取，你连它们叫什么、
+在 T1 还是 T2 都不需要知道。**为找它们再开一轮取数是本项目最大的时间浪费**（实测 29 个
+多轮例子里 13 个栽在这：先在 T2 按 format 猜、查空了再去 T1 按 strategy 猜，一轮几十秒）；
+表达矩阵选错定量口径（FPKM/TPM/counts）也会被按该流程的默认口径自动换成正确的那份，
 逐样本文件（`HRR*.maf`）也会被换成队列级汇总交付（`HRA*-SomaticSNV-1.0.maf`）。
 但**主数据必须你来选，且必须是图内真实存在的文件**——`selection_status` 为 `ok` 时
 `assets` 不许为空；图里确实找不到可用数据就把状态改成 `no_candidate` 并在 `match_note` 说明。

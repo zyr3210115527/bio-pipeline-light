@@ -19,6 +19,7 @@ tool-chain/v2 Plan 或 rejected 单对象。本服务把思考段 / 工具调用
 """
 import json
 import os
+import queue
 import re
 import subprocess
 import sys
@@ -59,7 +60,29 @@ LLM_MODEL = GEMINI_MODEL if LLM_PROVIDER == "gemini" else OPENAI_MODEL
 
 MAX_ROUNDS = 15              # 工具调用轮数上限（手册纪律约 5-8 次）
 MODEL_RESULT_LIMIT = 30000   # 喂回模型的工具结果截断长度
-GEMINI_TIMEOUT = 300         # 单次流式读超时（thinking 可能持续几十秒）
+GEMINI_TIMEOUT = int(os.environ.get("LLM_READ_TIMEOUT", "90"))
+# ↑ 流式**单次读**的静默上限，不是整轮上限：推理段是持续吐字的，正常轮次两次读之间
+# 只隔几百毫秒。原值 300s 是按「整轮可能几十秒」估的，但真正的风险是上游把连接挂住
+# 不再吐字——实测 q17 卡在这种静默里，客户端 489s 超时收场。降到 150s：正常轮次碰不到，
+# 真挂死时 _stream_round 能早三分多钟重试（它对异常本来就有 6 次退避重试）。
+# 实测把上游静默挂起的单次代价从 300s 压到 90s——这是长尾里最大的一块，
+# 且与模型行为无关（q08 一轮里 259s 全花在一次挂起加重试上）。
+
+# ---- 首 token 对冲（长尾的主因，见下）----
+# 96 例轨迹按事件时间戳拆开后：**总墙钟的 88% 花在「首 token 到达之前」**
+#   round1 TTFT  p50=8.2s  p90=24.3s  p99=141.8s   占总时长 43%
+#   后续轮 TTFT  p50=9.2s  p90=16.0s  p99= 28.0s   占总时长 45%
+#   真正的吐字生成只占 12%。
+# 而这段等待**不是 prefill**：直接压端点实测，50 token 的问题 TTFT 中位 3.17s，
+# 加上 11.5k token 的完整系统提示也只到 4.39s——两万多字的手册只值 1.2s。
+# 同一个 tiny prompt 连打 6 次却是 [2.6, 3.3, 3.0, 7.4, 8.0, 2.0]，4 倍抖动。
+# 也就是说长尾来自上游排队，与请求内容无关、且各次抽样基本独立。
+# 独立抖动的标准解法是对冲：等过 HEDGE_AFTER 还没见到第一个字节，就并发再发一份
+# 相同请求，谁先吐字用谁、另一份立刻关掉。chat/completions 无副作用（工具是我们自己
+# 执行的），重发安全。代价是约 20% 的请求打两份，换来 p99 从「90s 超时 + 重试」
+# 塌到「HEDGE_AFTER + 一次新抽样」。
+LLM_HEDGE_AFTER = float(os.environ.get("LLM_HEDGE_AFTER", "15"))  # 0 = 关闭对冲
+LLM_HEDGE_MAX = int(os.environ.get("LLM_HEDGE_MAX", "1"))         # 额外并发副本上限
 
 # 墙钟只由模型轮数决定（工具执行全部 <0.5s，端点每轮 8-20s）。以下三个预算把
 # 「反复补查 → 反复校验」的长尾结构性封死，超预算即用 tool_choice 硬制终答。
@@ -69,6 +92,13 @@ DUP_CALL_LIMIT = int(os.environ.get("DUP_CALL_LIMIT", "2"))          # 重复调
 # 取数类工具（计入取数轮预算）；校验类不计
 QUERY_TOOLS = {"read_cypher", "read_cypher_batch", "get_study_overview",
                "resolve_sample_roles", "health_check"}
+
+
+def _thinking_cfg(off):
+    """thinking 段的请求字段。off=True 时显式 disabled（省略无效，见调用处注释）。"""
+    if os.environ.get("THINKING", "on") == "off" or off:
+        return {"thinking": {"type": "disabled"}}
+    return {"thinking": {"type": "enabled"}, "reasoning_effort": "low"}
 
 
 # ---------- MCP stdio 客户端（newline-delimited JSON-RPC，全局长驻一个进程） ----------
@@ -225,8 +255,8 @@ def load_system_prompt():
 
 
 # ---------- LLM 流式调用 ----------
-def _sse_post(url, payload, api_key):
-    """POST 并按 SSE data: 行 yield 解析后的 JSON（两家接口共用）。HTTP 错误带上游正文。"""
+def _sse_open(url, payload, api_key):
+    """发一份请求并读到**第一条 data: 行**为止，返回 (resp, first_line)。"""
     req = urllib.request.Request(
         url, data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json",
@@ -236,16 +266,94 @@ def _sse_post(url, payload, api_key):
     except urllib.error.HTTPError as e:
         detail = e.read()[:500].decode("utf-8", "replace")
         raise RuntimeError(f"模型接口 HTTP {e.code}：{detail}") from e
-    with resp:
-        while True:
-            line = resp.readline()
-            if not line:
+    while True:
+        line = resp.readline()
+        if not line:                       # 一条 data 都没有就断了，交给上层重试
+            resp.close()
+            raise _RoundBroken("上游未吐任何 SSE 数据即断流")
+        if line.strip().startswith(b"data:"):
+            return resp, line
+
+
+def _sse_post(url, payload, api_key):
+    """POST 并按 SSE data: 行 yield 解析后的 JSON（两家接口共用）。
+
+    首 token 迟迟不来时并发补发副本对冲上游排队抖动，见 LLM_HEDGE_AFTER 处的实测数据。
+    """
+    inbox = queue.Queue()
+    settled = threading.Event()
+
+    def worker(idx):
+        try:
+            resp, line = _sse_open(url, payload, api_key)
+        except Exception as e:                       # noqa: BLE001 - 转交主线程决定
+            inbox.put((idx, None, None, e))
+            return
+        if settled.is_set():                         # 输了，别占着上游的生成额度
+            resp.close()
+            return
+        inbox.put((idx, resp, line, None))
+
+    launched = 0
+
+    def launch():
+        nonlocal launched
+        threading.Thread(target=worker, args=(launched,), daemon=True).start()
+        launched += 1
+
+    launch()
+    hedges = LLM_HEDGE_MAX if LLM_HEDGE_AFTER > 0 else 0
+    resp = first = None
+    errs = []
+    deadline = time.time() + GEMINI_TIMEOUT + 5
+    while True:
+        if launched - len(errs) == 0:                # 在途的全挂了
+            raise errs[-1]
+        if launched <= hedges:
+            wait = LLM_HEDGE_AFTER
+        else:
+            wait = max(0.1, deadline - time.time())
+        try:
+            _, r, line, err = inbox.get(timeout=wait)
+        except queue.Empty:
+            if launched <= hedges:                   # 还没见到第一个字节 → 再发一份
+                print(f"[web] 首 token 超 {LLM_HEDGE_AFTER:.0f}s，并发补发第 "
+                      f"{launched + 1} 份请求对冲", file=sys.stderr)
+                launch()
+                continue
+            raise _RoundBroken(f"上游 {GEMINI_TIMEOUT}s 内未吐首 token")
+        if err is not None:
+            errs.append(err)
+            continue                                 # 还有在途的就继续等
+        resp, first = r, line
+        break
+    settled.set()
+
+    def reap():
+        """晚到的副本一律关掉（也顺带让上游停止为它生成）。"""
+        for _ in range(launched - len(errs) - 1):
+            try:
+                _, r, _l, _e = inbox.get(timeout=GEMINI_TIMEOUT + 5)
+            except queue.Empty:
                 return
+            if r is not None:
+                try:
+                    r.close()
+                except Exception:                    # noqa: BLE001
+                    pass
+    threading.Thread(target=reap, daemon=True).start()
+
+    with resp:
+        line = first
+        while True:
             line = line.strip()
             if line.startswith(b"data:"):
                 data = line[5:].strip()
                 if data and data != b"[DONE]":
                     yield json.loads(data)
+            line = resp.readline()
+            if not line:
+                return
 
 
 def gemini_stream(payload):
@@ -261,6 +369,37 @@ def openai_stream(payload):
 # ---------- 会话与 agent 循环 ----------
 SESSIONS = {}          # session_id -> {"provider": str, "history": [...]}（provider 原生格式）
 SESSIONS_LOCK = threading.Lock()
+
+
+_REJECT_TAGS = ("off_topic", "privacy")
+
+
+def _canon_reject(obj):
+    """rejected 对象的 reason 前缀归一。
+
+    契约只认 `off_topic: …` / `privacy: …` 两个前缀，模型偶发把它拼错（实测 q22 写成
+    `off_t_topic`，整条回答其余部分完全正确，只因这一个字判失败）。前缀是机器读的枚举、
+    不是判断性内容，属于服务端该确定性补的那一类——按去掉分隔符后的字母序列比对还原，
+    认不出来就原样留着（不猜）。
+    """
+    if not isinstance(obj, dict) or obj.get("status") != "rejected":
+        return obj
+    reason = str(obj.get("reason") or "")
+    head, sep, tail = reason.partition(":")
+    if not sep:
+        return obj
+    if head.strip() in _REJECT_TAGS:
+        return obj                                       # 本来就对
+    squashed = re.sub(r"[^a-z]", "", head.lower())
+    for tag in _REJECT_TAGS:
+        bare = tag.replace("_", "")
+        # `off_t_topic`/`offtopic`/`off-topic`/`Off Topic` 都还原到 `off_topic`：
+        # 允许分隔符差异和字母重复，但不允许缺字母，免得把别的词误判成拒绝标签
+        if squashed.startswith(bare[:3]) and set(bare) <= set(squashed) \
+                and len(squashed) <= len(bare) + 3:
+            obj["reason"] = f"{tag}:{tail}"
+            return obj
+    return obj
 
 
 class _RoundBroken(Exception):
@@ -475,11 +614,13 @@ class AgentRunner:
         hist.append(self._user_entry(user_message))
 
         empty_retries = 0
+        overflow_retries = 0  # reasoning 烧穿 max_tokens、content 一字未出的重试次数
         committed_text = 0  # 已提交（之前轮次）的文本长度；本轮流被掐断时回滚到这儿
         self.query_rounds = 0     # 已消耗的取数轮数
         self.repairs = 0          # 接地失败后的修正轮数
         self.syntax_repairs = 0   # JSON 语法坏掉后的重出轮数（与接地修正各自计数）
         self.force_final = False  # True → 本轮 tool_choice=none，模型只能出终答
+        self.no_think = False     # True → 请求里不带 thinking，逼模型直接往 content 写
         self.seen_calls = {}      # 调用签名 -> 结果（抑制重复查询）
         self.dup_hits = 0
         for rnd in range(1, MAX_ROUNDS + 1):
@@ -487,7 +628,7 @@ class AgentRunner:
                 thought_text, answer_text, calls, finish_reason, raw = self._stream_round(
                     hist, tool_choice=("none" if self.force_final else "auto"))
             except _RoundBroken:
-                answer_text, calls, finish_reason, raw = "", [], None, None
+                thought_text, answer_text, calls, finish_reason, raw = "", "", [], None, None
             print(f"[web] round {rnd}: calls={len(calls)} text={len(answer_text)} "
                   f"thought={len(thought_text)} finish={finish_reason} "
                   f"qrounds={self.query_rounds} forced={self.force_final}", file=sys.stderr)
@@ -507,7 +648,10 @@ class AgentRunner:
                 # 流被中途掐断（只吐了思考段，或 JSON 写到一半）：重试本轮，前端回滚本轮文本；
                 # 附一条短指令让重试跳过长篇思考，避免按原样再空烧一轮
                 empty_retries += 1
-                if empty_retries <= 3:
+                if empty_retries <= 5:
+                    # 上限从 3 提到 5：该端点空回复的单次概率约 1/3，96 例里跑二百多轮，
+                    # 连空 4 次（1.2%）是必然会撞上的——c57 就是这么彻底失败、一个字没交。
+                    # 一次空重试只花 ~5s（模型是秒回空的），拿 p99 上多花十秒换掉一个硬失败。
                     self.emit({"type": "text_reset", "keep": committed_text})
                     hist.append(self._user_entry(
                         "（系统：上一轮输出中断。请跳过思考、直接给出工具调用或最终 JSON。）"))
@@ -535,6 +679,24 @@ class AgentRunner:
                     answer_text = json.dumps(salv, ensure_ascii=False, separators=(",", ":"))
                     print(f"[web] round {rnd}: 终答只出现在 reasoning 段，已捞回",
                           file=sys.stderr)
+            if not calls and (not answer_text.strip() or _truncated_json(answer_text)):
+                # 这一轮既没调工具、也没交出能用的答案，产出为零（finish_reason is None 的
+                # 断流情形已在上面拦掉，走到这儿是 MAX_TOKENS 推理烧穿、或 STOP 却一个字
+                # 没吐——实测 q19 修正轮就是后者，安静地交了空答案）。历史里的查询证据都在，
+                # 让它再自由想一遍只会再空一次：**抽掉 tools + 关掉 thinking** 逼它誊出终答。
+                overflow_retries += 1
+                if overflow_retries <= 2:
+                    self.force_final = True
+                    self.no_think = True   # 抽掉 tools 还不够，推理通道也得关，见 _round_openai
+                    self.emit({"type": "text_reset", "keep": committed_text})
+                    hist.append(self._user_entry(
+                        "【系统】上一轮推理超长被截断，一个字的答案都没输出。现有证据已足够："
+                        "**跳过思考**，这条消息之后直接给出 tool-chain/v2 JSON 对象本身，"
+                        "从 { 开始、到 } 结束；证据不足的部分如实标 unsupported / "
+                        "missing_from_graph，并在 match_note 说明。"))
+                    print(f"[web] round {rnd}: reasoning 烧穿 max_tokens，抽掉 tools 逼终答"
+                          f"（第 {overflow_retries} 次）", file=sys.stderr)
+                    continue
             if calls:
                 # 拒绝判定是终局：模型偶发「先吐 rejected 对象、同一轮又顺手查一把图」
                 # （实测 q12/q13 查 count(n) 纯属多余，白烧一轮且把 JSON 留在流里污染终答）。
@@ -594,7 +756,7 @@ class AgentRunner:
            且这些字段不再有被编造的机会；
         3) 接地校验：服务端直接跑 validate_plan（<0.5s），grounded=false 时把 violations
            回传给模型修正——把原本占一整轮模型延迟的自检搬到服务端。"""
-        obj = _extract_json_obj(answer_text)
+        obj = _canon_reject(_extract_json_obj(answer_text))
         if obj is None:
             # 连机械修补都救不回来：花一轮让模型只重出 JSON，比直接交付一段解析不了的
             # 文本划算（下游只认裸对象）。前提是这段文本**确实是在写 JSON**——文本里
@@ -753,10 +915,17 @@ class AgentRunner:
                    # 工具 schema 不在请求里，模型就无从调起——这是结构性的，不靠模型自觉。
                    **({"tools": self.fc_tools, "tool_choice": tool_choice}
                       if tool_choice != "none" else {}),
-                   # thinking 显式开关：开启时推理走 reasoning_content（content 更干净但慢 2-3 倍）；
-                   # 关闭后由提示词末尾的输出契约保证格式。THINKING=off 可关。
-                   **({"thinking": {"type": "enabled"}, "reasoning_effort": "low"}
-                      if os.environ.get("THINKING", "on") != "off" else {})}
+                   # thinking 三态。**注意「不传」不等于「关」**：实测同一问题不传 thinking
+                   # 仍吐 252 字符 reasoning，只有显式 `{"type":"disabled"}` 才真的是 0——
+                   # 早先按「省略即关」写的版本是空操作，forced 轮照样烧推理。
+                   #
+                   # 逼终答的轮次一律显式关掉：所有「16k 全烧在 reasoning、content 一个字
+                   # 没吐」的事故（q05/q20/c02/c54，单轮 100-180s，q20 一次 460.7s 超时）
+                   # 无一例外发生在 forced=True 的轮次上——已经不许调工具了，模型就把整个
+                   # 输出预算花在反复权衡上。这一轮要的只是把已有结论誊成 JSON。
+                   # 取数轮保持 enabled+low（关掉会掉准确率，那是另一回事）。THINKING=off 全关。
+                   **(_thinking_cfg(tool_choice == "none"
+                                    or getattr(self, "no_think", False)))}
         thought_buf, text_buf = [], []
         slots = {}  # tool_calls index -> {id, name, args_str}
         finish_reason = None
@@ -791,6 +960,13 @@ class AgentRunner:
                 raise _RoundBroken(f"工具参数 JSON 被掐断: {e}")  # 断流 → 重试本轮
             calls.append({"id": s["id"], "name": s["name"] or "?", "args": args})
         norm = {"stop": "STOP", "length": "MAX_TOKENS"}.get(finish_reason, finish_reason)
+        if not calls and not thought_buf and not text_buf and norm in ("STOP", None):
+            # 三个通道一个字都没有、还报了正常结束——这不是模型的决定，是上游给了个空回复
+            # （该端点本来就有这毛病，用一句话的琐碎问题也能约 1/3 复现）。实测 q08 在逼终答
+            # 轮连空三次，最终交付空答案；而同一问题单独重放 3/3 正常。
+            # 空回复要按**断流**处置，交给 _stream_round 的退避重试原地再抽一次，
+            # 而不是走 overflow 分支往历史里塞「你刚才超长了」——那既冤枉模型、又污染上下文。
+            raise _RoundBroken("上游返回空回复（content/reasoning/tool_calls 皆空）")
         return "".join(thought_buf), "".join(text_buf), calls, norm, None
 
     def _call_tool(self, call):
