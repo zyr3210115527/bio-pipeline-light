@@ -26,6 +26,7 @@ provides knowledge and deterministic checks — there is **no "one-call Plan" en
 | `resolve_sample_roles(study \| records)` | Deterministic tumor/normal role judgment | Paired/grouped analysis when a full overview is not needed; per-file roles use `records` mode; never guess roles yourself |
 | `validate_atomic_chain(chain)` | Closed-set + next_tool adjacency check for atomic chains | **Once**, after the chain is assembled |
 | `validate_execution_chain(steps)` | Pre-submission 5-stage gate → `execution_params`, `submittable` | Only when the user/front-end is about to submit for execution |
+| `hydrate_plan(plan)` | Deterministic completion: fills every field the catalog/graph already knows — tool `catalog_id`/`tool_kind`/`name`/`description`/I/O slots, asset `file_path`/`format`/`data_level`/accessions, atomic-chain slots from Knowledge Cards, `match_id`/`rank`/`source`, `planner_metadata`, `data_matcher_mode`, `mcp_timing_ms` | **Once**, on the finished Plan, immediately before `validate_plan` — author only the judgment fields (§9) and let this fill the boilerplate |
 | `validate_plan(plan)` | Grounding check of the final Plan | **Once** before final output; re-call only to verify fixes of listed violations |
 | `health_check()` | Connectivity, graph size, atomic closed set | Diagnostics only |
 
@@ -36,7 +37,7 @@ provides knowledge and deterministic checks — there is **no "one-call Plan" en
 | `tool` (51) | `tool_name`, `function` (Chinese sentence), `semantic_output` (`;`-separated), `catalog_id` (T001…) |
 | `function` (90) | Analysis function, Chinese sentence; match with CONTAINS substring |
 | `format` (35) | e.g. `RAW_PAIRED_END_R1_FASTQ`, `DNA_VARIANT_VCF_GENERAL`, `MUTATION_ANNOTATION_FORMAT_MAF`, plus `CLINICAL` / `*_META` |
-| `modal` (6) | **Only** `WES` / `WGS` / `bulk_RNA` / `sc-RNA` / `Clinical` / `Meta` — never invent spellings like `RNA-seq` |
+| `modal` (6) | **Only** `WES` / `WGS` / `bulk_RNA` / `sc-RNA` / `Clinical` / `Meta` — never invent spellings like `RNA-seq`. **The node property is `modal`, not `name`** — `(:modal {name:'sc-RNA'})` matches nothing and returns a silent zero. To find a modality's files, filter `T1.strategy = 'sc-RNA'` directly rather than traversing `in_modal` |
 | `datalevel` (4) | Properties are `level` / `name` / `description`, **not** `data_level`; 1 raw → 4 knowledge. (File-side `T1.data_level` / `T2.data_level` ARE called data_level.) |
 | `study` (20) / `project` (18) | `study_accession`, `tumor_type` (Title Case English, e.g. `Liver Cancer`; query with toLower + CONTAINS — one cancer has multiple spellings, see §4 recipe 3), `title`, `study_description`, `individual_count`, `sample_count` (**only 14/20 studies have it**: HRA000073/HRA000087/HRA002693/HRA006117/HRA007413/HRA016026 are null — sorting/filtering by it silently drops those 6; to size a cohort count `sample` nodes) |
 | `individual` (7131) | `individual_accession`; other properties are prefix-grouped: **only `00_*` is operational** (`00_sample_accession` / `00_run_accession` / `00_platform` / `00_strategy` …). **`01_`–`13_` are all patient-level sensitive**: 01_ demographics, 02_ family history, 03_ lifestyle, 04_ hematology, 09_ tumor pathology, 10_ invasion, 11_ molecular (`11_tmb` / `11_msi_score`), 12_ treatment, **13_ survival (`13_survival_days` / `13_survival_status` / `13_pfs_time` … — survival-analysis data lives here)**. Aggregates only (count / avg / IS NOT NULL); per-individual reads are refused by the server guard (§8) |
@@ -163,6 +164,11 @@ Standard recipes:
      HRA005191 (243 none), HRA002693 (213/655 none), HRA006117 (265/835 none), HRA000122 (6/287 none).
      Upstream simply never provided values — no query rewrite will find them. Tell the user roles are
      incomplete, or switch to a pairable cohort above.
+     **This blocks per-sample pairing only.** Cohort-level analyses on these same cohorts (differential
+     expression, enrichment, clustering, immune deconvolution, survival) run off the aggregate matrix /
+     MAF and do their own grouping internally — never downgrade one to `no_candidate` just because
+     tumor/normal roles are unresolvable, and do not call `resolve_sample_roles` to pick an aggregate
+     file in the first place.
    - **Cohort sample lists come from `sample` nodes**: `MATCH (sp:sample) WHERE sp.study_accession = '<HRA*>'`
      (equivalent to the `study<-individual<-sample` traversal). **Do not count samples via
      `(T1)-[:in_sample]->(sample)`** — that only sees file-attached samples and silently drops the rest
@@ -218,7 +224,8 @@ model inference, tens of seconds); queries are nearly free (< 0.5s each). Conseq
      `get_study_overview(study)` per chosen cohort **plus one** `read_cypher_batch` with every targeted
      query the overview cannot answer (e.g. specific T1 FASTQ lists, a tool's I/O contract),
      **plus** `validate_atomic_chain` when an atomic chain is planned — all in the same round.
-   - R2: compose the Plan from R1 evidence and call `validate_plan` once.
+   - R2: compose the Plan from R1 evidence — judgment fields only (§9) — then call `hydrate_plan`
+     and `validate_plan` **in the same round** (hydrate first; validate the hydrated Plan).
    - R3: if `grounded=true`, output the final JSON immediately. (R4 only to re-validate after fixing
      listed violations from existing evidence, §7.4.)
    Rejection cases (§8) answer in **1 round, zero tool calls**.
@@ -269,7 +276,8 @@ query; answer content must be fully grounded:
 3. **Traceable evidence**: `match_note` / `match_reason` must map to an actual query result; sample roles
    come only from `resolve_sample_roles`; paths come only from graph records or `validate_execution_chain`'s
    `execution_params`.
-4. **Self-check before output**: submit the final JSON to `validate_plan`; on `grounded=false`, fix the
+4. **Self-check before output**: run `hydrate_plan` on the finished Plan, then submit its output to
+   `validate_plan`; on `grounded=false`, fix the
    listed `violations` **from already-fetched evidence** (re-query at most the specific violated item —
    do not restart exploration), then re-validate once, until `grounded=true`.
 
@@ -293,7 +301,9 @@ query; answer content must be fully grounded:
 **Hard rule — violation counts as task failure**: the final answer must be **exactly one tool-chain/v2
 JSON object** — no prose, no markdown fences, no multiple candidates, no text before or after the JSON.
 `recommendations[0]` is the single strict top-1 recommendation; `candidates[]` is filled only when an
-atomic chain is possible. Human-readable note fields (`match_note` etc.) may be written in the user's
+atomic chain is possible. **When `selection_status` is `information` / `unsupported` / `no_candidate`,
+`recommendations` may be empty** — for pure data-distribution or inventory questions do not invent a
+pipeline just to fill the slot (that is fabrication); every other status requires a rank-1 entry. Human-readable note fields (`match_note` etc.) may be written in the user's
 language.
 
 **`read_cypher` row cap (affects conclusion correctness)**: at most **500 rows** per call. When exceeded,
@@ -308,8 +318,60 @@ I/O names (e.g. `read1` / `aligned_sam`). Mapping in `references/knowledge_cards
 cards). Pipeline-level tools (no card, e.g. `diff_expr_go`) keep the graph tool_id and are annotated with
 `"card": null` next to `tool_id`.
 
-When delivering to a front-end / for integration, produce this JSON (front-ends read only the
-`result.structuredContent` layer of JSON-RPC):
+**Author judgment fields only — `hydrate_plan` fills the rest.** Do not hand-write any field the
+catalog/graph already knows; `hydrate_plan` fills them deterministically and overwrites what you wrote
+with the graph's own facts, so authoring them only costs generation time and invites fabrication
+(measured: models invented `mcp_timing_ms` and `file_path` values). Leave out
+`match_id` / `rank` / `source` / `reference_case_id` / `recommendation_count` / `candidate_count` /
+`planner_metadata` / `data_matcher_mode` / `mcp_timing_ms`; inside `tool` write only `tool_id`
+(catalog_id, tool_kind, name, description, inputs, outputs are filled); inside each asset write only
+`file_name` and `match_reason` (**never write `file_path` from memory**); inside `candidates[].tool_chain`
+write only each step's `tool_id`. What you must supply: `schema_version`, `selection_status`, `intent`,
+and per recommendation `pipeline_id`, `match_note`, `data.assets[].file_name` + `match_reason`, plus the
+tool_chain ordering.
+
+**Assets: supply the primary datum only.** The primary datum is the pipeline's core input — the
+expression matrix, the MAF, or the FASTQ pair. `hydrate_plan` completes the rest deterministically:
+
+- When the pipeline declares a `CLINICAL_DATA_EXCEL` input slot, the study's clinical table **and** its
+  sample-metadata table are appended (`METADATA_SAMPLE_INFO` is the sample↔patient join table — without
+  it the clinical fields cannot be attached to the matrix/MAF, and the graph always delivers the two
+  together, one of each per study).
+- The expression matrix is normalised to the pipeline's default quantification flavour. A study carries
+  FPKM, TPM and counts versions whose graph properties are identical
+  (`semantic_format` = `TABULAR_BIO_DATA`, `data_level` = 2) — only the file name distinguishes them, so
+  the pipeline decides, not the caller. The **first** flavour named in the catalog description wins, so
+  that a description like "适用于 FPKM/TPM 定量数据" resolves to one file rather than two possible
+  answers. When the description names no flavour, the method itself decides: the **WGCNA family runs on
+  raw `counts`** (its own guidance is counts/VST, not TPM), while anything that **compares one gene's
+  level across samples** — KM/Cox survival grouping, box plots, stage heatmaps, UMAP, pre-ranked GSEA —
+  needs length- and depth-normalised **TPM**, since counts are not comparable between samples.
+- When the required semantic format has **exactly one** study-level delivery file in that cohort — a name
+  beginning `HRA<digits>-`, e.g. `HRA007169-SomaticSNV-1.0.maf` — a per-sample file you picked
+  (`HRR1725089.maf`, one patient out of 77) is swapped for it. "Exactly one" is what keeps this safe:
+  FASTQ has no study-level file so nothing moves, and expression matrices have three, so the flavour rule
+  above decides those instead. Only the aggregate-plus-per-sample formats (MAF, somatic CNV) land here.
+
+What is not completed for you: the primary datum itself. It must be a file that actually exists in the
+graph, and `assets` must be non-empty whenever `selection_status` is `ok` — if the graph holds no usable
+data, say so with `no_candidate` plus a `match_note`, rather than shipping a recommendation with no data.
+This holds even when the request names no cohort: locate a cohort by cancer type / omics, filter by
+`semantic_format`, and take the **first file under `ORDER BY n.file_name`** as the representative sample
+(an f1/r2 pair for paired-end sequencing). Order it explicitly — a bare `LIMIT` makes the same question
+resolve to different files on different runs. When a cancer type spans several cohorts and the user named
+none, take the one with the most samples — it has the widest coverage and, being a property of the graph
+rather than of the phrasing, makes the same question resolve to the same cohort every time: glioma →
+**HRA000074** (693 samples, over HRA000073's 325 and HRA000071's 572), liver → **HRA001272** (698;
+use it for mutation, expression and raw data alike),
+esophageal → HRA003107, AML → HRA006117. Melanoma splits by data type instead: expression matrices live
+in HRA007167, WES/MAF in HRA007169. Single-cell (10x / CellRanger) exists in only three cohorts —
+**HRA001748** (571 files), HRA000087, HRA005191. Always re-check that the chosen cohort actually
+carries the semantic format you need — HRA000073/74 are RNA-only, so a MAF analysis against them
+finds nothing.
+
+The schema below shows the **hydrated** result — i.e. what `hydrate_plan` returns and what the front-end
+consumes, not what you type. When delivering to a front-end / for integration, produce this JSON
+(front-ends read only the `result.structuredContent` layer of JSON-RPC):
 
 ```json
 {
@@ -355,8 +417,12 @@ When delivering to a front-end / for integration, produce this JSON (front-ends 
 Key points: `assets` carry per-file provenance and `match_reason`; `inputs/outputs` `artifact` values use
 the ArtifactType vocabulary (`references/artifact_type.csv`); `candidates[]` is filled only for viable
 atomic chains, else empty with `selection_status` explaining why. **Single-sample assets (FASTQ/BAM etc.)
-must carry `sample_role` / `sample_role_label` (judged by `resolve_sample_roles`); aggregate assets
-(matrices/MAF/clinical tables) set these to null.** For paired/grouped analyses, attach `alternatives[]`
+carry `sample_role` / `sample_role_label` only when you already hold a `resolve_sample_roles` result;
+otherwise set them to null. Aggregate assets (matrices/MAF/clinical tables) are always null.** More
+generally: **any contract field you cannot fill goes to null with a one-line note in `match_note` — never
+spend a round chasing a single field, and never withhold a recommendation over one.** (Measured failure:
+a case deliberating over `sample_role` produced 40k characters of reasoning, hit the token ceiling, and
+returned an empty answer after 200s.) For paired/grouped analyses, attach `alternatives[]`
 under `data` (other viable cohorts: `study_accession` / `label` / `sample_roles` stats / `role_resolved` /
 `selected`, sourced likewise from `resolve_sample_roles` and cohort queries). Execution parameters are
 transcribed only from `validate_execution_chain`'s `execution_params` / `submittable` — never assemble
@@ -415,6 +481,29 @@ warn explicitly that contract validation was skipped.
 Measured on the connected graph. Tool/cohort matching should start here, not with exploratory queries.
 
 ### 12.1 Tool catalog snapshot (51)
+
+Several pipelines differ by exactly one discriminating detail; the full descriptions below carry it,
+so read to the end of the row rather than matching on the opening clause. The families that actually
+get confused in practice:
+
+- `diff_expr_go` (GO functional enrichment) vs `diff_expr_kegg` (pathway / Reactome enrichment) — both
+  are limma two-group DE on an expression matrix alone; the enrichment target is the only difference.
+- `gsea_pathway_enrichment` does **not** pre-select DEGs (pre-ranked GSEA over all genes), and
+  `deg_enrichment` / `de_enrichment` are for when the user **explicitly supplies sample metadata and a
+  clinical table**, or asks for survival association. Phrasing like "case group vs control group" does
+  *not* select them — every DE pipeline groups samples; that is not a discriminator.
+  Neither is the answer to a plain "find DEGs, then enrich them" request.
+- `survival_analysis` stratifies by a **named gene's mutation status** (MAF) and `tmb_survival_analysis`
+  by **TMB median**. Grouping by a gene's **expression level** is `her2_pfs_survival` — it is the
+  default for that whole shape, whatever the gene (HER2/ERBB2 is only its default, not its scope).
+  `km_survival` and `cox_model` are generalised variants: pick them only when the user explicitly asks
+  for overall survival or multivariate Cox modelling rather than expression-stratified PFS.
+- `rnaseq_unsupervised_cluster` is the end-to-end chain from counts; `preprocess_counts`,
+  `hvg_pca_gmm` and `bootstrap_stability` are single steps carved out of it and take logCPM.
+- `wgcna` is the full co-expression chain and **the default for any co-expression / hub-gene request** —
+  asking for "stable modules" or "related pathways" does not move you off it. `wgcna_hub` applies only
+  when the user wants grouping parsed automatically from raw CNCB metadata; `wgcna_module_trait` only
+  when they explicitly want survival analysis layered on top of the co-expression network.
 
 | tool | function | modal | inputs | outputs |
 |---|---|---|---|---|

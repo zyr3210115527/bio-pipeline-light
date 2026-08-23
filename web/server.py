@@ -61,6 +61,15 @@ MAX_ROUNDS = 15              # 工具调用轮数上限（手册纪律约 5-8 �
 MODEL_RESULT_LIMIT = 30000   # 喂回模型的工具结果截断长度
 GEMINI_TIMEOUT = 300         # 单次流式读超时（thinking 可能持续几十秒）
 
+# 墙钟只由模型轮数决定（工具执行全部 <0.5s，端点每轮 8-20s）。以下三个预算把
+# 「反复补查 → 反复校验」的长尾结构性封死，超预算即用 tool_choice 硬制终答。
+QUERY_ROUND_BUDGET = int(os.environ.get("QUERY_ROUND_BUDGET", "3"))  # 允许的取数轮数
+MAX_REPAIRS = int(os.environ.get("MAX_REPAIRS", "1"))                # 接地失败后的修正轮上限
+DUP_CALL_LIMIT = int(os.environ.get("DUP_CALL_LIMIT", "2"))          # 重复调用次数达此值即制终答
+# 取数类工具（计入取数轮预算）；校验类不计
+QUERY_TOOLS = {"read_cypher", "read_cypher_batch", "get_study_overview",
+               "resolve_sample_roles", "health_check"}
+
 
 # ---------- MCP stdio 客户端（newline-delimited JSON-RPC，全局长驻一个进程） ----------
 class McpClient:
@@ -190,10 +199,28 @@ def load_system_prompt():
         "\n\n【最终输出契约——最高优先级，覆盖一切】你的最后一条消息必须且只能是一个"
         " tool-chain/v2 JSON 对象（或 rejected 单对象）：不要散文、不要 markdown 围栏、"
         "不要任何前后解释文字，也不要包进数组 []。回答数据分布/清单类问题也用 JSON（selection_status 可为 "
-        "information），绝不用散文列表作答。输出前调一次 validate_plan 自检（rejected 除外）。\n"
+        "information），绝不用散文列表作答。\n"
+        "【接地校验由服务端自动执行】本会话**不提供** validate_plan 工具，也不要等它："
+        "你输出最终 JSON 后，服务端会自动对它跑接地校验；若 grounded=false，会把 violations "
+        "回传给你修正。所以证据够了就**直接输出最终 JSON**，把校验交给服务端。\n"
+        "【只写判断性内容，样板交给服务端】服务端在你输出后会自动补全所有「图谱/闭集本来就知道」"
+        "的字段，你**不要生成**它们（写了也会被图内事实覆盖，纯属浪费时间）：\n"
+        "  · tool 块只写 `tool_id`——catalog_id/tool_kind/name/description/inputs/outputs 全部省略；\n"
+        "  · asset 只写 `file_name` 与 `match_reason`——file_path/format/file_format/data_level/"
+        "strategy/study_accession/sample_accession/run_accession/specimen_type/read_pair 全部省略"
+        "（**尤其不要凭记忆写 file_path**，以图内记录为准）；\n"
+        "  · candidates 的 tool_chain 每步只写 `tool_id`（槽位由 Knowledge Card 补）；\n"
+        "  · match_id / rank / source / reference_case_id / recommendation_count / candidate_count /"
+        " planner_metadata / data_matcher_mode / mcp_timing_ms 一律**不要写**（timing 是服务端运行事实，"
+        "编造即错）。\n"
+        "  必须由你给出的只有：schema_version、selection_status、intent、每条 recommendation 的"
+        " pipeline_id / match_note / data.assets[].file_name+match_reason、candidates 的 tool_chain 顺序。\n"
+        f"【取数预算 {QUERY_ROUND_BUDGET} 轮】取数最多 {QUERY_ROUND_BUDGET} 轮"
+        "（每轮可并行多个调用 / read_cypher_batch 一次 8 条，把互不依赖的查询全打包进同一轮）；"
+        "超预算后系统会强制你直接输出。手册 §8 快照表已含 51 工具的 in→out 与 20 队列画像，"
+        "工具匹配/选队列**直接用快照，不要查证**；查询只花在文件级明细（file_name/file_path）。\n"
         "【速度纪律】每轮只保留必要思考（一两句话）；不复述手册或工具返回；工具结果到手即用、"
-        "不重复调用；validate_plan 只在最终输出前调一次，探索中途不校验草稿；"
-        "证据足够立即输出，不追求额外确认。\n")
+        "不重复调用；证据足够立即输出，不追求额外确认。\n")
     return prompt
 
 
@@ -240,6 +267,191 @@ class _RoundBroken(Exception):
     """本轮流不可用（如 tool 参数 JSON 被掐断）：回滚本轮文本后重试。"""
 
 
+def _extract_json_obj(text):
+    """从终答文本里剥出那个 JSON 对象：裸对象 / ```json 围栏 / 前后裹散文 / 单元素数组。
+    解析不出对象时返回 None。"""
+    t = (text or "").strip()
+    if not t:
+        return None
+    for cand in (t, ):
+        try:
+            v = json.loads(cand)
+            if isinstance(v, dict):
+                return v
+            if isinstance(v, list) and len(v) == 1 and isinstance(v[0], dict):
+                return v[0]   # 契约要裸对象：单元素数组自动拆封
+        except Exception:
+            pass
+    mm = re.search(r"```(?:json)?\s*(.+?)\s*```", t, re.S)
+    if mm:
+        return _extract_json_obj(mm.group(1))
+    # 前后裹散文：取第一个 { 到与之配对的 }
+    start = t.find("{")
+    if start < 0:
+        return None
+    depth, in_str, esc = 0, False, False
+    prefix = None
+    for i in range(start, len(t)):
+        ch = t[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                try:
+                    return json.loads(t[start:i + 1])
+                except Exception:
+                    prefix = t[start:i + 1]
+                    break   # 括号配平但解析失败 → 交给下面的机械修补
+    # 先修整段（多出的收尾符会让上面的扫描在中途就配平，只修前缀会丢内容），修不成再退回前缀
+    return _json_syntax_repair(t[start:]) or (_json_syntax_repair(prefix) if prefix else None)
+
+
+def _salvage_json(t):
+    """从一段自由文本里捞出**最后**一个完整的契约对象。
+
+    用在「终答被整份写进 reasoning_content、content 一个字没吐」的场合（实测 96 例里
+    c29/c36 两例）。推理段里散落着大量半截 JSON，所以按契约首字段 schema_version /
+    status 锚定，并取最后一个配平成功的——那才是模型想清楚之后的结论。
+    判定要卡死在契约上：`data` 块里的 `"status": "available"` 同样能被锚中并解析成
+    一个合法 dict，认它就等于把半个 data 块当终答交出去。"""
+    best = None
+    for m in re.finditer(r'\{\s*"(?:schema_version|status)"', t or ""):
+        obj = _extract_json_obj(t[m.start():])
+        if not isinstance(obj, dict):
+            continue
+        if obj.get("schema_version") == "tool-chain/v2" or \
+                (obj.get("status") == "rejected" and obj.get("reason")):
+            best = obj
+    return best
+
+
+# 端点偶发把 function call 当普通文本吐出来：DSML 标记原样出现在 content 里，
+# 本轮既没有 tool_calls 也没有合法终答。全角 ｜ 不稳定，只锚定 ASCII 部分。
+_DSML_INVOKE = re.compile(r'invoke name="([A-Za-z0-9_]+)"(.*?)(?:</[^<>]*invoke>|\Z)', re.S)
+_DSML_PARAM = re.compile(r'parameter name="([A-Za-z0-9_]+)"[^<>]*>(.*?)(?:</[^<>]*parameter>|\Z)',
+                         re.S)
+
+
+def _parse_leaked_tool_calls(text):
+    """把泄漏成文本的 DSML 工具调用解析回真正的调用，返回 [] 表示没泄漏。
+
+    不修的话代价是双份的：这一轮空烧，下一轮模型还会被服务端「你的 JSON 语法有误」
+    的提示带偏（实测 c86 因此直接交了空答案）。"""
+    if "tool_calls>" not in text or 'invoke name="' not in text:
+        return []
+    calls = []
+    for i, m in enumerate(_DSML_INVOKE.finditer(text)):
+        args = {k: v.strip() for k, v in _DSML_PARAM.findall(m.group(2))}
+        if args:
+            calls.append({"id": f"leaked_{i}", "name": m.group(1), "args": args})
+    return calls
+
+
+def _json_syntax_repair(frag):
+    """模型偶发写出语法坏掉的 JSON（实测：`[],,"k"` 双逗号、多出的收尾 `}`）。
+    这里只做**不改语义**的机械修补，修不好返回 None（由调用方回抛给模型重出）。"""
+    s = (frag or "").strip()
+    if not s:
+        return None
+    # 1) 逗号病：`,,` / `,}` / `,]`（只在字符串外算）
+    out, in_str, esc = [], False, False
+    for ch in s:
+        if in_str:
+            out.append(ch)
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == ",":
+            if out and out[-1] == ",":       # 连续逗号：吞掉
+                continue
+        elif ch in "}]" and out and out[-1] == ",":
+            out.pop()                        # 尾随逗号
+        out.append(ch)
+    s = "".join(out)
+    # 2) 括号数量对不上：多余收尾符丢弃、缺的补齐；
+    #    另一种实测怪相是整篇引号翻倍（`""key""：""v""`，CSV 式转义），整体折半即可还原
+    cands = [s, _rebalance(s)]
+    if s.count('""') >= 4:
+        halved = s.replace('""', '"')
+        cands += [halved, _rebalance(halved)]
+    for cand in cands:
+        try:
+            v = json.loads(cand)
+            if isinstance(v, dict):
+                return v
+        except Exception:
+            pass
+    return None
+
+
+def _rebalance(s):
+    """括号兜底：与栈顶不配的收尾符丢弃，收尾不足的按栈补齐。"""
+    keep, stack, in_str, esc = [], [], False, False
+    for ch in s:
+        if in_str:
+            keep.append(ch)
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch in "{[":
+            stack.append("}" if ch == "{" else "]")
+        elif ch in "}]":
+            if not stack or stack[-1] != ch:
+                continue                     # 多余/错配的收尾符：丢弃
+            stack.pop()
+        keep.append(ch)
+    return "".join(keep) + "".join(reversed(stack))
+
+
+def _repair_hint(violations):
+    """把 validate_plan 的 violations 翻成一句可直接执行的修法。
+
+    只给一次修正轮，所以提示必须具体到「改哪个字段、改成什么」——轨迹里最常见的
+    `recommendations 为空`（信息型回答）曾在通用提示下连续两轮不收敛。"""
+    v = " ".join(str(x) for x in violations)
+    hints = []
+    if "recommendations 为空" in v:
+        hints.append("要么把 selection_status 改成 information/unsupported/no_candidate"
+                     "（信息型、需求超出闭集、图内查无——这三种状态允许 recommendations 为空），"
+                     "要么从手册 §8.1 闭集目录里选语义最贴近的 pipeline 补一条 rank1 推荐。")
+    if "不在闭集目录" in v or "非闭集 atomic" in v:
+        hints.append("pipeline_id/tool_id 必须逐字取自手册 §8.1 的 51 个工具名（不能为 null、"
+                     "不能自造），atomic 链只能用 §3 的 11 个可编排 atomic。")
+    if "图内不存在" in v or "file_path 与图内记录不符" in v:
+        hints.append("assets 只保留本会话查询结果里逐字出现过的 file_name/file_path，"
+                     "查不到的直接删掉并把 data.status 标 missing_from_graph。")
+    if "schema_version" in v:
+        hints.append("补上 \"schema_version\":\"tool-chain/v2\"。")
+    if "data.assets 为空" in v:
+        hints.append("查一条 Cypher 把该流程要的文件挑出来（按 semantic_format 过滤、"
+                     "`ORDER BY n.file_name` 取最靠前的一份，配对测序取 f1/r2 一对），"
+                     "填进 assets；临床表与元信息表不用你写，服务端会补。")
+    return ("".join(hints) + " ") if hints else ""
+
+
 class AgentRunner:
     """一次用户提问的完整 agent 循环，事件通过 emit(dict) 实时推给前端。
     支持两家 LLM：gemini（contents/parts/functionCall/thoughtSignature）与
@@ -264,20 +476,21 @@ class AgentRunner:
 
         empty_retries = 0
         committed_text = 0  # 已提交（之前轮次）的文本长度；本轮流被掐断时回滚到这儿
-        nudged = False
+        self.query_rounds = 0     # 已消耗的取数轮数
+        self.repairs = 0          # 接地失败后的修正轮数
+        self.syntax_repairs = 0   # JSON 语法坏掉后的重出轮数（与接地修正各自计数）
+        self.force_final = False  # True → 本轮 tool_choice=none，模型只能出终答
+        self.seen_calls = {}      # 调用签名 -> 结果（抑制重复查询）
+        self.dup_hits = 0
         for rnd in range(1, MAX_ROUNDS + 1):
-            if rnd == 6 and not nudged:
-                # 轮数预算告警（与手册 §6 的 6 轮查询硬上限对齐）：防多轮空转
-                nudged = True
-                hist.append(self._user_entry(
-                    "【系统】查询轮数已达硬上限。停止继续查询，下一轮直接用已有证据输出最终 JSON"
-                    "（证据不足就如实 unsupported / missing_from_graph，并在 match_note 说明）。"))
             try:
-                thought_text, answer_text, calls, finish_reason, raw = self._stream_round(hist)
+                thought_text, answer_text, calls, finish_reason, raw = self._stream_round(
+                    hist, tool_choice=("none" if self.force_final else "auto"))
             except _RoundBroken:
                 answer_text, calls, finish_reason, raw = "", [], None, None
             print(f"[web] round {rnd}: calls={len(calls)} text={len(answer_text)} "
-                  f"thought={len(thought_text)} finish={finish_reason}", file=sys.stderr)
+                  f"thought={len(thought_text)} finish={finish_reason} "
+                  f"qrounds={self.query_rounds} forced={self.force_final}", file=sys.stderr)
 
             def _truncated_json(t):
                 """契约答案是单个 JSON；以 { 开头却解析不了 → 流被中途掐断。"""
@@ -304,7 +517,35 @@ class AgentRunner:
                            "message": "模型流多次被中断（finishReason 缺失），请重试"})
                 return
             empty_retries = 0
+            if not calls and answer_text:
+                # 工具调用泄漏成文本：解析回真正的调用，并把这段标记从文本里抹掉，
+                # 免得它被当成终答再触发一轮「JSON 语法有误」的无效修补
+                leaked = _parse_leaked_tool_calls(answer_text)
+                if leaked:
+                    calls = leaked
+                    answer_text = ""
+                    self.emit({"type": "text_reset", "keep": committed_text})
+                    print(f"[web] round {rnd}: 工具调用泄漏成文本，已解析回 "
+                          f"{[c['name'] for c in leaked]}", file=sys.stderr)
+            if not calls and not answer_text.strip() and thought_text:
+                # 模型把整份终答写进了 reasoning_content，content 一个字没吐。
+                # 推理段里那个配平的契约对象就是它的结论，捞出来当终答，省一整轮重出。
+                salv = _salvage_json(thought_text)
+                if salv is not None:
+                    answer_text = json.dumps(salv, ensure_ascii=False, separators=(",", ":"))
+                    print(f"[web] round {rnd}: 终答只出现在 reasoning 段，已捞回",
+                          file=sys.stderr)
             if calls:
+                # 拒绝判定是终局：模型偶发「先吐 rejected 对象、同一轮又顺手查一把图」
+                # （实测 q12/q13 查 count(n) 纯属多余，白烧一轮且把 JSON 留在流里污染终答）。
+                # 这种情况直接按终答收，忽略后面的调用。
+                early = _extract_json_obj(answer_text)
+                if isinstance(early, dict) and early.get("status") == "rejected" \
+                        and early.get("reason"):
+                    clean, _ = self._finalize(hist, answer_text, committed_text)
+                    self._append_final(hist, clean, raw)
+                    self.emit({"type": "done", "rounds": rnd, "finishReason": finish_reason})
+                    return
                 # 模型请求调工具：助手条目先入历史，逐个执行，结果再入历史
                 self._append_assistant(hist, answer_text, calls, raw)
                 entries = [self._call_tool(c) for c in calls]
@@ -313,12 +554,109 @@ class AgentRunner:
                 else:
                     hist.extend(entries)
                 committed_text += len(answer_text)
+                if any(c["name"] in QUERY_TOOLS for c in calls):
+                    self.query_rounds += 1
+                self._apply_budget(hist)
                 continue
-            # 终答
-            self._append_final(hist, answer_text, raw)
+            # 终答：服务端自动接地校验（省掉模型自己调 validate_plan 的一整轮）
+            clean, verdict = self._finalize(hist, answer_text, committed_text)
+            if verdict == "repair":
+                continue
+            self._append_final(hist, clean, raw)
             self.emit({"type": "done", "rounds": rnd, "finishReason": finish_reason})
             return
         self.emit({"type": "error", "message": f"超过 {MAX_ROUNDS} 轮工具调用仍未给出最终答案"})
+
+    # ---------- 收敛预算：取数轮/重复调用用尽即硬制终答 ----------
+    def _apply_budget(self, hist):
+        if self.force_final:
+            return
+        why = None
+        if self.query_rounds >= QUERY_ROUND_BUDGET:
+            why = f"取数预算（{QUERY_ROUND_BUDGET} 轮）已用尽"
+        elif self.dup_hits >= DUP_CALL_LIMIT:
+            why = "检测到重复查询"
+        if why:
+            self.force_final = True
+            hist.append(self._user_entry(
+                f"【系统】{why}。停止一切查询，你的下一条消息必须就是最终 JSON 对象本身"
+                "（服务端会自动做接地校验）；证据不足的部分如实标 unsupported / "
+                "missing_from_graph，并在 match_note 说明。"))
+
+    # ---------- 终答处理：规范化 + 服务端接地校验 ----------
+    def _finalize(self, hist, answer_text, committed_text):
+        """返回 (最终文本, "done"|"repair")。
+
+        1) 规范化：模型偶发把 JSON 裹进散文/围栏，服务端剥出裸对象后重推前端（0 成本修格式）；
+        2) 补全：hydrate_plan 把「图谱/闭集本来就知道」的字段（工具描述、I/O 槽位、asset 的
+           file_path/format/data_level、原子链槽位、planner_metadata、mcp_timing_ms）由服务端
+           确定性填上——模型少生成一半 token（实测终答生成均 30.6s，其中约 52% 是样板），
+           且这些字段不再有被编造的机会；
+        3) 接地校验：服务端直接跑 validate_plan（<0.5s），grounded=false 时把 violations
+           回传给模型修正——把原本占一整轮模型延迟的自检搬到服务端。"""
+        obj = _extract_json_obj(answer_text)
+        if obj is None:
+            # 连机械修补都救不回来：花一轮让模型只重出 JSON，比直接交付一段解析不了的
+            # 文本划算（下游只认裸对象）。前提是这段文本**确实是在写 JSON**——文本里
+            # 连 `{` 都没有时说明模型压根没在出终答（实测 c86 是工具调用泄漏），
+            # 这时再喊「你的 JSON 语法有误」只会把它带偏，改成要它重出一份终答。
+            if self.syntax_repairs < MAX_REPAIRS and answer_text.strip():
+                self.syntax_repairs += 1
+                self.force_final = True
+                hist.append({"role": "assistant", "content": answer_text}
+                            if LLM_PROVIDER == "openai"
+                            else {"role": "model", "parts": [{"text": answer_text}]})
+                hist.append(self._user_entry(
+                    ("【系统】你刚才输出的 JSON 语法有误（括号/逗号不配对），无法解析。"
+                     "内容不用改，只把同一份结论**重新完整输出一遍合法 JSON 对象**："
+                     if "{" in answer_text else
+                     "【系统】你刚才没有输出最终答案。现在直接给出 tool-chain/v2 JSON 对象：") +
+                    "跳过思考，直接从 { 开始、到 } 结束，不要散文和围栏。"))
+                self.emit({"type": "text_reset", "keep": 0})
+                return answer_text, "repair"
+            return answer_text, "done"   # 修正预算已用尽：原样交付，不空转
+        hydrated = False
+        try:
+            hres = self.mcp.call("hydrate_plan", {"plan": obj})
+            if hres.get("status") == "ok" and isinstance(hres.get("plan"), dict):
+                obj = hres["plan"]
+                hydrated = bool(hres.get("filled"))
+        except Exception:
+            pass                          # 补全失败不影响交付，交给下面的校验兜底
+        clean = json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+        if clean != answer_text.strip() or committed_text:
+            # 整条流清空后只推这一份裸 JSON。keep=0 是关键：前面几轮如果漏出过文字
+            # （模型爱在工具轮里先写一段 JSON 再调工具），留着会和终答拼成两个对象、
+            # 整体解析失败。契约本来就只认最后一个对象，中途文字一律不算数。
+            self.emit({"type": "text_reset", "keep": 0})
+            self.emit({"type": "text", "delta": clean})
+            self.emit({"type": "normalized",
+                       "reason": "hydrated" if hydrated else "stripped_prose_or_fence"})
+
+        t0 = time.time()
+        try:
+            res = self.mcp.call("validate_plan", {"plan": obj})
+        except Exception as e:
+            res = {"status": "error", "detail": str(e)}
+        # 合成事件：前端 Plan 视图与回归脚本仍能看到接地结论（auto=服务端代跑）
+        self.emit({"type": "tool_call", "id": "auto_validate", "name": "validate_plan",
+                   "args": {"plan": "<final>"}, "auto": True})
+        self.emit({"type": "tool_result", "id": "auto_validate", "name": "validate_plan",
+                   "ok": res.get("status") != "error", "result": res, "auto": True,
+                   "duration_ms": int((time.time() - t0) * 1000)})
+        violations = res.get("violations") or []
+        if res.get("grounded") is False and violations and self.repairs < MAX_REPAIRS:
+            self.repairs += 1
+            self.force_final = True   # 修正轮只许出终答，不许再开查询长尾
+            hist.append({"role": "assistant", "content": clean} if LLM_PROVIDER == "openai"
+                        else {"role": "model", "parts": [{"text": clean}]})
+            hist.append(self._user_entry(
+                "【系统】服务端接地校验未通过：" + "；".join(str(v) for v in violations[:6]) + "。" +
+                _repair_hint(violations) +
+                "请用已有证据修正后，直接重新输出完整的最终 JSON 对象（只输出对象本身）。"))
+            self.emit({"type": "text_reset", "keep": 0})
+            return clean, "repair"
+        return clean, "done"
 
     # ---------- provider 分发：历史条目 ----------
     def _user_entry(self, text):
@@ -358,13 +696,13 @@ class AgentRunner:
         hist.append({"role": "model", "parts": [part]})
 
     # ---------- provider 分发：流式一轮 ----------
-    def _stream_round(self, hist):
+    def _stream_round(self, hist, tool_choice="auto"):
         """返回 (thought, text, calls[{id,name,args}], finish_reason, raw)。首个事件前失败静默重试。"""
         for attempt in range(1, 7):
             try:
                 if LLM_PROVIDER == "openai":
-                    return self._round_openai(hist)
-                return self._round_gemini(hist)
+                    return self._round_openai(hist, tool_choice)
+                return self._round_gemini(hist, tool_choice)
             except _RoundBroken:
                 raise
             except Exception as e:
@@ -373,11 +711,13 @@ class AgentRunner:
                     continue  # 代理偶发挂起/400，静默重试
                 raise RuntimeError(f"模型接口调用失败：{e}") from e
 
-    def _round_gemini(self, contents):
+    def _round_gemini(self, contents, tool_choice="auto"):
         payload = {
             "systemInstruction": {"parts": [{"text": self.system_prompt}]},
             "contents": contents,
             "tools": self.fc_tools,
+            "toolConfig": {"functionCallingConfig": {
+                "mode": "NONE" if tool_choice == "none" else "AUTO"}},
             "generationConfig": {"temperature": 0.2, "maxOutputTokens": 16384,
                                  "thinkingConfig": {"includeThoughts": True,
                                                     "thinkingBudget": 4096}},
@@ -404,10 +744,15 @@ class AgentRunner:
                   "args": p["functionCall"].get("args") or {}} for p in fc_parts]
         return "".join(thought_buf), "".join(text_buf), calls, finish_reason, (text_sig, fc_parts)
 
-    def _round_openai(self, messages):
+    def _round_openai(self, messages, tool_choice="none"):
         payload = {"model": OPENAI_MODEL,
                    "messages": [{"role": "system", "content": self.system_prompt}] + messages,
-                   "tools": self.fc_tools, "temperature": 0.2, "max_tokens": 16384, "stream": True,
+                   "temperature": 0.2, "max_tokens": 16384, "stream": True,
+                   # 逼终答时**整段抽掉 tools**，不只是 tool_choice="none"：实测该端点
+                   # 会无视 none 继续发调用（c01 在接地修正轮后又查了 6 轮、12 轮 92.6s）。
+                   # 工具 schema 不在请求里，模型就无从调起——这是结构性的，不靠模型自觉。
+                   **({"tools": self.fc_tools, "tool_choice": tool_choice}
+                      if tool_choice != "none" else {}),
                    # thinking 显式开关：开启时推理走 reasoning_content（content 更干净但慢 2-3 倍）；
                    # 关闭后由提示词末尾的输出契约保证格式。THINKING=off 可关。
                    **({"thinking": {"type": "enabled"}, "reasoning_effort": "low"}
@@ -449,17 +794,30 @@ class AgentRunner:
         return "".join(thought_buf), "".join(text_buf), calls, norm, None
 
     def _call_tool(self, call):
-        """执行一次 MCP 工具调用并推送事件，返回 provider 原生的工具结果历史条目。"""
+        """执行一次 MCP 工具调用并推送事件，返回 provider 原生的工具结果历史条目。
+        参数完全相同的重复调用直接走缓存并回一条「别再查」的指令——轨迹里这类空转
+        （同一批 format 查 3-4 遍）每次要烧掉一整轮模型延迟。"""
         name, args, call_id = call["name"], call["args"] or {}, call.get("id")
         self.emit({"type": "tool_call", "id": call_id, "name": name, "args": args})
+        sig = name + "|" + json.dumps(args, ensure_ascii=False, sort_keys=True)
         t0 = time.time()
-        try:
-            result = self.mcp.call(name, args)
-            ok = not (isinstance(result, dict) and "error" in result)
-        except Exception as e:
-            result, ok = {"error": str(e)}, False
+        cached = sig in self.seen_calls
+        if cached:
+            self.dup_hits += 1
+            result = dict(self.seen_calls[sig])
+            result["_note"] = ("重复调用：本次参数与此前完全相同，返回同一结果。"
+                               "不要再重复查询，用现有证据直接输出最终 JSON。")
+            ok = True
+        else:
+            try:
+                result = self.mcp.call(name, args)
+                ok = not (isinstance(result, dict) and "error" in result)
+            except Exception as e:
+                result, ok = {"error": str(e)}, False
+            if ok and isinstance(result, dict):
+                self.seen_calls[sig] = result
         dur = int((time.time() - t0) * 1000)
-        self.emit({"type": "tool_result", "id": call_id, "name": name,
+        self.emit({"type": "tool_result", "id": call_id, "name": name, "cached": cached,
                    "ok": ok, "result": result, "duration_ms": dur})
         # 喂回模型：过长截断
         body = result if isinstance(result, dict) else {"result": result}
@@ -594,9 +952,14 @@ def main():
     print(f"[web] MCP 已连接，工具：{[t['name'] for t in tools]}", file=sys.stderr)
     server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     server.mcp = mcp
-    # 手册已内联进系统提示词：get_planning_guide 对 web 模型零调用（6 轮全量回归 96 次会话 0 次），
-    # 从模型可见工具列表滤掉省 tokens；MCP server 端保留（其他客户端没有内联手冊，仍靠它取手册）
-    model_tools = _slim_tools([t for t in tools if t["name"] != "get_planning_guide"])
+    # web 模型可见工具的两处过滤（MCP server 端一律保留，其他客户端不受影响）：
+    #  · get_planning_guide：手册已内联进系统提示词，web 会话零调用
+    #  · validate_plan：纯校验闸门、无信息产出，改由服务端在终答后自动跑——省掉模型
+    #    自己调它的一整轮（轨迹里它还常被连调 2-3 次，每次一轮模型延迟）
+    #    validate_atomic_chain 保留：它会返回 Knowledge Card 的 meta_id/槽位名，是信息源
+    #  · hydrate_plan：确定性补全，同样由服务端在终答后自动跑，模型无需感知
+    hidden = {"get_planning_guide", "validate_plan", "hydrate_plan"}
+    model_tools = _slim_tools([t for t in tools if t["name"] not in hidden])
     server.fc_tools = (mcp_tools_to_gemini if LLM_PROVIDER == "gemini" else mcp_tools_to_openai)(model_tools)
     server.system_prompt = load_system_prompt()
     print(f"[web] Bio Pipeline Light Web 已启动: http://127.0.0.1:{PORT} "
