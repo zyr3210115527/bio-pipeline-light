@@ -165,11 +165,15 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `wgcna_hub` | wgcna 变体，**只在用户要求从 CNCB 原始元数据自动解析分组时选** | Clinical,bulk_RNA | METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA |
 | `wgcna_module_trait` | wgcna 变体，**只在用户明确要在共表达之上再做生存分析时选**（只要富集不够） | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,METADATA_SAMPLE_INFO,TABULAR_BIO_DATA |
 
-### 8.2 队列快照（20；样本数以 sample 节点数为准，sample_count 属性有 6 队列为 null）
+### 8.2 队列快照（20；**样本数一律以 sample 节点数为准**，下表第三列即是）
+
+`sample_count` 属性不可信：6 个队列为 null（HRA000073/HRA000087/HRA002693/HRA006117/
+HRA007413/HRA016026），另有 2 个数值是错的（HRA000074 写 572 实为 693、HRA006499 写 482
+实为 523）。要样本数就 `count` sample 节点，别读这个属性。
 
 | study_accession | tumor_type | sample nodes |
 |---|---|---|
-| HRA000001 | Natural | 557 |
+| HRA000001 | *(null；study_type = Healthy Study，健康对照队列)* | 557 |
 | HRA000021 | esophageal cancer | 1016 |
 | HRA000071 | malignant glioma | 572 |
 | HRA000073 | malignant glioma | 325 |
@@ -198,13 +202,87 @@ WES/MAF 在 HRA007169。**胶质瘤同理按数据类型分**：表达在 HRA000
 **MAF 只有 HRA000071 有（全队列就 1 份 `HRA000071-SomaticSNV-1.0.maf`）**——
 HRA000073/74 一个 MAF 都没有，问胶质瘤突变景观/Oncoplot 一律 HRA000071，不许判 `no_candidate`。
 **全图带 MAF 的队列只有 7 个**：HRA000873、HRA016026、HRA001272、HRA006499、HRA001749、
-HRA007169、HRA000071（最后一个只有队列级汇总，其余还各带逐 run 的 `HRR*.maf`）。**单细胞（10x/CellRanger）只有 HRA001748（571）、HRA000087、HRA005191**。
+HRA007169、HRA000071（最后一个只有队列级汇总，其余还各带逐 run 的 `HRR*.maf`）。
+
+**单细胞队列直接认这三个，别用 `strategy` 去筛**：**HRA001748**（10x，肝癌，320 个配对
+FASTQ，形如 `HRR572934_f1.fq.gz`/`_r2.fq.gz`——10x/CellRanger 类问题的默认队列）、
+HRA000087（Smart-seq2，鼻咽癌，样本级标了 sc-RNA 但**没有 sc-RNA 文件**）、
+HRA005191（NSCLC，484 个文件是全图仅有的 `strategy='sc-RNA'`）。
+**0821 交付把 HRA001748 和 HRA000087 的 strategy 误标成了 `bulk_RNA`**——但 HRA001748 的
+study 标题就是 `DAC for scPLC_A160`、描述是 `scRNA-seq of liver cancer`，HRA000087 的描述是
+`Single-cell transcriptomic analysis ... nasopharyngeal carcinoma`，两者都确凿是单细胞。
+所以 `t.strategy='sc-RNA'` 只捞得到 HRA005191，**拿它筛单细胞会漏掉真正的 10x 队列**；
+判单细胞看 study 的 title/description 里有没有 `scRNA`/`Single-cell`，或直接用上面这张表。
+
 **`RAW_SINGLE_END_FASTQ` 全图 0 个文件**——`cellranger_workflow` 虽声明要它，10x 原始下机数据
-在图里一律存成 `RAW_PAIRED_END_R1_FASTQ`/`R2`（HRA001748 320 个、HRA000087 96 个，
-形如 `HRR572934_f1.fq.gz`/`_r2.fq.gz`）。**按流程声明的输入格式去查会查空，不许据此判
-`no_candidate`**：单细胞原始数据一律按 `t.strategy='sc-RNA'` + 配对 FASTQ 语义格式取。
+在图里一律存成 `RAW_PAIRED_END_R1_FASTQ`/`R2`。**按流程声明的输入格式去查会查空，不许据此判
+`no_candidate`**：单细胞原始数据按队列号 + 配对 FASTQ 语义格式取。
+
+**`sample.strategy` 是分号多值且顺序不定**（`WES;bulk_RNA` 与 `bulk_RNA;WES` 两种写法并存，
+单细胞样本写作 `bulk_RNA;sc-RNA`）——**一律用 `CONTAINS` 不许用 `=`**，用等号会把 242 个
+HRA005191 单细胞样本整片漏掉。T1/T2 的 `strategy` 才是单值（只有 bulk_RNA/WES/WGS/sc-RNA/
+Clinical/Meta 六种，0821 起 WXS 已并入 WES，Targeted-Capture/TCR-Seq/Unknow 已取消）。
+
 **再按该队列有没有你要的语义格式复核一遍**——HRA000073/74 只有 RNA，
 拿它做 MAF 分析会落空。
+
+### 8.3 加工产物快照（T2；**这张表就是答案，别再开轮次去发现它**）
+
+**T1 只有原始下机数据**：`RAW_PAIRED_END_R1_FASTQ`/`R2` 各 14092 个，外加每队列一份
+`CLINICAL_DATA_EXCEL`/`METADATA_SAMPLE_INFO`（各 19 个）——**T1 里没有任何 BAM/VCF/MAF/矩阵**。
+一切比对、变异、定量的成品都在 **T2**。查 BAM 却写 `MATCH (t:T1)` 必然 0 行，别据此判
+`no_candidate`。
+
+**T2 的 `format` 是小写扩展名**（`bam` 9465、`vcf.gz` 7291、`bai` 6177、`gz.tbi` 5788、
+`maf` 2355、`vcf` 1301、`tab` 430、`h5` 403），**`semantic_format` 才是语义名（全大写）**。
+`WHERE t.format CONTAINS 'BAM'` 这种大写匹配小写扩展名的写法永远查空——要语义就查
+`semantic_format`，要扩展名就用小写。
+
+| T2 semantic_format | 数量 | 队列分布（file_name 形如） |
+|---|---|---|
+| `DNA_VARIANT_VCF_GENERAL` | 8310 | HRA000873(3045)、HRA001272(1909)、HRA016026(1050)、HRA006499(1014)、HRA000071(572)、HRA007169(380)、HRA001749(336) |
+| `DNA_ALIGNMENT_BQSR_BAM` | 6177 | HRA000873(2030)、HRA000021(1016)、HRA006499(763)、HRA001272(750)、HRA016026(700)、HRA000071(572)、HRA001749(178)、HRA007169(168) |
+| `DNA_ALIGNMENT_INDEX_BAI` | 6177 | 同上，配套索引 |
+| `DNA_VARIANT_INDEX_TBI` | 5788 | 同 VCF，配套索引 |
+| `RNA_TRANSCRIPTOME_ALIGNMENT_BAM` | 3288 | HRA000074(693)、HRA006117(570)、HRA002693(442)、HRA001272(430)、HRA007167(391)、HRA000073(325)、HRA003107(310)、HRA000122(124)（`HRR025534Aligned.sortedByCoord.out.bam`） |
+| `MUTATION_ANNOTATION_FORMAT_MAF` | 2355 | 见上文 7 队列白名单 |
+| `TABULAR_BIO_DATA` | 592 | 表达矩阵（含 `Genes` 的 9 队列各 3 份：FPKM/TPM/counts） |
+| `RNA_SPLICEJUNCTION_TAB` | 430 | **只有 HRA001272**（`HRR1402797SJ.out.tab`，STAR 剪接位点） |
+| `SCRNA_MATRIX_H5` | 403 | HRA005191(243)、HRA001748(160) —— 单细胞现成矩阵 |
+| `DNA_SOMATIC_SV_VCF` | 286 | 结构变异 |
+| `SOMATIC_CNV_TSV` | 4 | 拷贝数 |
+
+**可变剪接**：rMATS 类分析要 RNA 比对 BAM，取 `RNA_TRANSCRIPTOME_ALIGNMENT_BAM`（上表第 5 行）；
+`RNA_SPLICEJUNCTION_TAB` 是 STAR 已算好的剪接位点，只有 HRA001272 有。
+
+### 8.4 sample 上这几个字段 0821 起不可信（**别拿它们做筛选条件**）
+
+0821 交付把一批**研究级别的默认值覆盖到了样本级别的事实**上。坏值不是空、也不是乱码——每格都
+填满了、单看都合理，所以查回来不会报错，只会静默选错样本。以下四条一律照办：
+
+1. **`tumor_descriptor` 不能用来分原发/转移/复发。** 全库只剩 `Primary` 8551、`Metastasis` 12、
+   空 1902——`Metastatic`(旧 210) 和 `Recurrent`(旧 407) 被整片压平成 `Primary`，另有 **1470 个
+   `tissue_type='Normal'` 的样本也被标了 `Primary`**（正常血样写"原发肿瘤"，自相矛盾）。
+   要分原发/转移/复发**看 `sample_name` 后缀**，HRA001272 的编码是：`PT`原发 143、`NC`癌旁对照 85、
+   `LM`肺转移 65、`PM`腹膜转移 31、`RT`复发 28、`BM`骨转移 20、`AGM`肾上腺转移 19、`LNM`淋巴结转移 19、
+   `BRM`脑转移 5、`KM`肾转移 2（形如 `M019_LM1_S2010-10889_2`）。
+
+2. **`biospecimen_anatomic_site` 是研究级原发部位，不是该样本的取材部位。** HRA001272 全部 698 个
+   样本都写成 `Liver And Intrahepatic Bile Ducts`，而样本名摆明有 10 种转移灶（见上）。
+   **拿它筛转移部位必然全错**；HRA006499 同样被压成单值。
+
+3. **`gender` 大小写不统一**：`Male` 6474 / `Female` 3931 / `male` 56 / `female` 3 / 字面量
+   `missing` 1。**一律 `toLower(s.gender)` 比较**，用 `= 'Male'` 会漏 56 个样本。
+
+4. **`specimen_type` 各队列口径不一**：癌旁 `Peritumoral` 只在 **HRA000021**（508）保留，
+   HRA001272/HRA003107/HRA001749/HRA007169/HRA001748/HRA006499 的 525 个癌旁样本被并进了
+   `Patient_Solid_Tissue`。另有新的分号多值 `Organoid;Patient_Solid_Tissue`（486）——**用
+   `CONTAINS` 不许用 `=`**。好消息：这 525 个的 `tissue_type` 仍是 `Normal`，**配对分析照常走
+   `tissue_type`，不受影响**。
+
+`tissue_type` 本身也有 829 个样本为空（却带着 `tumor_descriptor`），判存在用 `IS NOT NULL`。
+反过来，**HRA000071 的 `tissue_type` 0821 修对了**：`Blood`/`Normal` 286 + `Patient_Solid_Tissue`/
+`Tumor` 286，与样本名 `B_`/`T_` 前缀各 286 完全自洽（旧数据是错的），该队列可直接信任。
 
 ## 9. 输出契约（硬性规则，违反即任务失败）
 

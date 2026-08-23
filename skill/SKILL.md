@@ -377,15 +377,29 @@ mutation-landscape / Oncoplot request resolves to HRA000071 and must **not** be 
 HRA006499, HRA001749, HRA007169 and HRA000071 (the last one cohort-level only; the others also
 carry per-run `HRR*.maf`).
 
-Single-cell (10x / CellRanger) exists in only three cohorts —
-**HRA001748** (571 files), HRA000087, HRA005191.
+Three cohorts carry single-cell data, and you should **name them directly rather than filter on
+`strategy`**: **HRA001748** (10x, liver cancer, 320 paired FASTQ files named like
+`HRR572934_f1.fq.gz` / `HRR572934_r2.fq.gz` — the default cohort for any 10x / CellRanger request),
+HRA000087 (Smart-seq2, nasopharyngeal carcinoma; its *samples* are tagged sc-RNA but it holds **no
+sc-RNA files**), and HRA005191 (NSCLC, whose 484 files are the only `strategy = 'sc-RNA'` files in the
+graph). The 0821 delivery **mislabelled HRA001748 and HRA000087 as `bulk_RNA`**, contradicting their
+own metadata: HRA001748's study title is `DAC for scPLC_A160` with description `scRNA-seq of liver
+cancer`, and HRA000087's reads `Single-cell transcriptomic analysis ... nasopharyngeal carcinoma`.
+Both are unambiguously single-cell. Consequently `t.strategy = 'sc-RNA'` returns HRA005191 alone and
+**silently misses the real 10x cohort** — decide single-cell from the study title / description
+(`scRNA`, `Single-cell`), or just use the three names above.
 
 **`RAW_SINGLE_END_FASTQ` matches zero files in the whole graph.** `cellranger_workflow` declares it
 as an input, but 10x raw reads are stored as ordinary paired-end FASTQ — `RAW_PAIRED_END_R1_FASTQ` /
-`RAW_PAIRED_END_R2_FASTQ` (320 files in HRA001748, 96 in HRA000087), named like
-`HRR572934_f1.fq.gz` / `HRR572934_r2.fq.gz`. So filtering by a pipeline's *declared* input format
-comes back empty and **must not be read as `no_candidate`** — for single-cell raw data, select on
-`t.strategy = 'sc-RNA'` plus the paired-end FASTQ semantic formats instead.
+`RAW_PAIRED_END_R2_FASTQ`. So filtering by a pipeline's *declared* input format comes back empty and
+**must not be read as `no_candidate`** — select single-cell raw data by cohort accession plus the
+paired-end FASTQ semantic formats.
+
+**`sample.strategy` is semicolon-multi-valued with unstable ordering** (`WES;bulk_RNA` and
+`bulk_RNA;WES` both occur; single-cell samples read `bulk_RNA;sc-RNA`) — always match it with
+`CONTAINS`, never `=`, or you drop all 242 HRA005191 single-cell samples at once. Only T1/T2 carry a
+single-valued `strategy`, drawn from six values: bulk_RNA, WES, WGS, sc-RNA, Clinical, Meta. As of the
+0821 delivery WXS has been folded into WES, and Targeted-Capture / TCR-Seq / Unknow are gone.
 
 Always re-check that the chosen cohort actually
 carries the semantic format you need — HRA000073/74 are RNA-only, so a MAF analysis against them
@@ -585,7 +599,7 @@ get confused in practice:
 
 | study_accession | tumor_type | sample_count(prop) | sample nodes |
 |---|---|---|---|
-| HRA000001 | Natural | 557 | 557 |
+| HRA000001 | *(null; study_type = Healthy Study)* | 557 | 557 |
 | HRA000021 | esophageal cancer | 1016 | 1016 |
 | HRA000071 | malignant glioma | 572 | 572 |
 | HRA000073 | malignant glioma | null | 325 |
@@ -601,7 +615,73 @@ get confused in practice:
 | HRA005191 | non-small cell lung carcinoma | 243 | 243 |
 | HRA006117 | acute myeloid leukemia | null | 835 |
 | HRA006499 | liver cancer | 482 | 523 |
-| HRA007167 | melanoma | 168 | 81 |
-| HRA007169 | melanoma | 81 | 168 |
+| HRA007167 | melanoma | 81 | 81 |
+| HRA007169 | melanoma | 168 | 168 |
 | HRA007413 | acute myeloid leukemia | null | 373 |
 | HRA016026 | lung cancer | null | 700 |
+
+### 12.3 Derived-data snapshot (T2 — this table *is* the answer; do not spend rounds rediscovering it)
+
+**T1 holds raw reads only**: `RAW_PAIRED_END_R1_FASTQ` / `R2`, 14092 files each, plus one
+`CLINICAL_DATA_EXCEL` and one `METADATA_SAMPLE_INFO` per cohort (19 each). **There is no BAM, VCF,
+MAF or matrix anywhere in T1.** Every alignment, variant-calling and quantification product lives in
+**T2**. A BAM query written as `MATCH (t:T1)` returns zero rows by construction — never read that as
+`no_candidate`.
+
+**On T2, `format` is a lower-case file extension** (`bam` 9465, `vcf.gz` 7291, `bai` 6177,
+`gz.tbi` 5788, `maf` 2355, `vcf` 1301, `tab` 430, `h5` 403) **while `semantic_format` carries the
+upper-case semantic name.** So `WHERE t.format CONTAINS 'BAM'` can never match — query
+`semantic_format` for semantics, and lower-case for extensions.
+
+| T2 semantic_format | count | cohorts (example file_name) |
+|---|---|---|
+| `DNA_VARIANT_VCF_GENERAL` | 8310 | HRA000873(3045), HRA001272(1909), HRA016026(1050), HRA006499(1014), HRA000071(572), HRA007169(380), HRA001749(336) |
+| `DNA_ALIGNMENT_BQSR_BAM` | 6177 | HRA000873(2030), HRA000021(1016), HRA006499(763), HRA001272(750), HRA016026(700), HRA000071(572), HRA001749(178), HRA007169(168) |
+| `DNA_ALIGNMENT_INDEX_BAI` | 6177 | same cohorts — companion index |
+| `DNA_VARIANT_INDEX_TBI` | 5788 | same as VCF — companion index |
+| `RNA_TRANSCRIPTOME_ALIGNMENT_BAM` | 3288 | HRA000074(693), HRA006117(570), HRA002693(442), HRA001272(430), HRA007167(391), HRA000073(325), HRA003107(310), HRA000122(124) (`HRR025534Aligned.sortedByCoord.out.bam`) |
+| `MUTATION_ANNOTATION_FORMAT_MAF` | 2355 | the seven-cohort whitelist above |
+| `TABULAR_BIO_DATA` | 592 | expression matrices — 9 cohorts × 3 flavours (FPKM/TPM/counts), file name contains `Genes` |
+| `RNA_SPLICEJUNCTION_TAB` | 430 | **HRA001272 only** (`HRR1402797SJ.out.tab`, STAR splice junctions) |
+| `SCRNA_MATRIX_H5` | 403 | HRA005191(243), HRA001748(160) — ready-made single-cell matrices |
+| `DNA_SOMATIC_SV_VCF` | 286 | structural variants |
+| `SOMATIC_CNV_TSV` | 4 | copy number |
+
+**Alternative splicing**: rMATS-style analysis consumes RNA alignment BAMs — take
+`RNA_TRANSCRIPTOME_ALIGNMENT_BAM` (row 5). `RNA_SPLICEJUNCTION_TAB` is STAR's precomputed junction
+table and exists only for HRA001272.
+
+### 12.4 Untrustworthy sample fields as of the 0821 delivery (never filter on these)
+
+The 0821 delivery overwrote **sample-level facts with study-level defaults**. The bad values are
+neither empty nor malformed — every cell is populated and every value looks plausible on its own — so
+a query against them returns rows happily and simply selects the wrong samples. Four rules:
+
+1. **`tumor_descriptor` can no longer separate primary / metastatic / recurrent.** The whole graph
+   holds only `Primary` 8551, `Metastasis` 12, null 1902 — the former `Metastatic` (210) and
+   `Recurrent` (407) were flattened into `Primary`, and **1470 samples with `tissue_type = 'Normal'`
+   are now tagged `Primary`** (a normal blood draw labelled "primary tumour" — self-contradictory).
+   Read the site from **`sample_name` suffixes** instead. HRA001272 encodes them as: `PT` primary 143,
+   `NC` adjacent-normal control 85, `LM` lung met 65, `PM` peritoneal met 31, `RT` recurrent 28,
+   `BM` bone met 20, `AGM` adrenal-gland met 19, `LNM` lymph-node met 19, `BRM` brain met 5,
+   `KM` kidney met 2 (e.g. `M019_LM1_S2010-10889_2`).
+
+2. **`biospecimen_anatomic_site` is the study's primary site, not the sample's.** All 698 HRA001272
+   samples read `Liver And Intrahepatic Bile Ducts` even though their names show ten distinct
+   metastatic sites (above). **Filtering metastatic site on this property is always wrong.**
+   HRA006499 was likewise collapsed to a single value.
+
+3. **`gender` is case-inconsistent**: `Male` 6474 / `Female` 3931 / `male` 56 / `female` 3, plus one
+   literal `missing`. Always compare `toLower(s.gender)`; `= 'Male'` silently drops 56 samples.
+
+4. **`specimen_type` is applied inconsistently across cohorts.** `Peritumoral` survives only in
+   **HRA000021** (508); the 525 adjacent-normal samples of HRA001272 / HRA003107 / HRA001749 /
+   HRA007169 / HRA001748 / HRA006499 were folded into `Patient_Solid_Tissue`. A new semicolon
+   multi-value `Organoid;Patient_Solid_Tissue` (486) also appears — match with `CONTAINS`, never `=`.
+   Reassuringly, all 525 folded samples retain `tissue_type = 'Normal'`, so **tumour/normal pairing,
+   which keys on `tissue_type`, is unaffected**.
+
+`tissue_type` itself is null for 829 samples (which nonetheless carry a `tumor_descriptor`), so test
+presence with `IS NOT NULL`. Conversely, **HRA000071's `tissue_type` was genuinely fixed in 0821**:
+`Blood`/`Normal` 286 plus `Patient_Solid_Tissue`/`Tumor` 286, matching the 286 `B_` and 286 `T_`
+sample-name prefixes exactly (the old data was the wrong one). That cohort can be trusted directly.
