@@ -60,7 +60,19 @@ returns wrong/empty results (pre-0821 these were strings compared lexicographica
 max survival days showed 995 instead of 7061, `data_level = 1` returned 0 rows). If results look anomalous
 like this, check field types first — do not copy the anomaly into your conclusion.
 
-## 3. Closed tool catalog (truth = bio-pipeline-kg-matcher `data/csv/catalog`; 0821 verified identical to graph)
+## 3. Closed tool catalog (truth = bio-pipeline-kg-matcher `data/csv/catalog`, rebuilt from the WDLs on 0823)
+
+> The copies under `references/` are a **snapshot** of that truth, not the truth itself. All three
+> (`tool_catalog.csv`, `knowledge_cards_map.json`, `io_slot.csv`) are current as of 0823.
+> `io_slot.csv` was resynced from upstream commit `58f6be6` (246 rows / 19 cols — the WDL rebuild
+> added `cardinality`, dropped 23 phantom slots, split 7, and bound 68 previously-empty
+> `builder_param`s); it is byte-identical to upstream. Its only reader is `light_router.py`'s
+> `load_slots()`, the decommissioned offline comparison arm — nothing on the serving path reads it.
+>
+> ⚠️ **`~/bio-pipeline-kg-matcher` on this machine is NOT the upstream truth.** It is an unversioned
+> pre-0823 copy (no `.git`, no `58f6be6`) whose `io_slot.csv` / `tool_id.csv` / `relationships.csv`
+> all predate the WDL rebuild. The live repo is at **`/tmp/kgm`** (`git log -1` → `58f6be6`).
+> Verify with `git log --oneline -1` before treating any local copy as contract truth.
 
 Runtime catalog: **51 tools = 12 atomic (11 orchestrable; `multiqc` is terminal-only, never orchestrated)
 + 38 pipeline + 1 task_pipeline**, 1:1 with the 51 graph `tool` nodes. Full fields (catalog_id, I/O
@@ -77,8 +89,10 @@ Catalog rules (decide Plan shape):
 - **Non-atomized needs** (differential expression, enrichment, WGCNA, survival …) have no atomic
   expression → `candidates[]` returns `unsupported`; **never pad an atomic chain with pipeline nodes**.
   `recommendations[]` still carries the business pipeline as usual.
-- **Variant binding**: `gatk` has `single` (sorted_dedup_bam) and `paired` (four slots tumor_bam/tumor_bai/
-  normal_bam/normal_bai, `exactly_one_variant=true`); `fastp` has single_end / paired_end variants.
+- **Variant binding**: `gatk` has **only** `paired` (four slots tumor_bam/tumor_bai/normal_bam/normal_bai,
+  all required). `GatkWesSomaticWorkflow` is a strict tumor-normal Mutect2 — the old `single`
+  (sorted_dedup_bam) entry was deleted on 0823; **there is no single-sample entry**, so a lone tumor BAM
+  cannot be routed to `gatk` at all. `fastp` has single_end / paired_end variants.
   Paired tumor/normal WES must use the 4-slot variant and `find_paired_tumor_normal_samples.cypher`.
 - The slot model (slot names, `builder_param` / `wdl_target` bindings) is an **execution-side contract**
   from `data/csv/catalog`; it is not in the graph. The graph only says which tools exist and how they chain.
@@ -483,16 +497,41 @@ run / what is missing"), call `validate_execution_chain` for a 5-stage probe ins
 
 1. **Registration**: every tool_id known (graph / Knowledge Card)
 2. **Card contract**: each step's required Knowledge Card inputs all present (missing one → reject)
-3. **Binding structure**: File-input bindings must be objects (file_id/file_name); scalar types must match
-   the card declaration
+3. **Binding structure**: File-input bindings must be objects (file_id/file_name) — an `Array[File]` input
+   may also take a non-empty array of such objects; scalar types must match the card declaration
 4. **Data probe**: unbound File inputs → count in-graph candidate files (by format family + optional cohort)
 5. **Chain flow**: next_tool adjacency + up/downstream format continuity
 
-Output is a `tool-chain-validation/v1.1` stage-by-stage report plus `execution_params` (input name → real
-in-graph file path; only `/`-rooted confirmed paths, never fabricated), `execution_params_missing`, and
-`submittable`. **Submit only when errors are zero and `submittable=true`**; on `submittable=false` do not
-claim "this chain runs" — list `execution_params_missing` honestly. When a pipeline-level tool has no card,
-warn explicitly that contract validation was skipped.
+Output is a `tool-chain-validation/v1.2` stage-by-stage report plus `execution_params` (**key = the
+Knowledge Card param name**, value = real in-graph file path; only `/`-rooted confirmed paths, never
+fabricated), `execution_params_by_step`, `execution_params_missing`, and `submittable`. **Submit only
+when errors are zero and `submittable=true`**; on `submittable=false` do not claim "this chain runs" —
+list `execution_params_missing` honestly. When a pipeline-level tool has no card, warn explicitly that
+contract validation was skipped.
+
+Five things to get right when transcribing execution params:
+
+- **`tool_id` in `execution_params_by_step` / `execution_params_missing` is the Knowledge Card
+  `meta.id`, not the graph tool id you passed in** — send `star`, get back
+  `star_rrna_and_genome_alignment` (same convention as `normalized_steps`; card-less pipeline tools echo
+  the id you sent). Match steps by the `step` index, not by string-comparing `tool_id` against your
+  request.
+- **For multi-step chains, `execution_params_by_step` is authoritative** (`[{step, tool_id, params}]`).
+  `execution_params` is a flat convenience view keyed by bare param name; when the same name resolves to
+  different paths in different steps (e.g. both `trim_galore` and `star` declare `read1`) that key is
+  **dropped from the flat view** and listed in `execution_params_ambiguous`. A param absent from the flat
+  view is not missing — read it from `by_step`.
+- **`Array[File]` params carry a list of paths**, not a string (`fastqc.fastqs`, `multiqc.qc_files`).
+  Never transcribe one as a single path.
+- **Reference/index resources never appear in `execution_params` and are never reported missing.** These
+  five carry card defaults and are resolved inside the execution container: `star.rrna_star_index`,
+  `star.genome_star_index`, `rsem.rsem_index`, `featurecounts.gtf_file`, `gatk.interval_list`. Do not go
+  hunting for their paths in the graph, and do not call a chain unrunnable because they are "absent".
+  Note `bcftools.filtered_vcf_index` is **not** one of them despite the name — it is the companion `.tbi`
+  of a data file and must be bound.
+- `execution_params_missing` elements are objects `{param, tool_id, step, reason}`. `reason =
+  no_confirmed_path` means the binding was fine but the graph has no confirmed path for that asset (the
+  data side needs to fill in `file_path`) — do not restate it as "the user did not bind it".
 
 ## 11. Boundaries and principles
 

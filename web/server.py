@@ -16,6 +16,7 @@ tool-chain/v2 Plan 或 rejected 单对象。本服务把思考段 / 工具调用
   GEMINI_MODEL      默认 gemini-3.7-flash
   NEO4J_USER / NEO4J_PASSWORD / NEO4J_URL   透传给 MCP server 子进程
   PORT              默认 8017
+  HOST              监听地址，默认 127.0.0.1；部署给他人访问设 0.0.0.0
 """
 import json
 import os
@@ -49,6 +50,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_BASE_URL = os.environ.get("GEMINI_BASE_URL", "https://llm-center.modelbest.co").rstrip("/")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.7-flash")
 PORT = int(os.environ.get("PORT", "8017"))
+HOST = os.environ.get("HOST", "127.0.0.1")
 
 # LLM 提供方：gemini（generateContent）或 openai（chat/completions，如 deepseek-v4-flash / mimo）
 # 自定义配置用 LLM_* 命名（避开用户全局 OPENAI_API_KEY 等环境变量的抢占），OPENAI_* 仅作兜底
@@ -1126,7 +1128,9 @@ def main():
     mcp = McpClient()
     tools = mcp.tools()
     print(f"[web] MCP 已连接，工具：{[t['name'] for t in tools]}", file=sys.stderr)
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    # 默认只听 127.0.0.1（本机开发）。部署到服务器要让别人访问时设 HOST=0.0.0.0，
+    # 但**本服务没有任何鉴权**——公网机器请放在反向代理/内网后面，别裸奔。
+    server = ThreadingHTTPServer((HOST, PORT), Handler)
     server.mcp = mcp
     # web 模型可见工具的两处过滤（MCP server 端一律保留，其他客户端不受影响）：
     #  · get_planning_guide：手册已内联进系统提示词，web 会话零调用
@@ -1138,7 +1142,7 @@ def main():
     model_tools = _slim_tools([t for t in tools if t["name"] not in hidden])
     server.fc_tools = (mcp_tools_to_gemini if LLM_PROVIDER == "gemini" else mcp_tools_to_openai)(model_tools)
     server.system_prompt = load_system_prompt()
-    print(f"[web] Bio Pipeline Light Web 已启动: http://127.0.0.1:{PORT} "
+    print(f"[web] Bio Pipeline Light Web 已启动: http://{HOST}:{PORT} "
           f"(provider={LLM_PROVIDER}, model={LLM_MODEL})", file=sys.stderr)
     threading.Thread(target=_warmup, args=(mcp, server.system_prompt), daemon=True).start()
     server.serve_forever()

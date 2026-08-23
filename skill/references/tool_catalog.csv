@@ -10,7 +10,7 @@ tool_id:driver_gene_gender_analysis,Tool|tool_id,T031,sister-tool-csv,"该流程
 tool_id:fastp,Tool|tool_id,T001,sister-tool-csv,FASTQ 质控，修剪，UMI 提取等,,WES,,fastp,atomic,fastp,"{""single_end"":[""raw_fastq_read_r1""],""paired_end"":[""raw_fastq_read_r1"",""raw_fastq_read_r2""]}","{""raw_fastq_read"":""raw_fastq_read_r1""}",true
 tool_id:fastqc,Tool|tool_id,T002,sister-tool-csv,测序数据质量评估,,"WES, RNA-seq",,fastqc,atomic,FastQC,,,
 tool_id:featurecounts,Tool|tool_id,T012,sister-tool-csv,基因水平计数,,RNA-seq,,featurecounts,atomic,featureCounts,,,
-tool_id:gatk,Tool|tool_id,T008,sister-tool-csv,BQSR，变异检测，质控,,WES,,gatk,atomic,GATK,"{""single"":[""sorted_dedup_bam""],""paired"":[""tumor_bam"",""tumor_bai"",""normal_bam"",""normal_bai""]}",{},true
+tool_id:gatk,Tool|tool_id,T008,sister-tool-csv,BQSR，变异检测，质控,,WES,,gatk,atomic,GATK,"{""paired"":[""tumor_bam"",""tumor_bai"",""normal_bam"",""normal_bai""]}",{},true
 tool_id:her2_pfs_survival,Tool|tool_id,T032,sister-tool-csv,"基于 TPM 表达矩阵、临床信息及样本元信息，分析特定基因（默认 HER2）表达水平与无进展生存期（PFS）的关联。
 流程自动匹配样本 accession，执行 Winsorizing 处理，生成 KM 生存曲线、Logrank 统计量及质量控制报告。","tsv, xls, xlsx",RNA-seq,"json, pdf, png, tsv, txt",her2_pfs_survival,pipeline,her2_pfs_survival,,,
 tool_id:immune_infiltration_iobr,Tool|tool_id,T033,sister-tool-csv,"基于 IOBR 包的 CIBERSORT 算法进行免疫细胞浸润分析流程。

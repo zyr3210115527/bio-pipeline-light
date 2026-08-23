@@ -49,7 +49,7 @@ atomic 闭集：`bwa` `fastp` `fastqc` `featurecounts` `gatk` `bcftools` `snpeff
 目录规则（决定 Plan 形态）：
 - `recommendations[]` 出业务 pipeline；`candidates[]` **只出通过闭集校验的 atomic 链**
 - 未原子化需求（差异表达/富集/WGCNA/生存…）→ `candidates[]` 空 + `unsupported`/`information` 说明，**不得拿 pipeline 凑原子链**；recommendations 照常给 pipeline
-- 变体：`gatk` 有 single（sorted_dedup_bam）/paired（tumor_bam+tumor_bai+normal_bam+normal_bai 四槽，`exactly_one_variant=true`）；`fastp` 有 single_end/paired_end。配对肿瘤/正常 WES 必须四槽
+- 变体：`gatk` **只有 paired**（tumor_bam+tumor_bai+normal_bam+normal_bai 四槽，全必需）——`GatkWesSomaticWorkflow` 是严格 tumor-normal Mutect2，`single`（sorted_dedup_bam）0823 已删除，**没有单样本入口**，光有一个肿瘤 BAM 路由不到 `gatk`；`fastp` 有 single_end/paired_end。配对肿瘤/正常 WES 必须四槽
 - slot 模型（builder_param/wdl_target）是执行端合同，不在图里；执行端资源（GTF/索引/参考基因组）不参与可用性判定
 - 数据可用性：图内精确确认 = `available`，否则 `missing_from_graph`
 
@@ -348,8 +348,15 @@ schema 示例（**这就是你该输出的完整长度**）：
 ## 10. 提交前把关（仅提交执行端场景）
 
 用户要提交链到执行端（或问「能不能跑/缺什么」）时调 `validate_execution_chain`：五阶段（注册/卡契约必填输入/绑定结构/数据探查/链流转），
-输出 tool-chain-validation/v1.1 报告 + execution_params（输入名→图内真实路径，只认 `/` 开头确认路径，绝不伪造）+ execution_params_missing + submittable。
+输出 tool-chain-validation/v1.2 报告 + execution_params（**键=卡片参数名**，值是图内真实路径，只认 `/` 开头确认路径，绝不伪造）+ execution_params_missing + submittable。
 **errors 清零且 submittable=true 才可提交**；false 时不得宣称能跑，如实列出 missing。pipeline 级工具无卡时明确警告「跳过契约校验」。
+
+转录执行参数时注意五条：
+- **回包里的 `tool_id` 是卡片 `meta.id`，不是你传进去的图谱 tool_id**——传 `star` 回来 `star_rrna_and_genome_alignment`（与 `normalized_steps` 一致；无卡的 pipeline 工具原样回传）。对步骤请按 `step` 下标取，别拿 `tool_id` 字符串去匹配你的请求。
+- **多步链以 `execution_params_by_step` 为准**（`[{step, tool_id, params}]`）。`execution_params` 是扁平便捷视图，同名参数（如 trim_galore 和 star 都有 `read1`）跨步取到不同路径时会被剔除并列进 `execution_params_ambiguous`——**扁平视图里没有的参数不等于缺，去 by_step 里取**。
+- **`Array[File]` 参数的值是路径数组**（fastqc 的 `fastqs`、multiqc 的 `qc_files`），不是字符串，别当成单个路径转录。
+- **参考/索引资源不会出现在 execution_params 里,也不会报缺**：`star` 的 `rrna_star_index`/`genome_star_index`、`rsem` 的 `rsem_index`、`featurecounts` 的 `gtf_file`、`gatk` 的 `interval_list` 共 5 个走执行端容器内默认值，**不要替用户去图里找路径、也不要因为它们"缺"就说链跑不了**。注意 `bcftools` 的 `filtered_vcf_index` 名字里带 index 但**不是**参考资源，它是 `.tbi` 伴随索引，必须绑。
+- `execution_params_missing` 的元素是对象 `{param, tool_id, step, reason}`，`reason=no_confirmed_path` 表示绑定没问题、是图里没有该资产的确认路径（要数据侧补 `file_path`），转述时别说成"用户没绑"。
 
 ## 11. 边界与原则
 

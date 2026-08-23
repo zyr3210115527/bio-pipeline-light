@@ -106,7 +106,14 @@ types = m.neo4j_q([
     "MATCH (i:individual) WHERE i.`11_tmb` > 10 RETURN count(*)"])
 vt, maxsurv = types[0][0]
 check("13_survival_days 是数值型（不是 STRING）", "STRING" not in str(vt), f"valueType={vt}")
-check("生存天数最大值 > 1000（字符串比较会卡在 995）", (maxsurv or 0) > 1000, f"max={maxsurv}")
+# 存成 STRING 时 max() 是字典序（'995' 最大），float() 后照样 <1000，断言意图不变；
+# 这里不能直接拿 str 和 int 比——0821 交付把这列退回 STRING，会当场 TypeError 崩掉，
+# 后面十几段测试（含 execution_params 那段）就全都跑不到了。
+try:
+    _maxsurv = float(maxsurv)
+except (TypeError, ValueError):
+    _maxsurv = 0.0
+check("生存天数最大值 > 1000（字符串比较会卡在 995）", _maxsurv > 1000, f"max={maxsurv!r}")
 check("data_level = 1 用数字能查到文件（存 '1' 时返回 0 行）",
       types[1][0][0] > 20000, f"count={types[1][0][0]}")
 check("study 按 sample_count 排序 top1 是最大队列 HRA000873",
@@ -162,6 +169,82 @@ if rows and rows[0]:
           f"missing={out.get('execution_params_missing')} errors={out['validation']['errors']}")
 else:
     check("图内存在带真实路径的 FPKM T2 文件", False, "换个 CONTAINS 关键词再试")
+
+# ── 4b. 执行契约：三条「错得像对」的回包（纯逻辑，图查询 stub 成放行） ──
+# 这几条以前全绿，因为老测试只覆盖了 card-less 分支（binding 是 dict 就当 File），
+# 那一支根本不看 type 字段。断言一律落在「不能声称可提交」上，不只是字段值——
+# 这类错的特征是回包字段齐全、值都合理、errors 为空，光看值判断不出严重性。
+sec("4b. validate_execution_chain：执行契约回归（P0-1/P0-2/P0-3）")
+_real_q = m.neo4j_q
+m.neo4j_q = lambda stmts: [[[1]] for _ in stmts]      # 隔离纯逻辑，与图连不连得上无关
+try:
+    _f = lambda p: {"file_name": p.rsplit("/", 1)[-1], "file_path": p}
+
+    # P0-1　fastqs 是 Array[File]+（WDL 非空数组）。三处类型判断都在拿字符串精确相等比
+    # ("File","Array[File]")，带 + 后缀的全漏掉。fastqc 只有这一个输入，三处全漏等于这张卡
+    # 在执行参数解析里完全不存在：回包 execution_params={} 且 missing=[]——零个参数、
+    # 且一个都不缺，消费方按 not missing 判可提交，就把一个参数根本没解析出来的链当能跑的。
+    r = m.tool_validate_execution_chain({"steps": [
+        {"tool_id": "fastqc", "inputs": {"fastqs": _f("/d/a_R1.fq.gz")}}]})
+    check("P0-1 Array[File]+ 必须被解析（不许 params 和 missing 同时为空）",
+          bool(r["execution_params"]) and r["submittable"] is True,
+          f"params={r['execution_params']} missing={r['execution_params_missing']}")
+    check("P0-1 Array 参数的值是路径数组（消费方不能假定一定是 str）",
+          isinstance(r["execution_params"].get("fastqs"), list), str(r["execution_params"]))
+
+    # P0-2　read2 是 File?（可选）。老判据只收 required=true，于是**用户明确绑了的可选文件
+    # 被丢掉**。后果比 P0-1 更隐蔽：执行端拿到只有 read1 的参数，trim_galore/STAR 里
+    # is_paired = defined(read2) 变 false，**双端数据静默按单端跑完，一路绿灯，结果是错的**。
+    r = m.tool_validate_execution_chain({"steps": [
+        {"tool_id": "trim_galore", "inputs": {"read1": _f("/d/a_R1.fq.gz"),
+                                              "read2": _f("/d/a_R2.fq.gz")}}]})
+    check("P0-2 已绑定的可选 File? 必须进 execution_params（否则双端静默跑成单端）",
+          r["execution_params"].get("read2") == "/d/a_R2.fq.gz", str(r["execution_params"]))
+
+    # P0-3　这 5 个 File 参数是带卡片默认值的参考资源，既不该报缺、也不该被映射下发。
+    # 报缺 → 一条完全正常的 RNA-seq 比对链被判不可提交；被映射 → 用户随手塞的路径
+    # 覆盖掉容器内的正确默认值。
+    r = m.tool_validate_execution_chain({"steps": [
+        {"tool_id": "star", "inputs": {"read1": _f("/d/a_R1.fq.gz"), "read2": _f("/d/a_R2.fq.gz")}}]})
+    check("P0-3 参考资源未绑定不算缺（正常 STAR 链必须可提交）",
+          r["submittable"] is True,
+          f"errors={r['validation']['errors']} missing={r['execution_params_missing']}")
+    r = m.tool_validate_execution_chain({"steps": [
+        {"tool_id": "star", "inputs": {"read1": _f("/d/a_R1.fq.gz"), "read2": _f("/d/a_R2.fq.gz"),
+                                       "rrna_star_index": _f("/ref/rrna"),
+                                       "genome_star_index": _f("/ref/genome")}}]})
+    check("P0-3 参考资源即使被绑定也不许下发（会覆盖容器内默认值）",
+          not ({"rrna_star_index", "genome_star_index"} & set(r["execution_params"])),
+          str(r["execution_params"]))
+
+    # P0-3 的坑：filtered_vcf_index 名字里带 index，却是**数据文件的伴随 .tbi**，没有卡片
+    # 默认值，缺了 bcftools 的 ln -sf 读不到索引、执行直接失败。白名单必须是显式二元组，
+    # 按 "index" 关键字猜就会把它一起豁免掉——重版踩过这个坑，0823 才修。
+    r = m.tool_validate_execution_chain({"steps": [
+        {"tool_id": "bcftools", "inputs": {"filtered_vcf": _f("/d/a.vcf.gz")}}]})
+    check("P0-3 坑位 filtered_vcf_index 不是参考资源，缺了必须报错且不可提交",
+          r["submittable"] is False and any("filtered_vcf_index" in e for e in r["validation"]["errors"]),
+          f"errors={r['validation']['errors']} submittable={r['submittable']}")
+
+    # P1-1/P1-2 契约形状：键必须与卡片参数名完全一致（不许 `tool.param` 点号拼接，
+    # 否则同一字段在单步/多步下是两种键空间）；missing 是带 reason 的对象。
+    r = m.tool_validate_execution_chain({"steps": [
+        {"tool_id": "trim_galore", "inputs": {"read1": _f("/d/a_R1.fq.gz"), "read2": _f("/d/a_R2.fq.gz")}},
+        {"tool_id": "fastqc",      "inputs": {"fastqs": _f("/d/a_val_1.fq.gz")}}]})
+    check("P1-1 多步链的键不带 `tool.` 前缀，逐步参数在 execution_params_by_step",
+          not any("." in k for k in r["execution_params"])
+          and sum(len(s["params"]) for s in r["execution_params_by_step"]) == 3,
+          json.dumps(r["execution_params_by_step"], ensure_ascii=False))
+    r = m.tool_validate_execution_chain({"steps": [
+        {"tool_id": "trim_galore", "inputs": {"read1": {"file_name": "查不到的文件.fq.gz"}}}]})
+    check("P1-2 missing 是带 reason 的对象（下游要靠它分辨该找数据侧还是目录侧）",
+          bool(r["execution_params_missing"])
+          and r["execution_params_missing"][0].get("reason") == "no_confirmed_path",
+          str(r["execution_params_missing"]))
+    check("P1-2 schema_version 升到 v1.2", r["schema_version"] == "tool-chain-validation/v1.2",
+          r["schema_version"])
+finally:
+    m.neo4j_q = _real_q
 
 # ── 5. 原子链校验（先从图里找一条真实 next_tool 边再验，避免误报） ──
 sec("5. validate_atomic_chain（图内真实邻接）")

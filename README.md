@@ -62,7 +62,7 @@
 - `get_study_overview(study)` —— 队列画像一包到底：study 信息 + 样本数 + T1/T2 分布/文件样例 + 角色分布（替代「队列信息+文件清单+角色」多查组合）
 - `resolve_sample_roles(study | records)` —— 确定性样本角色判定（tumor/normal，规则移植自重版 `_sample_role`）：`study` 模式返回队列角色分布 `sample_roles` 与 `role_resolved`，`records` 模式对给定样本记录逐条判角色。配对/分组分析选数据前必须调用
 - `validate_atomic_chain(chain)` —— 确定性闭集校验（11 个 atomic + 图内 next_tool 邻接；输出 Knowledge Card meta.id + 卡内 IO 名，图谱 id / meta.id 均可入参）
-- `validate_execution_chain(steps)` —— **提交前把关（场景1）**：五阶段探查（注册/卡契约必填输入/绑定结构/数据探查/链流转），输出 tool-chain-validation/v1.1 逐阶段报告 + `execution_params`（输入名→图内真实路径）+ `execution_params_missing` + `submittable`；errors 清零且 submittable=true 才可提交
+- `validate_execution_chain(steps)` —— **提交前把关（场景1）**：五阶段探查（注册/卡契约必填输入/绑定结构/数据探查/链流转），输出 tool-chain-validation/v1.2 逐阶段报告 + `execution_params`（**键=Knowledge Card 参数名**→图内真实路径；`Array[File]` 参数的值是路径数组）+ `execution_params_by_step`（多步链以此为准，扁平视图遇同名参数跨步冲突会剔除并列进 `execution_params_ambiguous`；**其 `tool_id` 是 Knowledge Card 的 `meta.id` 而非入参的图谱 tool_id**，传 `star` 回来 `star_rrna_and_genome_alignment`，对步骤请按 `step` 下标取）+ `execution_params_missing`（对象 `{param,tool_id,step,reason}`）+ `submittable`；errors 清零且 submittable=true 才可提交。带卡片默认值的 5 个参考/索引资源（star 的两个索引、`rsem_index`、`gtf_file`、`interval_list`）既不映射也不报缺——注意 `bcftools.filtered_vcf_index` 名字带 index 但**不是**参考资源，是必须绑的 `.tbi` 伴随索引
 - `health_check()` —— Neo4j 连通、规模、atomic 闭集
 
 ```json

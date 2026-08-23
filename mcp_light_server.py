@@ -59,6 +59,45 @@ def load_knowledge_cards() -> None:
 
 load_knowledge_cards()
 
+# ---------- WDL 类型判读 + 参考资源白名单（执行契约解析用） ----------
+# 卡片里的类型字符串带 WDL 后缀：`Array[File]+`（非空数组）、`File?`（可选）。
+# 早先三处都在拿字符串**精确相等**判 ("File", "Array[File]")，`Array[File]+` 三处全漏，
+# 等于 fastqc/multiqc 这两张卡在执行参数解析里完全不存在——回包会是
+# execution_params={} 且 missing=[]（零个参数、且一个都不缺），消费方按 not missing
+# 判可提交，就把一个参数根本没解析出来的链当成能跑的。统一走下面三个函数，别再手写比较。
+def _base_type(t: str) -> str:
+    """WDL 类型 → 基础类型：`Array[File]+`→`File`、`File?`→`File`、`String?`→`String`。"""
+    t = (t or "").strip().rstrip("+?")
+    if t.startswith("Array[") and t.endswith("]"):
+        t = t[len("Array["):-1].strip().rstrip("+?")
+    return t
+
+def _is_file_type(t) -> bool:
+    return _base_type(t) == "File"
+
+def _is_array_type(t) -> bool:
+    return (t or "").strip().rstrip("+?").startswith("Array[")
+
+# 带卡片默认值的参考/索引资源：**既不映射进 execution_params，也不报缺**——执行端用容器内
+# 的默认值，用户塞进来的路径反而会覆盖掉正确默认值。
+#
+# ⚠ 必须是显式 (meta_id, param) 白名单，**不许按名字猜**。"名字里带 index/reference/gtf
+# 就是参考资源"这条启发式在本目录里是错的：
+#     bcftools_somatic_postprocess.filtered_vcf_index   File  TBI  required=true
+# 它名字里带 index，却是**数据文件的伴随索引**，没有卡片默认值，缺了 bcftools 的
+# `ln -sf` 读不到 .tbi，执行直接失败。重版就是踩了这个坑（按 "index" 关键字把它判成参考
+# 资源，于是既不映射也不报缺），0823 才修掉。新工具接入时手动往这张表里加。
+REFERENCE_RESOURCES: set = {
+    ("star_rrna_and_genome_alignment", "rrna_star_index"),
+    ("star_rrna_and_genome_alignment", "genome_star_index"),
+    ("rsem_quantification",            "rsem_index"),
+    ("featurecounts_gene_counting",    "gtf_file"),
+    ("gatk_wes_somatic",               "interval_list"),
+}
+
+def _is_reference_resource(card, name) -> bool:
+    return bool(card) and (card.get("meta_id"), name) in REFERENCE_RESOURCES
+
 # ---------- 目录加载（从 skill/references/tool_catalog.csv，不内嵌） ----------
 ATOMIC_IDS: set[str] = set()
 CATALOG: dict[str, dict] = {}
@@ -604,20 +643,27 @@ def tool_validate_execution_chain(args):
             warnings.append(f"{given}: 无 Knowledge Card（pipeline 级或未收录），跳过契约校验")
             normalized.append({"tool_id": given, "card": None})
             continue
-        # 必填输入检查
-        missing = [i["name"] for i in card["inputs"] if i.get("required", True) and i["name"] not in bindings]
+        # 必填输入检查（参考资源有卡片默认值，缺了不算缺——见 REFERENCE_RESOURCES）
+        missing = [i["name"] for i in card["inputs"]
+                   if i.get("required", True) and i["name"] not in bindings
+                   and not _is_reference_resource(card, i["name"])]
         if missing:
             errors.append(f"{card['meta_id']} 缺必填输入: {missing}")
-        # 绑定结构检查（对齐重版：binding 必须为对象）
+        # 绑定结构检查（对齐重版：binding 必须为对象；Array[File] 额外允许对象数组）
         bad_bind = []
         for i in card["inputs"]:
             b = bindings.get(i["name"])
             if b is None:
                 continue
-            if i.get("type") in ("File", "Array[File]"):
-                if not isinstance(b, dict):
+            if _is_file_type(i.get("type")):
+                if _is_array_type(i.get("type")):
+                    ok = isinstance(b, dict) or (isinstance(b, list) and b
+                                                 and all(isinstance(x, dict) for x in b))
+                    if not ok:
+                        bad_bind.append(f"{i['name']} binding 必须为对象或非空对象数组")
+                elif not isinstance(b, dict):
                     bad_bind.append(f"{i['name']} binding 必须为对象")
-            elif i.get("type") in ("Boolean", "Int", "Float"):
+            elif _base_type(i.get("type")) in ("Boolean", "Int", "Float"):
                 if not isinstance(b, (bool, int, float)):
                     bad_bind.append(f"{i['name']} binding 类型应为 {i['type']}")
         if bad_bind:
@@ -637,12 +683,16 @@ def tool_validate_execution_chain(args):
         if not card:
             continue
         for i in card["inputs"]:
-            if i.get("type") not in ("File", "Array[File]") or not i.get("required", True):
+            # 只探查"必需的、或用户明确绑了的"File 输入；参考资源不探（走容器内默认值）
+            if not _is_file_type(i.get("type")) or _is_reference_resource(card, i["name"]):
                 continue
             b = (s.get("inputs") or {}).get(i["name"])
+            if not i.get("required", True) and b is None:
+                continue
             fmt = (i.get("format") or "").upper()
             kw = next((k for k in ("FASTQ", "BAM", "BAI", "VCF", "TSV", "GTF", "FASTA", "TBI") if k in fmt), None)
-            bound = isinstance(b, dict) and bool(b.get("file_id") or b.get("file_name"))
+            _bs = b if isinstance(b, list) else [b]
+            bound = any(isinstance(x, dict) and (x.get("file_id") or x.get("file_name")) for x in _bs)
             probe = {"tool": card["meta_id"], "input": i["name"], "format": i.get("format"),
                      "bound": bound}
             if kw and not bound:
@@ -688,31 +738,68 @@ def tool_validate_execution_chain(args):
             except Exception:
                 pass
         return ""
-    execution_params, exec_missing = {}, []
-    for s in steps:
+    def _resolve(binding, is_array):
+        """返回 array 参数的路径数组（并集去重、保持顺序）或标量参数的路径字符串；空=未解析。"""
+        if not is_array:
+            return _real_path(binding)
+        items = binding if isinstance(binding, list) else [binding]
+        paths, seen = [], set()
+        for it in items:
+            p = _real_path(it)
+            if p and p not in seen:
+                seen.add(p)
+                paths.append(p)
+        return paths
+    by_step, execution_params, exec_missing, ambiguous = [], {}, [], set()
+    for idx, s in enumerate(steps):
         gid, given = _norm(s.get("tool_id"))
         card = KC_MAP.get(gid)
         bindings = s.get("inputs") or {}
+        tool_key = card["meta_id"] if card else given
         if card:
-            file_inputs = [i["name"] for i in card["inputs"]
-                           if i.get("type") in ("File", "Array[File]") and i.get("required", True)]
-        else:   # pipeline 级无卡：有对象 binding 的输入都当 File 处理
-            file_inputs = [k for k, v in bindings.items() if isinstance(v, dict)]
-        for name in file_inputs:
-            key = f"{given}.{name}" if len(steps) > 1 else name
-            path = _real_path(bindings.get(name))
-            if path:
-                execution_params[key] = path
+            # 判据是「必需的 **或** 用户绑了的」，不是「必需的」：可选的 File? 被用户明确绑上
+            # 却丢掉，执行端 `is_paired = defined(read2)` 就变 false，**双端数据静默按单端跑完，
+            # 一路绿灯而结果是错的**。参考资源反过来一律不映射（塞进去会覆盖容器内默认值）。
+            wanted = [(i["name"], _is_array_type(i.get("type"))) for i in card["inputs"]
+                      if _is_file_type(i.get("type"))
+                      and not _is_reference_resource(card, i["name"])
+                      and (i.get("required", True) or i["name"] in bindings)]
+        else:   # pipeline 级无卡：有对象/对象数组 binding 的输入都当 File 处理
+            wanted = [(k, isinstance(v, list)) for k, v in bindings.items()
+                      if isinstance(v, (dict, list))]
+        params = {}
+        for name, is_arr in wanted:
+            val = _resolve(bindings.get(name), is_arr)
+            if val:
+                params[name] = val
             else:
-                exec_missing.append(key)
+                # reason 有处置含义：no_confirmed_path = 绑定正确但图里没有该资产的确认路径
+                # （数据侧补 file_path）。light 走 Knowledge Card 而非槽表，没有 slot_not_bound。
+                exec_missing.append({"param": name, "tool_id": tool_key, "step": idx,
+                                     "reason": "no_confirmed_path"})
+        by_step.append({"step": idx, "tool_id": tool_key, "params": params})
+        # 扁平视图：键就是卡片参数名（不加 `tool.` 前缀，与 knowledge_card 的 name 完全一致）。
+        # 同名参数跨步取到不同路径时**从扁平视图里剔除并记进 ambiguous**——宁可缺，
+        # 也不能让消费方拿到静默被覆盖的错路径。多步链请读 execution_params_by_step。
+        for name, val in params.items():
+            if name in execution_params and execution_params[name] != val:
+                ambiguous.add(name)
+            execution_params[name] = val
+    for name in ambiguous:
+        execution_params.pop(name, None)
     submittable = not errors and not exec_missing
-    return {"schema_version": "tool-chain-validation/v1.1", "mode": "execution_contract",
+    return {"schema_version": "tool-chain-validation/v1.2", "mode": "execution_contract",
             "valid": not errors, "validation": {"ok": not errors, "errors": errors, "warnings": warnings},
             "stages": stages, "normalized_steps": normalized,
             "execution_params": execution_params,
+            "execution_params_by_step": by_step,
             "execution_params_missing": exec_missing,
+            "execution_params_ambiguous": sorted(ambiguous),
             "submittable": submittable,
-            "hint": "提交前把关：errors 清零且 execution_params_missing 为空（submittable=true）才可提交执行端"}
+            "hint": "提交前把关：errors 清零且 execution_params_missing 为空（submittable=true）才可提交执行端。"
+                    "键与 Knowledge Card 参数名一致；Array[File] 参数的值是路径数组，消费方不要假定一定是字符串。"
+                    "多步链以 execution_params_by_step 为准——execution_params 是扁平便捷视图，"
+                    "同名参数跨步冲突时会被剔除并列进 execution_params_ambiguous。"}
 
 # route_pipeline_request / rule_baseline_plan 已下线（v2.1）：规则规划路径与架构主张
 # （推理必来自调用方模型）冲突。关键词基线仅保留给 benchmark 三臂评测的 ceiling 对照臂
@@ -1236,7 +1323,7 @@ TOOLS = {
         "handler": tool_resolve_sample_roles,
     },
     "validate_execution_chain": {
-        "description": "提交前把关：五阶段探查（注册/卡契约必填输入/绑定结构/数据探查/链流转），输出 tool-chain-validation/v1.1 逐阶段报告 + execution_params（输入名→真实文件路径）+ execution_params_missing + submittable。steps: [{tool_id, inputs:{name: binding}}]。",
+        "description": "提交前把关：五阶段探查（注册/卡契约必填输入/绑定结构/数据探查/链流转），输出 tool-chain-validation/v1.2 逐阶段报告 + execution_params（键=卡片参数名，值=真实文件路径；Array[File] 参数的值是路径数组）+ execution_params_by_step（多步链以此为准；其 tool_id 是卡片 meta.id 而非入参的图谱 id，对步骤请按 step 下标取）+ execution_params_missing（对象 {param,tool_id,step,reason}）+ submittable。带卡片默认值的参考/索引资源（star 两个索引、rsem_index、gtf_file、interval_list）不映射也不报缺。steps: [{tool_id, inputs:{name: binding}}]。",
         "inputSchema": {"type": "object",
                         "properties": {"steps": {"type": "array", "items": {"type": "object"},
                                                  "description": "每步 {tool_id, inputs:{输入名: binding}}，binding 可为对象{file_id/file_name/format}或标量"},
