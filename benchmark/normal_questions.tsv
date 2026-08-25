@@ -1,0 +1,166 @@
+question_id	question	intent	difficulty	工具	数据文件
+Q_0003	有哪些项目包含批量转录组测序（bulk RNA）表达数据？	Data Recommendation	Low		
+Q_0004	哪些项目同时包含全外显子测序（WES）和全基因组测序（WGS）两类数据？	Data Recommendation	Med		
+Q_0006	有哪些项目包含肺腺癌的多组学数据？	Data Recommendation	Med		
+Q_0009	哪些项目同时覆盖表达、变异和临床数据，可支持肢端黑色素瘤的整合分析？	Data Recommendation	High		
+Q_0014	请为项目Aging and leukemia建立数据能力地图：可支持的分析意图、关键缺口和不可支持的推断	Data Recommendation	High		
+Q_0020	如何把项目Whole exome sequencing of patients with CRC from the Changkang project作为发现队列、Chinese Glioma Genome Altas (CGGA) - 全外显子测序（WES） dataset作为验证队列研究可变剪接分析？	Data Recommendation	High		
+Q_0022	有哪些工具支持比对文件（BAM）格式？	Goal-Function-Tool Mapping	Low	cellranger_workflow；cnvkit_cnv_clinical；featurecounts；gatk；paired_fastq_to_unmapped_bam；samtools	
+Q_0024	适合读取表达矩阵的工具是什么？	Goal-Function-Tool Mapping	Low	diff_expr_go；diff_expr_kegg；featurecounts；preprocess_counts；rsem	
+Q_0025	适合全基因组测序（WGS）数据且能做单细胞细胞通讯分析的工具有哪些？	Goal-Function-Tool Mapping	Med	breast_cellchat；immunotherapy_cellchat	
+Q_0027	要做免疫浸润分析，有哪些候选工具？各自输入输出差异是什么？	Goal-Function-Tool Mapping	Med	immune_infiltration_iobr	
+Q_0029	用breast_cellchat处理表达矩阵后，哪些下游工具能继续完成单细胞细胞通讯分析？	Goal-Function-Tool Mapping	High	breast_cellchat	
+Q_0030	当前工具集能否支持从原始全外显子测序（WES）数据到无监督聚类结果的完整流程？缺口在哪里？	Goal-Function-Tool Mapping	High	bootstrap_stability；hvg_pca_gmm；rnaseq_unsupervised_cluster	
+Q_0031	工具celltype_case_control_de主要支持哪些组学或临床研究任务？需要什么输入，通常产生哪些结果？	Tool Recommendation	Low	celltype_case_control_de	
+Q_0032	如果我的目标是生存分析，cnvkit_cnv_clinical的功能是否覆盖该任务？还需要哪些分组、表型或结局信息？	Tool Recommendation	Med	cnvkit_cnv_clinical	
+Q_0033	immune_infiltration_iobr在典型分析流程中位于哪个环节？它的语义输入和输出如何衔接下游？	Tool Recommendation	Med	immune_infiltration_iobr	
+Q_0034	请从研究设计、统计假设、数据层级和结论强度说明fastqc适合与不适合的问题	Tool Recommendation	High	fastqc	
+Q_0036	de_enrichment的输出能否作为hvg_pca_gmm的语义输入？请核对数据单位、处理状态和必需字段	Tool Recommendation	High	de_enrichment；hvg_pca_gmm	
+Q_0037	her2_pfs_survival能否分析项目Whole Genome Sequencing in Esophageal Squamous Cell Carcinoma中的全基因组测序（WGS）数据？请说明匹配的输入和预期输出	Tool Recommendation	Low	her2_pfs_survival	HRA000021-Clinical-1.0.xlsx；HRA000021-MetaInfo-1.0.xlsx
+Q_0039	star用于项目Integrated Genomic Analyses Identify High-Risk Factors Associated with Poor Outcomes of T-ALL时，现有分组、协变量和结局能支持哪些分析？	Tool Recommendation	Med	star	HRR230242_f1.fq.gz；HRR230242_r2.fq.gz；HRR230243_f1.fq.gz；HRR230243_r2.fq.gz；HRR230244_f1.fq.gz；HRR230244_r2.fq.gz；HRR230245_f1.fq.gz；HRR230245_r2.fq.gz；HRR230246_f1.fq.gz；HRR230246_r2.fq.gz；HRR230247_f1.fq.gz；HRR230247_r2.fq.gz；HRR230248_f1.fq.gz；HRR230248_r2.fq.gz；HRR230249_f1.fq.gz；HRR230249_r2.fq.gz；HRR230250_f1.fq.gz；HRR230250_r2.fq.gz；HRR230251_f1.fq.gz；HRR230251_r2.fq.gz；HRR230252_f1.fq.gz；HRR230252_r2.fq.gz；HRR230253_f1.fq.gz；HRR230253_r2.fq.gz；HRR230254_f1.fq.gz；HRR230254_r2.fq.gz；HRR230255_f1.fq.gz；HRR230255_r2.fq.gz；HRR230256_f1.fq.gz；HRR230256_r2.fq.gz
+Q_0042	使用fastqc分析项目Multi-omics Landscape of Central Nervous System Tumors完成生存分析时，应设置哪些验证、敏感性和质控？	Tool Recommendation	High	fastqc	HRR2996498_f1.fq.gz；HRR2996498_r2.fq.gz；HRR2996499_f1.fq.gz；HRR2996499_r2.fq.gz；HRR2996500_f1.fq.gz；HRR2996500_r2.fq.gz；HRR2996501_f1.fq.gz；HRR2996501_r2.fq.gz；HRR2996502_f1.fq.gz；HRR2996502_r2.fq.gz；HRR2996503_f1.fq.gz；HRR2996503_r2.fq.gz；HRR2996504_f1.fq.gz；HRR2996504_r2.fq.gz；HRR2996505_f1.fq.gz；HRR2996505_r2.fq.gz；HRR2996506_f1.fq.gz；HRR2996506_r2.fq.gz；HRR2996507_f1.fq.gz；HRR2996507_r2.fq.gz；HRR2996508_f1.fq.gz；HRR2996508_r2.fq.gz；HRR2996509_f1.fq.gz；HRR2996509_r2.fq.gz；HRR2996510_f1.fq.gz；HRR2996510_r2.fq.gz；HRR2996511_f1.fq.gz；HRR2996511_r2.fq.gz；HRR2996512_f1.fq.gz；HRR2996512_r2.fq.gz
+Q_0043	我想做单细胞细胞通讯分析，可以用什么工具？	Goal-Function-Tool Mapping	Low	breast_cellchat；immunotherapy_cellchat	
+Q_0044	我想对全基因组测序（WGS）数据做差异表达分析，推荐什么工具？	Goal-Function-Tool Mapping	Low	diff_expr_go；diff_expr_kegg	
+Q_0045	我有全基因组测序（WGS）数据数据，想得到差异基因列表，应该用什么工具或流程？	Goal-Function-Tool Mapping	Med	cnvkit_cnv_clinical；diff_expr_go；diff_expr_kegg；fastqc；multiqc；samtools；snpeff；wes_somatic_pair	
+Q_0046	我想做免疫浸润分析和加权基因共表达网络分析（WGCNA）共表达分析，需要哪些工具？	Goal-Function-Tool Mapping	Med	immune_infiltration_iobr	
+Q_0047	对间变少突-星形细胞瘤的转录组测序（RNA-seq）数据数据做生存分析，推荐什么工具？	Goal-Function-Tool Mapping	Med	bootstrap_stability；cox_model；ipf_trajectory_regulon；km_survival；samtools；star；survival_analysis	
+Q_0048	我想从变异文件（VCF）变异数据出发完成可变剪接分析，当前工具能否支持？缺什么？	Goal-Function-Tool Mapping	High	rmats_alternative_splicing	
+Q_0049	我想实现免疫浸润分析，比较候选工具在功能、输入输出和适用模态上的差异	Goal-Function-Tool Mapping	High	immune_infiltration_iobr	
+Q_0050	我想在急性早幼粒细胞白血病队列中完成单细胞细胞通讯分析，需要哪些工具和数据条件？	Goal-Function-Tool Mapping	High	breast_cellchat；immunotherapy_cellchat	
+Q_0051	我想实现从原始原始测序数据（FASTQ）数据到肿瘤突变负荷（TMB）分组和生存结果的完整分析，推荐工具链并说明每步功能	Goal-Function-Tool Mapping	High	survival_analysis；tmb_survival_analysis	
+Q_0052	我想完成肿瘤突变负荷（TMB）计算与生存分析，当前数据或工具缺什么？给出替代方案	Goal-Function-Tool Mapping	High	survival_analysis；tmb_survival_analysis	
+Q_0053	我想对全外显子测序（WES）数据做无监督聚类，推荐什么工具？	Goal-Function-Tool Mapping	Low	bcftools；bootstrap_stability；fastp；hvg_pca_gmm；paired_fastq_to_unmapped_bam；rnaseq_unsupervised_cluster；samtools；survival_analysis	
+Q_0054	我有全外显子测序（WES）数据数据，想得到聚类分型结果，应该用什么工具？	Goal-Function-Tool Mapping	Low	bcftools；bootstrap_stability；fastp；hvg_pca_gmm；paired_fastq_to_unmapped_bam；rnaseq_unsupervised_cluster；samtools；survival_analysis	
+Q_0055	我想对肺腺癌与肺鳞癌的比对文件（BAM）比对数据做无监督聚类，推荐什么工具？	Goal-Function-Tool Mapping	Med	bootstrap_stability；hvg_pca_gmm；rnaseq_unsupervised_cluster	
+Q_0056	我想同时完成可变剪接分析和体细胞变异检测，需要哪些工具？	Goal-Function-Tool Mapping	Med	rmats_alternative_splicing	
+Q_0057	我想从突变突变注释文件（MAF）数据出发完成体细胞变异检测，当前工具是否足够？	Goal-Function-Tool Mapping	Med	gatk；wes_somatic_pair	
+Q_0058	我想在肺腺鳞癌队列中完成免疫浸润分析，需要哪些工具和数据条件？	Goal-Function-Tool Mapping	High	immune_infiltration_iobr	
+Q_0059	我想实现从全基因组测序（WGS）数据到生存曲线的完整分析，推荐工具链	Goal-Function-Tool Mapping	High	cnvkit_cnv_clinical；cox_model；fastqc；km_survival；multiqc；samtools；survival_analysis；wes_somatic_pair	
+Q_0060	比较实现突变景观分析的候选工具，推荐最适合批量转录组测序（bulk RNA）的工具	Goal-Function-Tool Mapping	High	wes_somatic_maf_landscape	
+Q_0061	我想把10x单细胞原始测序数据（原始测序数据（FASTQ））转成细胞-基因表达矩阵，应该用什么流程？	Goal-Function-Tool Mapping	Low	cellranger_workflow	
+Q_0062	我想分析某基因突变状态与无进展生存期（无进展生存期（PFS））的关系，推荐什么工具？	Goal-Function-Tool Mapping	Med	cox_model；km_survival；survival_analysis	
+Q_0063	我想计算肿瘤突变负荷（肿瘤突变负荷（TMB））并比较高低组生存，推荐什么工具？	Goal-Function-Tool Mapping	Med	survival_analysis；tmb_survival_analysis	
+Q_0064	我想用突变注释文件（突变注释文件（MAF））文件画突变景观图或Oncoplot，推荐什么工具？	Goal-Function-Tool Mapping	Low	wes_somatic_maf_landscape	
+Q_0065	我想从tumor-normal全外显子测序（全外显子测序（WES））原始原始测序数据（原始测序数据（FASTQ））检测体细胞变异，推荐什么流程？	Goal-Function-Tool Mapping	High	gatk；wes_somatic_pair	
+Q_0066	我想做加权基因共表达网络分析（加权基因共表达网络分析（WGCNA））共表达网络并找与临床性状相关的模块，推荐什么工具？	Goal-Function-Tool Mapping	Med	wgcna；wgcna_hub；wgcna_module_trait	
+Q_0067	我想做差异表达和基因本体（基因本体（GO））富集，应该用什么工具？	Goal-Function-Tool Mapping	Low	diff_expr_go	
+Q_0068	我想做差异表达和京都基因与基因组百科全书（京都基因与基因组百科全书（KEGG））/Reactome通路数据库（Reactome）通路富集，应该用什么工具？	Goal-Function-Tool Mapping	Low	diff_expr_kegg	
+Q_0070	我想分析人表皮生长因子受体2（人表皮生长因子受体2（HER2））/人表皮生长因子受体2（人表皮生长因子受体2（ERBB2））表达高低与无进展生存期（无进展生存期（PFS））的关系，需要哪些数据？推荐什么工具？	Goal-Function-Tool Mapping	Med	cox_model；km_survival；survival_analysis	
+Q_0071	我想估计bulk转录组测序（转录组测序（RNA-seq））样本的免疫细胞浸润比例，推荐什么工具？	Goal-Function-Tool Mapping	Med	immune_infiltration_iobr	
+Q_0072	我想把双端原始测序数据（原始测序数据（FASTQ））转成unmapped比对文件（比对文件（BAM）），推荐什么工具？	Goal-Function-Tool Mapping	Low	bwa；paired_fastq_to_unmapped_bam；rnaseq_singletask；samtools	
+Q_0073	我想完成转录组测序（转录组测序（RNA-seq））从质控、比对到基因定量的完整上游分析，推荐什么工具？	Goal-Function-Tool Mapping	Med	rnaseq_singletask	
+Q_0074	我想对表达矩阵做无监督聚类或分子分型，推荐什么工具？	Goal-Function-Tool Mapping	Med	bootstrap_stability；hvg_pca_gmm；rnaseq_unsupervised_cluster	
+Q_0075	工具celltype_case_control_de的下一步工具是什么？	Goal-Function-Tool Mapping	Low	celltype_case_control_de	
+Q_0076	从原始测序数据（原始测序数据（FASTQ））到比对文件（比对文件（BAM）），第一步通常用哪个工具？	Goal-Function-Tool Mapping	Low	bwa；paired_fastq_to_unmapped_bam；rnaseq_singletask；samtools	
+Q_0078	做差异表达分析的标准流程包含哪些工具？	Goal-Function-Tool Mapping	Med	diff_expr_go；diff_expr_kegg	
+Q_0082	工具链snpeff->cellranger_workflow->immunotherapy_cellchat的语义输入输出是否真的衔接？	Goal-Function-Tool Mapping	High	snpeff；cellranger_workflow；immunotherapy_cellchat	
+Q_0084	如果先使用snpeff、再使用multiqc完成突变景观分析，需要核对哪些输入输出关系？	Toolchain/Workflow	Med	snpeff；multiqc	
+Q_0085	fastp的输出能否在语义上作为samtools的输入？请检查数据单位、特征标识、处理状态和必需字段	Toolchain/Workflow	High	fastp；samtools	
+Q_0086	使用bcftools、trim_galore、wgcna设计基因本体（GO）富集分析流程时，哪些环节重复，哪些环节缺少工具？	Toolchain/Workflow	High	bcftools；trim_galore；wgcna	
+Q_0087	针对单细胞细胞通讯分析，比较主工具链与替代工具链，说明一致性检查、失败回退和可复现性要求	Toolchain/Workflow	High		
+Q_0091	使用发现队列Multi-omics research of acute myeloid leukemia和验证队列Chinese Glioma Genome Altas (CGGA) - 转录组测序（RNA-seq） dataset (693)，如何安排star、gatk完成发现、注释、建模和验证？	Toolchain/Workflow	High	star；gatk	HRR1756358_f1.fq.gz；HRR1756358_r2.fq.gz；HRR1756359_f1.fq.gz；HRR1756359_r2.fq.gz；HRR1756360_f1.fq.gz；HRR1756360_r2.fq.gz；HRR1756361_f1.fq.gz；HRR1756361_r2.fq.gz；HRR1756362_f1.fq.gz；HRR1756362_r2.fq.gz；HRR1756363_f1.fq.gz；HRR1756363_r2.fq.gz；HRR1756364_f1.fq.gz；HRR1756364_r2.fq.gz；HRR1756365_f1.fq.gz；HRR1756365_r2.fq.gz；HRR1756366_f1.fq.gz；HRR1756366_r2.fq.gz；HRR1756367_f1.fq.gz；HRR1756367_r2.fq.gz；HRR1756368_f1.fq.gz；HRR1756368_r2.fq.gz；HRR1756369_f1.fq.gz；HRR1756369_r2.fq.gz；HRR1756370_f1.fq.gz；HRR1756370_r2.fq.gz；HRR1756371_f1.fq.gz；HRR1756371_r2.fq.gz；HRR1756372_f1.fq.gz；HRR1756372_r2.fq.gz
+Q_0093	针对体细胞变异检测，比较“先单模态分析再整合”与“直接联合建模”两种方案在项目Whole Genome Sequencing in Esophageal Squamous Cell Carcinoma上的适用性	Toolchain/Workflow	High		
+Q_0094	我想完成单细胞原始测序数据（原始测序数据（FASTQ））到表达矩阵，再做细胞分群和差异分析，需要哪些工具？	Tool Recommendation	High		
+Q_0096	我想完成全外显子测序（全外显子测序（WES））配对原始测序数据（原始测序数据（FASTQ））到变异检测、注释和突变景观，推荐工具链	Toolchain/Workflow	High		
+Q_0098	我想完成counts矩阵到加权基因共表达网络分析（加权基因共表达网络分析（WGCNA））、hub基因和功能富集，推荐工具链	Tool Recommendation	High		
+Q_0099	我想完成肿瘤突变负荷（肿瘤突变负荷（TMB））计算、生存曲线和驱动基因突变频率比较，推荐工具链	Toolchain/Workflow	High		
+Q_0102	项目Single-cell RNA analysis reveals an epithelial-immune dual feature of tumor cells in nasopharyngeal carcinoma的数据从project到T2包含哪些层级？	Lineage/Provenance	Low		
+Q_0108	项目单细胞转录组测序（scRNA-seq） of liver cancer中，表达矩阵、变异和临床数据能否在个体层面串联？	Lineage/Provenance	High		
+Q_0109	项目Multi-omics of acral melanoma有多少个体？	Statistics	Low		
+Q_0110	项目CAS Precision Medicine Initiative, capital Initiative有多少样本？	Statistics	Low		
+Q_0112	项目Integrated genomic and transcriptomic profiling dissects spatiotemporal evolution of metastatic hepatocellular carcinoma中Male个体有多少？	Statistics	Med		
+Q_0113	项目Chinese Glioma Genome Altas (CGGA) - 全外显子测序（WES） dataset中各癌种个体数分布如何？	Statistics	Med		
+Q_0114	肺鳞状细胞癌个体按生存状态分组数量如何？	Statistics	Med		
+Q_0116	哪些项目包含批量转录组测序（bulk RNA）与临床（Clinical）双模态数据，且样本量满足联合分析？	Statistics	High		
+Q_0117	肺腺癌与小细胞肺癌的肿瘤突变负荷（肿瘤突变负荷（TMB））、生存状态和对应数据文件数量分布如何？	Statistics	High		
+Q_0118	工具wgcna_hub支持哪些功能？	Metadata/Concept Lookup	Low	wgcna_hub	
+Q_0124	工具rnaseq_singletask的语义输入/输出能否匹配项目Immune Correlates of Response and Resistance to Neoadjuvant Chemo-immunotherapy in Non-small Cell Lung Cancer的数据？	Metadata/Concept Lookup	High	rnaseq_singletask	HRR1320767_f1.fq.gz；HRR1320767_r2.fq.gz；HRR1320768_f1.fq.gz；HRR1320768_r2.fq.gz；HRR1320769_f1.fq.gz；HRR1320769_r2.fq.gz；HRR1320770_f1.fq.gz；HRR1320770_r2.fq.gz；HRR1320771_f1.fq.gz；HRR1320771_r2.fq.gz；HRR1320772_f1.fq.gz；HRR1320772_r2.fq.gz；HRR1320773_f1.fq.gz；HRR1320773_r2.fq.gz；HRR1320774_f1.fq.gz；HRR1320774_r2.fq.gz；HRR1320775_f1.fq.gz；HRR1320775_r2.fq.gz；HRR1320776_f1.fq.gz；HRR1320776_r2.fq.gz；HRR1320777_f1.fq.gz；HRR1320777_r2.fq.gz；HRR1320778_f1.fq.gz；HRR1320778_r2.fq.gz；HRR1320779_f1.fq.gz；HRR1320779_r2.fq.gz；HRR1320780_f1.fq.gz；HRR1320780_r2.fq.gz；HRR1320781_f1.fq.gz；HRR1320781_r2.fq.gz
+Q_0126	比较TSV与TSV在项目Whole Genome Sequencing in Esophageal Squamous Cell Carcinoma中的语义层级差异	Metadata/Concept Lookup	High		
+Q_0129	项目Pharmacogenomic profiling of intra-tumor heterogeneity by a large organoid biobank of liver cancer中缺少13_survival_status的个体数量和占比？	Data Quality/Gap	Med		
+Q_0130	哪些项目缺少批量转录组测序（bulk RNA）数据？	Data Quality/Gap	Med		
+Q_0132	项目Multi-omics research of acute myeloid leukemia的批量转录组测序（bulk RNA）与临床（Clinical）数据配对完整吗？缺失会影响哪些分析？	Data Quality/Gap	High		
+Q_0135	项目CAS Precision Medicine Initiative, capital Initiative的生存分析可用性如何？时间、状态、样本量是否足够？	Data Quality/Gap	High		
+Q_0136	工具scrna_cell_communication支持哪些输入输出格式？	Format Conversion	Low	scrna_cell_communication	
+Q_0137	有哪些工具支持原始测序数据（FASTQ）输入？	Format Conversion	Low		
+Q_0138	有哪些工具输出原始测序数据（FASTQ）格式？	Format Conversion	Low		
+Q_0140	原始原始测序数据（原始测序数据（FASTQ））到比对文件（比对文件（BAM））的转换工具是什么？	Format Conversion	Med		
+Q_0141	表达矩阵如何转换成富集分析可用的输入？	Format Conversion	Med		
+Q_0145	工具cellranger_workflow和breast_cellchat有哪些共同输入格式？	Tool/Format Comparison	Low	cellranger_workflow；breast_cellchat	
+Q_0147	工具cellranger_workflow和rnaseq_singletask有哪些不同输出格式？	Tool/Format Comparison	Low	cellranger_workflow；rnaseq_singletask	
+Q_0149	做无监督聚类时，tcell_intervention和preprocess_counts哪个更合适？	Tool/Format Comparison	Med	tcell_intervention；preprocess_counts	
+Q_0150	工具diff_expr_go和rsem共同适合哪些模态？	Tool/Format Comparison	Med	diff_expr_go；rsem	
+Q_0151	比较两条工具链在京都基因与基因组百科全书（KEGG）/Reactome通路数据库（Reactome）通路富集分析上的覆盖、缺口和输出差异	Tool/Format Comparison	High		
+Q_0154	wgcna_module_trait和paired_fastq_to_unmapped_bam都支持加权基因共表达网络分析（WGCNA）共表达分析。它们在输入层级、适用设计、输出和限制上有什么区别？	Tool/Format Comparison	Med	wgcna_module_trait；paired_fastq_to_unmapped_bam	
+Q_0155	deg_trend与cnvkit_cnv_clinical是可替代工具还是覆盖不同环节？什么条件下应二选一，什么条件下应组合？	Tool/Format Comparison	Med	deg_trend；cnvkit_cnv_clinical	
+Q_0157	复发星形细胞瘤个体中Female有多少？	Clinical/Survival Analysis	Low		
+Q_0158	小细胞肺癌个体按生存状态分布如何？	Clinical/Survival Analysis	Low		
+Q_0161	肺腺鳞癌个体中生存与未生存各多少？	Clinical/Survival Analysis	Med		
+Q_0162	少突-星形细胞瘤个体的生存状态、肿瘤突变负荷（肿瘤突变负荷（TMB））与数据文件数量分布如何？	Clinical/Survival Analysis	High		
+Q_0164	哪些项目同时具备间变少突胶质细胞瘤的临床生存数据和可关联的全外显子测序（WES）数据？	Clinical/Survival Analysis	High		
+Q_0177	项目Integrated Genomic Analyses Identify High-Risk Factors Associated with Poor Outcomes of T-ALL中是否有胰腺癌个体？	Negative	Med		
+Q_0178	有哪些项目同时提供肝血管瘤的代谢组和临床（Clinical）数据？	Negative	High		
+Q_0187	某个特征是否导致肺腺癌？	Negative	Low		
+Q_0188	项目Multi-omics integrative analysis of esophageal squamous carcinoma中某个个体的年龄是多少？	Negative	Med		
+Q_0190	能否基于当前数据推断T细胞急性淋巴细胞白血病的完整因果机制？	Negative	High		
+Q_0192	有哪些项目包含批量转录组测序（bulk RNA）模态的数据？	Data Recommendation	Low		
+Q_0194	哪些项目同时包含批量转录组测序（bulk RNA）和临床（Clinical）两类数据？	Data Recommendation	Med		
+Q_0195	项目Integrated Genomic Analyses Identify High-Risk Factors Associated with Poor Outcomes of T-ALL包含哪些批量转录组测序（bulk RNA）数据，分别属于什么数据层级？	Data Recommendation	Med		
+Q_0196	有哪些项目包含非APL急性髓系白血病的多组学数据？	Data Recommendation	Med		
+Q_0198	项目Integrated genomic and transcriptomic profiling dissects spatiotemporal evolution of metastatic hepatocellular carcinoma的批量转录组测序（bulk RNA）与单细胞转录组测序（scRNA-seq）数据能否联合分析？需要核对哪些层级和配对条件？	Data Recommendation	High		
+Q_0199	哪些项目同时覆盖表达、变异和临床数据，可支持肺鳞癌的整合分析？	Data Recommendation	High		
+Q_0200	项目Whole Genome Sequencing in Esophageal Squamous Cell Carcinoma包含哪些全基因组测序（WGS）数据，分别属于什么数据层级？	Data Recommendation	Low		
+Q_0204	请为项目Chinese Glioma Genome Altas (CGGA) - 全外显子测序（WES） dataset建立数据能力地图：可支持的分析意图、关键缺口和不可支持的推断	Data Recommendation	High		
+Q_0210	如何把项目Multi-omics integrative analysis of esophageal squamous carcinoma作为发现队列、Chinese Glioma Genome Altas (CGGA) - 全外显子测序（WES） dataset作为验证队列研究体细胞变异检测？	Data Recommendation	High		
+Q_0211	整合项目Chinese Glioma Genome Altas (CGGA) - 转录组测序（RNA-seq） dataset (325)的批量转录组测序（bulk RNA）、全基因组测序（WGS）和临床数据研究总生存期（OS）时，如何处理样本重叠、缺失模态和协变量？	Data Recommendation	High		
+Q_0214	适合全外显子测序（WES）数据且能做无监督聚类的工具有哪些？	Goal-Function-Tool Mapping	Med	bootstrap_stability；hvg_pca_gmm；rnaseq_unsupervised_cluster	
+Q_0216	要做京都基因与基因组百科全书（KEGG）/Reactome通路数据库（Reactome）通路富集分析，有哪些候选工具？各自输入输出差异是什么？	Goal-Function-Tool Mapping	Med	diff_expr_kegg	
+Q_0218	用wgcna处理表达矩阵后，哪些下游工具能继续完成基因本体（GO）富集分析？	Goal-Function-Tool Mapping	High	wgcna	
+Q_0219	当前工具集能否支持从原始临床（Clinical）数据到肿瘤突变负荷（TMB）计算与生存分析结果的完整流程？缺口在哪里？	Goal-Function-Tool Mapping	High	survival_analysis；tmb_survival_analysis	
+Q_0220	工具stage_heatmap主要支持哪些组学或临床研究任务？需要什么输入，通常产生哪些结果？	Tool Recommendation	Low	stage_heatmap	
+Q_0221	如果我的目标是体细胞变异检测，cnvkit_cnv_clinical的功能是否覆盖该任务？还需要哪些分组、表型或结局信息？	Tool Recommendation	Med	cnvkit_cnv_clinical	
+Q_0222	cellranger_workflow在典型分析流程中位于哪个环节？它的语义输入和输出如何衔接下游？	Tool Recommendation	Med	cellranger_workflow	
+Q_0223	请从研究设计、统计假设、数据层级和结论强度说明rnaseq_unsupervised_cluster适合与不适合的问题	Tool Recommendation	High	rnaseq_unsupervised_cluster	
+Q_0225	fastp的输出能否作为dataset_downstream的语义输入？请核对数据单位、处理状态和必需字段	Tool Recommendation	High	fastp；dataset_downstream	
+Q_0232	我想对临床（Clinical）数据做京都基因与基因组百科全书（KEGG）/Reactome通路数据库（Reactome）通路富集分析，推荐什么工具？	Goal-Function-Tool Mapping	Low	diff_expr_kegg	
+Q_0233	我有单细胞转录组数据数据，想得到基因本体（GO）/京都基因与基因组百科全书（KEGG）富集结果，应该用什么工具或流程？	Goal-Function-Tool Mapping	Med	cellranger_workflow；celltype_case_control_de；dataset_downstream；dataset_matrix_annotation；diff_expr_go；fastqc；lung_tme_annotation_cnv；tcell_intervention	
+Q_0234	我想做基因本体（GO）富集分析和可变剪接分析，需要哪些工具？	Goal-Function-Tool Mapping	Med	diff_expr_go	
+Q_0235	对肺腺癌与肺鳞癌的全外显子测序（WES）数据数据做无监督聚类，推荐什么工具？	Goal-Function-Tool Mapping	Med	bcftools；bootstrap_stability；fastp；hvg_pca_gmm；paired_fastq_to_unmapped_bam；rnaseq_unsupervised_cluster；samtools	
+Q_0236	我想从单细胞转录组数据出发完成体细胞变异检测，当前工具能否支持？缺什么？	Goal-Function-Tool Mapping	High	celltype_case_control_de；dataset_downstream；dataset_matrix_annotation；fastqc；gatk；lung_tme_annotation_cnv；tcell_intervention；wes_somatic_pair	
+Q_0237	我想实现生存分析，比较候选工具在功能、输入输出和适用模态上的差异	Goal-Function-Tool Mapping	High	cox_model；km_survival；survival_analysis	
+Q_0238	我想在少突-星形细胞瘤队列中完成生存分析，需要哪些工具和数据条件？	Goal-Function-Tool Mapping	High	cox_model；km_survival；survival_analysis	
+Q_0240	我想做肿瘤突变负荷（TMB）计算与生存分析，可以用什么工具？	Goal-Function-Tool Mapping	Low	survival_analysis；tmb_survival_analysis	
+Q_0241	我想完成无监督聚类，当前数据或工具缺什么？给出替代方案	Goal-Function-Tool Mapping	High	bootstrap_stability；hvg_pca_gmm；rnaseq_unsupervised_cluster	
+Q_0242	我想对表达矩阵做基因本体（GO）富集分析，推荐什么工具？	Goal-Function-Tool Mapping	Low	bootstrap_stability；celltype_case_control_de；cox_model；diff_expr_go；diff_expr_kegg；ipf_trajectory_regulon；samtools；star	
+Q_0243	我有突变突变注释文件（MAF）数据数据，想得到免疫细胞比例表，应该用什么工具？	Goal-Function-Tool Mapping	Low	immune_infiltration_iobr	
+Q_0244	我想对食管鳞状细胞癌的表达矩阵做免疫浸润分析，推荐什么工具？	Goal-Function-Tool Mapping	Med	bootstrap_stability；cox_model；diff_expr_kegg；immune_infiltration_iobr；ipf_trajectory_regulon；samtools；star	
+Q_0245	我想同时完成京都基因与基因组百科全书（KEGG）/Reactome通路数据库（Reactome）通路富集分析和可变剪接分析，需要哪些工具？	Goal-Function-Tool Mapping	Med	diff_expr_kegg	
+Q_0246	我想从单细胞转录组数据出发完成京都基因与基因组百科全书（KEGG）/Reactome通路数据库（Reactome）通路富集分析，当前工具是否足够？	Goal-Function-Tool Mapping	Med	cellranger_workflow；celltype_case_control_de；dataset_downstream；dataset_matrix_annotation；diff_expr_kegg；fastqc；lung_tme_annotation_cnv；tcell_intervention	
+Q_0247	我想在结直肠肝转移队列中完成突变景观分析，需要哪些工具和数据条件？	Goal-Function-Tool Mapping	High	wes_somatic_maf_landscape	
+Q_0249	比较实现差异表达分析的候选工具，推荐最适合临床（Clinical）的工具	Goal-Function-Tool Mapping	High	diff_expr_go；diff_expr_kegg	
+Q_0250	工具cellranger_workflow的下一步工具是什么？	Goal-Function-Tool Mapping	Low	cellranger_workflow	
+Q_0251	做京都基因与基因组百科全书（KEGG）/Reactome通路数据库（Reactome）通路富集分析的标准流程包含哪些工具？	Goal-Function-Tool Mapping	Med	diff_expr_kegg	
+Q_0254	工具链rsem->dataset_matrix_annotation->lung_tme_annotation_cnv的语义输入输出是否真的衔接？	Goal-Function-Tool Mapping	High	rsem；dataset_matrix_annotation；lung_tme_annotation_cnv	
+Q_0256	如果先使用breast_cellchat、再使用gene_boxplot完成免疫浸润分析，需要核对哪些输入输出关系？	Toolchain/Workflow	Med	breast_cellchat；gene_boxplot	
+Q_0257	wgcna_module_trait的输出能否在语义上作为breast_cellchat的输入？请检查数据单位、特征标识、处理状态和必需字段	Toolchain/Workflow	High	wgcna_module_trait；breast_cellchat	
+Q_0258	使用her2_pfs_survival、diff_expr_go、umap设计生存分析流程时，哪些环节重复，哪些环节缺少工具？	Toolchain/Workflow	High	her2_pfs_survival；diff_expr_go；umap	
+Q_0262	使用发现队列Immune Correlates of Response and Resistance to Neoadjuvant Chemo-immunotherapy in Non-small Cell Lung Cancer和验证队列Multi-omics integrative analysis of esophageal squamous carcinoma，如何安排fastqc、de_enrichment完成发现、注释、建模和验证？	Toolchain/Workflow	High	fastqc；de_enrichment	HRR1320767_f1.fq.gz；HRR1320767_r2.fq.gz；HRR1320768_f1.fq.gz；HRR1320768_r2.fq.gz；HRR1320769_f1.fq.gz；HRR1320769_r2.fq.gz；HRR1320770_f1.fq.gz；HRR1320770_r2.fq.gz；HRR1320771_f1.fq.gz；HRR1320771_r2.fq.gz；HRR1320772_f1.fq.gz；HRR1320772_r2.fq.gz；HRR1320773_f1.fq.gz；HRR1320773_r2.fq.gz；HRR1320774_f1.fq.gz；HRR1320774_r2.fq.gz；HRR1320775_f1.fq.gz；HRR1320775_r2.fq.gz；HRR1320776_f1.fq.gz；HRR1320776_r2.fq.gz；HRR1320777_f1.fq.gz；HRR1320777_r2.fq.gz；HRR1320778_f1.fq.gz；HRR1320778_r2.fq.gz；HRR1320779_f1.fq.gz；HRR1320779_r2.fq.gz；HRR1320780_f1.fq.gz；HRR1320780_r2.fq.gz；HRR1320781_f1.fq.gz；HRR1320781_r2.fq.gz
+Q_0264	针对加权基因共表达网络分析（WGCNA）共表达分析，比较“先单模态分析再整合”与“直接联合建模”两种方案在项目Chinese Glioma Genome Altas (CGGA) - 全外显子测序（WES） dataset上的适用性	Toolchain/Workflow	High		
+Q_0265	项目Multi-omics of acral melanoma的数据从project到T2包含哪些层级？	Lineage/Provenance	Low		
+Q_0268	项目Multi-omics integrative analysis of esophageal squamous carcinoma中，表达矩阵、变异和临床数据能否在个体层面串联？	Lineage/Provenance	High		
+Q_0269	项目Multi-omics integrative analysis of esophageal squamous carcinoma有多少个体？	Statistics	Low		
+Q_0271	项目单细胞转录组测序（scRNA-seq） of liver cancer中Female个体有多少？	Statistics	Med		
+Q_0272	项目Chinese Glioma Genome Altas (CGGA) - 转录组测序（RNA-seq） dataset (325)中各癌种个体数分布如何？	Statistics	Med		
+Q_0273	间变少突-星形细胞瘤个体按生存状态分组数量如何？	Statistics	Med		
+Q_0275	哪些项目包含批量转录组测序（bulk RNA）与全基因组测序（WGS）双模态数据，且样本量满足联合分析？	Statistics	High		
+Q_0276	结肠腺癌的肿瘤突变负荷（肿瘤突变负荷（TMB））、生存状态和对应数据文件数量分布如何？	Statistics	High		
+Q_0277	工具cox_model支持哪些功能？	Metadata/Concept Lookup	Low	cox_model	
+Q_0283	比较TSV与TSV在项目Immune Correlates of Response and Resistance to Neoadjuvant Chemo-immunotherapy in Non-small Cell Lung Cancer中的语义层级差异	Metadata/Concept Lookup	High		
+Q_0285	项目Pharmacogenomic profiling of intra-tumor heterogeneity by a large organoid biobank of liver cancer中缺少11_tmb的个体数量和占比？	Data Quality/Gap	Med		
+Q_0286	哪些项目缺少全基因组测序（WGS）数据？	Data Quality/Gap	Med		
+Q_0289	当前数据与工具能否支持肺腺癌与小细胞肺癌的全外显子测序（WES）+批量转录组测序（bulk RNA）联合分析？缺什么？	Data Quality/Gap	High		
+Q_0290	项目Immune Correlates of Response and Resistance to Neoadjuvant Chemo-immunotherapy in Non-small Cell Lung Cancer的生存分析可用性如何？时间、状态、样本量是否足够？	Data Quality/Gap	High		
+Q_0291	工具cellranger_workflow支持哪些输入输出格式？	Format Conversion	Low	cellranger_workflow	
+Q_0292	有哪些工具支持REFERENCE_GENOME_FASTA输入？	Format Conversion	Low		
+Q_0293	有哪些工具输出REFERENCE_GENOME_FASTA格式？	Format Conversion	Low		
+Q_0297	工具gatk和tmb_survival_analysis有哪些共同输入格式？	Tool/Format Comparison	Low	gatk；tmb_survival_analysis	
+Q_0299	工具gene_boxplot和ipf_trajectory_regulon有哪些不同输出格式？	Tool/Format Comparison	Low	gene_boxplot；ipf_trajectory_regulon	

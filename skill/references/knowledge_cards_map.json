@@ -607,5 +607,515 @@
     "format": "TXT"
    }
   ]
+ },
+ "de_enrichment": {
+  "graph_tool_id": "de_enrichment",
+  "name_cn": "差异表达与富集分析",
+  "category": "差异表达分析与富集分析",
+  "reusable_for": [
+   "bulk-RNA-seq"
+  ],
+  "docker_image_tag": "task283_de_enrichment",
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "case_label",
+    "type": "String?",
+    "format": null,
+    "required": false
+   },
+   {
+    "name": "control_label",
+    "type": "String?",
+    "format": null,
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "deg_enrichment": {
+  "graph_tool_id": "deg_enrichment",
+  "name_cn": "差异表达与功能富集分析",
+  "category": "差异表达与功能富集分析",
+  "reusable_for": [
+   "bulk-RNA-seq"
+  ],
+  "docker_image_tag": "task419_deg_enrichment",
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "case_label",
+    "type": "String?",
+    "format": null,
+    "required": false
+   },
+   {
+    "name": "control_label",
+    "type": "String?",
+    "format": null,
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "deg_trend": {
+  "graph_tool_id": "deg_trend",
+  "name_cn": "差异表达趋势分析",
+  "category": "差异表达分析",
+  "reusable_for": [
+   "bulk-RNA-seq"
+  ],
+  "docker_image_tag": "task423_deg_trend",
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "case_label",
+    "type": "String?",
+    "format": null,
+    "required": false
+   },
+   {
+    "name": "control_label",
+    "type": "String?",
+    "format": null,
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "gene_boxplot": {
+  "graph_tool_id": "gene_boxplot",
+  "name_cn": "基因表达差异与箱线图可视化流程",
+  "category": "差异表达分析",
+  "reusable_for": [
+   "bulk-RNA-seq"
+  ],
+  "docker_image_tag": "task303_gene_boxplot",
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "case_label",
+    "type": "String?",
+    "format": null,
+    "required": false
+   },
+   {
+    "name": "control_label",
+    "type": "String?",
+    "format": null,
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "stage_heatmap": {
+  "graph_tool_id": "stage_heatmap",
+  "name_cn": "肿瘤分期热图分析",
+  "category": "数据可视化",
+  "reusable_for": [
+   "bulk-RNA-seq"
+  ],
+  "docker_image_tag": "task305_stage_heatmap",
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "umap": {
+  "graph_tool_id": "umap",
+  "name_cn": "表达矩阵 UMAP 降维可视化",
+  "category": "数据可视化",
+  "reusable_for": [
+   "bulk-RNA-seq"
+  ],
+  "docker_image_tag": "task383_umap",
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "wgcna_module_trait": {
+  "graph_tool_id": "wgcna_module_trait",
+  "name_cn": "WGCNA模块-性状关联分析",
+  "category": "共表达网络分析",
+  "reusable_for": [
+   "bulk-RNA-seq"
+  ],
+  "docker_image_tag": "task294_wgcna_module_trait",
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "wgcna_hub": {
+  "graph_tool_id": "wgcna_hub",
+  "name_cn": "WGCNA枢纽基因分析流程",
+  "category": "共表达网络分析",
+  "reusable_for": [
+   "bulk-RNA-seq"
+  ],
+  "docker_image_tag": "task313_wgcna_hub",
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "cox_model": {
+  "graph_tool_id": "cox_model",
+  "name_cn": "Cox 生存预后分析",
+  "category": "生存分析",
+  "reusable_for": [
+   "bulk-RNA-seq",
+   "Clinical"
+  ],
+  "docker_image_tag": "task310_cox_model",
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "km_survival": {
+  "graph_tool_id": "km_survival",
+  "name_cn": "Kaplan-Meier生存分析",
+  "category": "生存分析",
+  "reusable_for": [
+   "bulk-RNA-seq",
+   "Clinical"
+  ],
+  "docker_image_tag": "task438_km_survival",
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
  }
 }

@@ -71,9 +71,11 @@ If a count looks impossibly low or a max looks too small, check `valueType()` be
 ## 3. Closed tool catalog (truth = bio-pipeline-kg-matcher `data/csv/catalog`, rebuilt from the WDLs on 0823)
 
 > The copies under `references/` (`tool_catalog.csv`, `knowledge_cards_map.json`, `io_slot.csv`) are a
-> **snapshot** of that truth, current as of 0823 and byte-identical to upstream `58f6be6`. `io_slot.csv`
-> is read only by `light_router.py`'s `load_slots()` — the decommissioned offline arm; nothing on the
-> serving path reads it.
+> **snapshot** of that truth. `tool_catalog.csv` is still byte-identical to upstream `58f6be6` (0823);
+> `knowledge_cards_map.json` and `io_slot.csv` were **extended on 2026-08-24** with the bulk10 family
+> (§3.1) and no longer match `58f6be6`. `io_slot.csv` is read only by `light_router.py`'s `load_slots()`
+> — the decommissioned offline arm; nothing on the serving path reads it. The Knowledge Cards **are** on
+> the serving path: no card ⇒ `validate_plan` skips contract validation and emits no `execution_params`.
 >
 > ⚠️ **`~/bio-pipeline-kg-matcher` on this machine is NOT the upstream truth** — it is an unversioned
 > pre-0823 copy (no `.git`). The live repo is **`/tmp/kgm`**; verify with `git log --oneline -1` →
@@ -104,6 +106,64 @@ Catalog rules (decide Plan shape):
 - Data availability semantics: files precisely confirmed via Neo4j are `available`, otherwise
   `missing_from_graph`. Execution-side resources (GTF, reference genomes, indexes) are not part of
   availability judgment.
+
+## 3.1 The bulk10 family (2026-08-24 delivery) — one contract for ten pipelines
+
+Ten of the 38 pipelines share a single input contract and a single proven-data whitelist. They are not
+ten separate cases; treat them as one.
+
+| tool_id | docker image tag | what it produces | group labels |
+|---|---|---|---|
+| `de_enrichment` | `task283_de_enrichment` | DE + enrichment | yes |
+| `deg_enrichment` | `task419_deg_enrichment` | DE + functional enrichment | yes |
+| `deg_trend` | `task423_deg_trend` | DE trend analysis | yes |
+| `gene_boxplot` | `task303_gene_boxplot` | per-gene box plots | yes |
+| `stage_heatmap` | `task305_stage_heatmap` | tumour-stage heatmap | no |
+| `umap` | `task383_umap` | UMAP of the expression matrix | no |
+| `wgcna_module_trait` | `task294_wgcna_module_trait` | WGCNA module↔trait | no |
+| `wgcna_hub` | `task313_wgcna_hub` | WGCNA hub genes | no |
+| `cox_model` | `task310_cox_model` | Cox proportional hazards | no |
+| `km_survival` | `task438_km_survival` | Kaplan-Meier | no |
+
+**`taskNNN_` is a docker/Cromwell job-name prefix, not part of the tool id.** Write `cox_model` in
+`steps[].tool_id`; the tag `task310_cox_model` appears only in the container reference. Writing
+`task310_cox_model` as a tool_id fails closed-set validation.
+
+**Inputs — one required file, that is all.** Each WDL declares 40–50 parameters; every one except `expr`
+has a working default. Bind `expr` and stop.
+
+- `expr` — **required**, the study-level gene **counts** matrix
+  `/hpcdisk1/cbb_group/data/analysis/{STUDY}/{STUDY}-Genes-counts-1.0.tsv`.
+- `sample_csv`, `individual_csv` — CNCB-native metadata at `/cbb-data/gsa/agent/{STUDY}/sample.csv`
+  and `individual.csv`. **Do not write them into `inputs`, and do not query the graph for them.**
+  The server derives both from the study accession in `expr`, exactly as it does for the clinical
+  table + sample-metainfo pair. These two files are **not in the graph** for any bulk10 study (only
+  HRA000001 has nodes with those names) — binding them makes `validate_plan` match HRA000001's node
+  by `file_name` and reject the plan with `asset file_path 与图内记录不符`.
+- `case_label` / `control_label` — the four label-taking pipelines above. The server supplies the
+  literals `case` / `control`; override only if the user names different groups.
+
+**Data selection is restricted to seven cohorts.** These pipelines have proven Cromwell runs on exactly
+these studies, and on nothing else:
+
+`HRA000073` `HRA000074` `HRA000122` `HRA002693` `HRA003107` `HRA006117` `HRA007167`
+
+Picking any other cohort is an error, and the server rejects it. Two other studies (`HRA001272`,
+`HRA007413`) do have a `Genes-counts` file in the graph and will look like valid candidates — they are
+not: no bulk10 pipeline has ever run on them, HRA001272's path carries an extra `/RNAseq/` segment, and
+HRA007413's matrix is 1.2 MB. If the user asks for a cohort outside the seven, say so and offer one of
+the seven rather than substituting silently.
+
+**Quantification flavour: counts, always.** Not a methodological inference — every proven run of all ten
+pipelines used `{STUDY}-Genes-counts-1.0.tsv`. Normalisation happens inside the pipeline. Do not pick the
+TPM or FPKM version for these ten.
+
+**Outputs**, uniform across all ten: `results_tar_gz` (result archive), `output_manifest` (file
+manifest), `run_summary` (run summary table).
+
+**One per-study exception**: `cox_model` reads survival status from `native_status_source_col` and the
+proven runs set it to `13_vital_status` for `HRA000073`, `HRA000074`, `HRA002693`, `HRA006117`. The
+default covers the other three.
 
 ## 4. Query cookbook
 
@@ -354,13 +414,14 @@ expression matrix, the MAF, or the FASTQ pair. `hydrate_plan` completes the rest
   they live on `T1` or `T2`. **Hunting for them is the single largest waste of wall-clock in this
   project** — probing `T2` by `format`, coming back empty, then re-probing `T1` by `strategy`, at tens of
   seconds a round.
+- The same applies to the bulk10 family's `sample_csv` / `individual_csv` (§3.1) — server-derived from
+  the study accession, never written and never queried.
 - The expression matrix is normalised to the pipeline's default quantification flavour. A study's FPKM,
   TPM and counts versions have identical graph properties (`semantic_format` = `TABULAR_BIO_DATA`,
   `data_level` = 2) — only the file name distinguishes them, so the pipeline decides, not the caller.
   The **first** flavour named in the catalog description wins ("适用于 FPKM/TPM 定量数据" → FPKM). When
-  the description names none: the **WGCNA family takes raw `counts`**; anything **comparing one gene's
-  level across samples** — KM/Cox survival grouping, box plots, stage heatmaps, UMAP, pre-ranked GSEA —
-  takes **TPM**.
+  the description names none: the **WGCNA family and the whole bulk10 family (§3.1) take raw `counts`**;
+  `gsea_pathway_enrichment` needs a ranking over all genes and takes **TPM**.
 - When the required semantic format has **exactly one** study-level delivery file in that cohort — a name
   beginning `HRA<digits>-`, e.g. `HRA007169-SomaticSNV-1.0.maf` — a per-sample file you picked
   (`HRR1725089.maf`) is swapped for it. "Exactly one" keeps this safe: FASTQ has no study-level file so
@@ -555,22 +616,25 @@ get confused in practice:
 
 - `diff_expr_go` (GO functional enrichment) vs `diff_expr_kegg` (pathway / Reactome enrichment) — both
   are limma two-group DE on an expression matrix alone; the enrichment target is the only difference.
-- `gsea_pathway_enrichment` does **not** pre-select DEGs (pre-ranked GSEA over all genes), and
-  `deg_enrichment` / `de_enrichment` are for when the user **explicitly supplies sample metadata and a
-  clinical table**, or asks for survival association. Phrasing like "case group vs control group" does
-  *not* select them — every DE pipeline groups samples; that is not a discriminator.
-  Neither is the answer to a plain "find DEGs, then enrich them" request.
+- `gsea_pathway_enrichment` does **not** pre-select DEGs (pre-ranked GSEA over all genes).
+  `deg_enrichment` / `de_enrichment` are bulk10 members (§3.1): they parse grouping out of CNCB-native
+  metadata themselves, so they fit any two-group DE-plus-enrichment request **on one of the seven proven
+  cohorts**. `de_enrichment` returns DE + enrichment, `deg_enrichment` adds the functional-enrichment
+  panel; `deg_trend` is the same family when the user wants the trend/box/volcano visual set. Phrasing
+  like "case group vs control group" does not discriminate among them — every DE pipeline groups samples.
+  Outside the seven cohorts, use `diff_expr_go` / `diff_expr_kegg`, which take a matrix alone.
 - `survival_analysis` stratifies by a **named gene's mutation status** (MAF) and `tmb_survival_analysis`
   by **TMB median**. Grouping by a gene's **expression level** is `her2_pfs_survival` — it is the
   default for that whole shape, whatever the gene (HER2/ERBB2 is only its default, not its scope).
-  `km_survival` and `cox_model` are generalised variants: pick them only when the user explicitly asks
-  for overall survival or multivariate Cox modelling rather than expression-stratified PFS.
+  `km_survival` (KM) and `cox_model` (multivariate Cox) are the bulk10 survival pair: they read survival
+  time and status straight from `individual.csv`, so they are the right answer for overall-survival
+  questions on the seven proven cohorts.
 - `rnaseq_unsupervised_cluster` is the end-to-end chain from counts; `preprocess_counts`,
   `hvg_pca_gmm` and `bootstrap_stability` are single steps carved out of it and take logCPM.
-- `wgcna` is the full co-expression chain and **the default for any co-expression / hub-gene request** —
-  asking for "stable modules" or "related pathways" does not move you off it. `wgcna_hub` applies only
-  when the user wants grouping parsed automatically from raw CNCB metadata; `wgcna_module_trait` only
-  when they explicitly want survival analysis layered on top of the co-expression network.
+- `wgcna` is the full co-expression chain and the default for a co-expression / hub-gene request on a
+  cohort **outside** the seven. On one of the seven, prefer the bulk10 pair: `wgcna_hub` for hub-gene
+  output, `wgcna_module_trait` for module↔trait association — both parse grouping from CNCB metadata
+  with no clinical table to bind.
 
 | tool | function | modal | inputs | outputs |
 |---|---|---|---|---|
@@ -581,12 +645,12 @@ get confused in practice:
 | `cellranger_workflow` | 基于 10x Genomics CellRanger 的单细胞 RNA 测序数据分析流程。 包含 FASTQ 质控、序列比对、基因表达定量及结果可视化，适用于 10x Chromium 平台产生的单细胞转录组数据。 | sc-RNA,bulk_RNA | RAW_SINGLE_END_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM | TABULAR_BIO_DATA,DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT |
 | `celltype_case_control_de` | 对单细胞RNA-seq数据中指定的细胞类型进行病例-对照差异表达分析。输入为Seurat RDS文件，输出包括差异表达结果、分析摘要、质控报告等。适用于配对或非配对的病例-对照研究设计。 | sc-RNA,bulk_RNA | SCRNA_OBJECT_RDS,TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA | QC_STATS_REPORT |
 | `cnvkit_cnv_clinical` | 对肿瘤队列的配对肿瘤/正常 WGS 或 WES BAM 运行 CNVkit，生成样本级分段、离散拷贝数、scatter/diagram 图，并可选汇总高频基因 CNV 与临床分期及总生存的探索性关联。输入为样本ID、肿瘤/正常BAM/BAI数组，输出包括CNV分段文件、BED文件、可视化图以及临床关联分析结果。 | Clinical,WES,WGS | DNA_GENOMIC_ALIGNMENT_BAM,CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA | VISUALIZATION_RESULT,TABULAR_BIO_DATA |
-| `cox_model` | 整合基因表达矩阵与临床元数据，执行 Cox 比例风险回归分析和 Kaplan-Meier 生存曲线绘制。 支持自定义样本分组、生存时间/状态列映射，输出风险比、P 值及前 N 个显著基因。 适用于癌症预后标志物筛选和临床亚组生存差异分析场景。 | Clinical,bulk_RNA | CLINICAL_DATA_EXCEL,METADATA_SAMPLE_INFO,TABULAR_BIO_DATA | QC_STATS_REPORT,TABULAR_BIO_DATA |
+| `cox_model` | 整合基因表达矩阵与临床元数据，执行 Cox 比例风险回归分析和 Kaplan-Meier 生存曲线绘制。 支持自定义样本分组、生存时间/状态列映射，输出风险比、P 值及前 N 个显著基因。 适用于癌症预后标志物筛选和临床亚组生存差异分析场景。 | Clinical,bulk_RNA| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `dataset_downstream` | 对单细胞RNA-seq数据集进行标准化下游分析，包括基因排序、细胞类型注释和恶性细胞标记。 输入为Seurat RDS文件和基因排序文件，输出包括压缩的结果文件、运行摘要和质量控制报告。 | sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,SCRNA_OBJECT_RDS | QC_STATS_REPORT |
 | `dataset_matrix_annotation` | 该流程用于对单细胞RNA-seq数据集进行矩阵注释和细胞类型标注。输入为Seurat RDS格式的整合数据文件，输出包括注释结果压缩包、运行摘要、输入质量控制报告和分析清单等文件。 | sc-RNA | TABULAR_BIO_DATA,SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA | QC_STATS_REPORT |
-| `de_enrichment` | 本流程整合 CNCB 元数据，执行差异表达分析并生成富集分析结果。支持自动样本分组、生存分析关联，输出火山图、热图及富集分析可视化。适用于具有临床元数据的 bulk RNA-seq 数据。 | bulk_RNA,Clinical | METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA | QC_STATS_REPORT,TABULAR_BIO_DATA |
-| `deg_enrichment` | 本流程整合表达矩阵、样本元数据和临床信息，执行差异表达分析并生成火山图、热图及功能富集分析结果。 支持自动分组识别、生存分析关联，适用于批量 RNA-seq 数据的标准化差异表达与富集分析场景。 | bulk_RNA,Clinical | TABULAR_BIO_DATA,METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL | TABULAR_BIO_DATA,QC_STATS_REPORT |
-| `deg_trend` | 本流程用于差异表达基因(DEG)的趋势分析与可视化。输入基因表达矩阵、样本元数据和临床信息，自动完成样本分组、差异分析，并生成火山图、热图、箱线图和趋势图等多种可视化结果。适用于批量 RNA-seq 数据的临床关联分析场景。 | bulk_RNA,Clinical | METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA | TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
+| `de_enrichment` | 本流程整合 CNCB 元数据，执行差异表达分析并生成富集分析结果。支持自动样本分组、生存分析关联，输出火山图、热图及富集分析可视化。适用于具有临床元数据的 bulk RNA-seq 数据。 | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) + case/control labels | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
+| `deg_enrichment` | 本流程整合表达矩阵、样本元数据和临床信息，执行差异表达分析并生成火山图、热图及功能富集分析结果。 支持自动分组识别、生存分析关联，适用于批量 RNA-seq 数据的标准化差异表达与富集分析场景。 | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) + case/control labels | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
+| `deg_trend` | 本流程用于差异表达基因(DEG)的趋势分析与可视化。输入基因表达矩阵、样本元数据和临床信息，自动完成样本分组、差异分析，并生成火山图、热图、箱线图和趋势图等多种可视化结果。适用于批量 RNA-seq 数据的临床关联分析场景。 | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) + case/control labels | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `diff_expr_go` | 基于表达矩阵进行差异基因分析（limma）并针对上下调基因分别进行 GO 功能富集（clusterProfiler）。 适用于 FPKM/TPM 定量数据的两组比较场景，输出差异基因列表及 GO 富集结果表。 | bulk_RNA | TABULAR_BIO_DATA | TABULAR_BIO_DATA |
 | `diff_expr_kegg` | 基于 limma 包进行两组样本差异表达分析，并使用 ReactomePA 对上下调基因进行通路富集。 适用于人类基因表达矩阵（FPKM/TPM），输出差异基因列表及富集结果。 | bulk_RNA | TABULAR_BIO_DATA | TABULAR_BIO_DATA |
 | `driver_gene_gender_analysis` | 该流程基于 WES MAF 文件、临床表和 MetaInfo 表，对驱动基因的突变频率进行性别分层分析。 通过卡方检验比较男性和女性样本中每个驱动基因的突变率，并输出统计结果表、诊断表及多种可视化图表（分组柱状图、瀑布图、热图、火山图）。 | Clinical,WES | CLINICAL_DATA_EXCEL,MUTATION_ANNOTATION_FORMAT_MAF | TABULAR_BIO_DATA,VISUALIZATION_RESULT,MUTATION_ANNOTATION_FORMAT_MAF |
@@ -594,14 +658,14 @@ get confused in practice:
 | `fastqc` | 对输入的 FASTQ 文件进行质量评估，生成 HTML 和 ZIP 格式的 FastQC 报告。 适用于 WES、WGS、RNA-seq 和单细胞测序等多种测序数据类型，可接收原始或修剪后的 FASTQ 文件。 | bulk_RNA,sc-RNA,WES,WGS | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | QC_STATS_REPORT |
 | `featurecounts` | 该流程使用 featureCounts 工具对 RNA-seq 比对后的 BAM 文件进行基因水平计数。 输入为最终 BAM 文件和 GTF 注释文件，输出为基因计数矩阵、统计摘要和运行日志。 适用于 RNA-seq 定量分析中的基因表达计数步骤。 | bulk_RNA | DNA_GENOMIC_ALIGNMENT_BAM | QC_STATS_REPORT,TABULAR_BIO_DATA |
 | `gatk` | 基于 GATK 最佳实践的全外显子组（WES）肿瘤-正常配对体细胞变异检测流程。 流程对肿瘤和正常样本分别进行 MarkDuplicates 标记重复、BaseRecalibrator 碱基质量校正， 然后使用 Mutect2 进行体细胞变异检测，并通过 FilterMutectCalls 进行过滤， 同时评估样本污染和构建读段方向偏倚模型。 | WES | DNA_ALIGNMENT_INDEX_BAI,REFERENCE_GENOME_FASTA,TARGET_INTERVAL_LIST,DNA_GENOMIC_ALIGNMENT_BAM | DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT,DNA_VARIANT_INDEX_TBI,DNA_VARIANT_VCF_GENERAL |
-| `gene_boxplot` | 基于基因表达矩阵和临床元数据生成箱线图、火山图、热图等可视化结果。支持从 CNCB 原生格式元数据自动映射样本分组信息，可整合生存分析和肿瘤分期数据。适用于 bulk RNA-seq 数据的探索性可视化分析。 | Clinical,bulk_RNA | METADATA_SAMPLE_INFO,TABULAR_BIO_DATA,CLINICAL_DATA_EXCEL | QC_STATS_REPORT,TABULAR_BIO_DATA |
+| `gene_boxplot` | 基于基因表达矩阵和临床元数据生成箱线图、火山图、热图等可视化结果。支持从 CNCB 原生格式元数据自动映射样本分组信息，可整合生存分析和肿瘤分期数据。适用于 bulk RNA-seq 数据的探索性可视化分析。 | Clinical,bulk_RNA| TABULAR_BIO_DATA(counts, required) + case/control labels | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `gsea_pathway_enrichment` | 本流程基于limma moderated t统计量构建全基因排序，使用fgseaMultilevel执行预排序GSEA。 输入为表达矩阵和样本元数据，输出包括通路富集结果、显著通路、排序基因列表及可视化图表。 适用于病例-对照转录组比较分析，支持协变量校正和配对设计。 | bulk_RNA | TABULAR_BIO_DATA | VISUALIZATION_RESULT,TABULAR_BIO_DATA,QC_STATS_REPORT |
 | `her2_pfs_survival` | 基于 TPM 表达矩阵、临床信息及样本元信息，分析特定基因（默认 HER2）表达水平与无进展生存期（PFS）的关联。 流程自动匹配样本 accession，执行 Winsorizing 处理，生成 KM 生存曲线、Logrank 统计量及质量控制报告。 | Clinical,bulk_RNA | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA | VISUALIZATION_RESULT,QC_STATS_REPORT,TABULAR_BIO_DATA |
 | `hvg_pca_gmm` | 从logCPM表达矩阵中筛选高变基因，执行PCA降维，并在候选K范围内拟合高斯混合模型（GMM），最终依据BIC选择最佳聚类数。输入为预处理后的logCPM矩阵，输出包括高变基因统计、PCA结果、GMM聚类指标及可视化图表。 | bulk_RNA,sc-RNA | - | TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
 | `immune_infiltration_iobr` | 基于 IOBR 包的 CIBERSORT 算法进行免疫细胞浸润分析流程。 输入基因表达 TPM 矩阵、临床信息和样本元数据，输出免疫细胞比例估计、可靠性评估及可视化图表。 适用于批量 RNA-seq 数据的肿瘤微环境免疫细胞组成分析。 | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA | TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
 | `immunotherapy_cellchat` | 基于CellChat的免疫治疗细胞通讯分析流程。输入Seurat格式的单细胞RNA-seq数据，通过比较响应者与非响应者之间的细胞通讯网络差异，揭示免疫治疗相关的细胞间相互作用机制。输出包括通讯网络分析结果、质控报告和运行日志。 | sc-RNA | SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA | VISUALIZATION_RESULT,QC_STATS_REPORT |
 | `ipf_trajectory_regulon` | 对特发性肺纤维化(IPF)单细胞RNA-seq数据进行轨迹推断和调控子分析。输入为Seurat RDS对象，输出包括分析结果压缩包、运行摘要、质控报告和文件清单等。 | bulk_RNA,sc-RNA | SCRNA_OBJECT_RDS,METADATA_SAMPLE_INFO,REFERENCE_GENOME_FASTA | QC_STATS_REPORT |
-| `km_survival` | 整合基因表达矩阵与临床元数据，执行 Kaplan-Meier 生存分析和 Cox 比例风险模型。 支持样本分组、肿瘤分期过滤和生存数据验证，输出生存曲线及统计结果。 | bulk_RNA,Clinical | TABULAR_BIO_DATA,METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL | TABULAR_BIO_DATA,QC_STATS_REPORT |
+| `km_survival` | 整合基因表达矩阵与临床元数据，执行 Kaplan-Meier 生存分析和 Cox 比例风险模型。 支持样本分组、肿瘤分期过滤和生存数据验证，输出生存曲线及统计结果。 | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `lung_tme_annotation_cnv` | 基于单细胞RNA-seq数据对肺癌肿瘤微环境进行细胞类型注释和拷贝数变异(CNV)分析。 输入为Seurat RDS文件和基因排序文件，输出包括压缩的结果包、运行摘要、质控报告和分析清单。 | sc-RNA | SCRNA_OBJECT_RDS,TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA | QC_STATS_REPORT |
 | `multiqc` | 接收任意数量的上游质控文件（如 FastQC、fastp、SAMtools、BCFtools、SnpEff 等）， 生成交互式 MultiQC HTML 汇总报告及实际使用的配置文件。适用于 WES、WGS、RNA-seq 等流程。 | bulk_RNA,WES,WGS | - | QC_STATS_REPORT |
 | `paired_fastq_to_unmapped_bam` | 将双端 FASTQ 测序数据转换为未比对的 BAM 文件 (uBAM)，并添加完整的 Read Group 信息。 适用于 GATK 最佳实践流程的起始步骤，输出可用于后续变异检测流程的标准化 BAM 文件。 | WES | RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM | DNA_GENOMIC_ALIGNMENT_BAM |
@@ -613,18 +677,18 @@ get confused in practice:
 | `samtools` | 基于SAMtools工具集的比对后处理流程，支持对BAM文件进行排序、索引、去重及多种比对统计。 适用于WES/WGS和RNA-seq数据，通过remove_duplicates参数切换普通排序/去重模式。 | WGS,bulk_RNA,WES | DNA_GENOMIC_ALIGNMENT_BAM | DNA_ALIGNMENT_INDEX_BAI,DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT |
 | `scrna_cell_communication` | 该流程整合 CellPhoneDB 和 NicheNet 进行单细胞转录组细胞通讯分析。输入为 Seurat RDS 对象或 h5ad 格式的表达矩阵及细胞元数据，输出包括样本级别的 CellPhoneDB 结果、差异通讯分析结果以及 NicheNet 配体-受体和配体-靶基因预测结果。支持 HRA000087 数据集的自动预处理模式。 | sc-RNA,bulk_RNA | TABULAR_BIO_DATA,SCRNA_OBJECT_RDS,METADATA_SAMPLE_INFO | VISUALIZATION_RESULT,SCRNA_OBJECT_RDS,QC_STATS_REPORT,TABULAR_BIO_DATA |
 | `snpeff` | 基于 SnpEff 工具对 VCF 文件进行变异效应注释的独立流程。输入为未压缩或压缩的 VCF 文件，输出包含注释后的 VCF、HTML/CSV 格式的统计报告以及运行日志。适用于 WES/WGS 体细胞或胚系突变的生物学效应预测。 | WES,WGS | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA | DNA_VARIANT_VCF_GENERAL,QC_STATS_REPORT |
-| `stage_heatmap` | 本流程用于生成基于肿瘤分期的基因表达热图可视化。整合表达矩阵、元数据文件和临床信息文件，自动匹配样本信息并筛选目标分期样本，输出分期热图及样本映射报告。适用于 CNCB 等公共数据库来源的 bulk RNA-seq 数据可视化分析。 | Clinical,bulk_RNA | TABULAR_BIO_DATA,METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL | VISUALIZATION_RESULT,TABULAR_BIO_DATA,QC_STATS_REPORT |
+| `stage_heatmap` | 本流程用于生成基于肿瘤分期的基因表达热图可视化。整合表达矩阵、元数据文件和临床信息文件，自动匹配样本信息并筛选目标分期样本，输出分期热图及样本映射报告。适用于 CNCB 等公共数据库来源的 bulk RNA-seq 数据可视化分析。 | Clinical,bulk_RNA| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `star` | 该流程使用 STAR 比对工具对 RNA-seq 数据进行 rRNA 去除和基因组比对。流程包含两个步骤：首先将 reads 比对到 rRNA 参考索引以去除 rRNA 污染，然后将未比对的 reads 比对到基因组参考索引，输出未排序的基因组 BAM、转录组 BAM、基因计数文件和日志。 | bulk_RNA | REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ | RNA_TRANSCRIPTOME_ALIGNMENT_BAM,DNA_GENOMIC_ALIGNMENT_BAM,REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ |
 | `survival_analysis` | 基于 WDL 1.0 和 Cromwell 的生存分析流程，用于评估指定基因突变状态与无进展生存期（PFS）的关系。 流程整合了突变提取、Log-rank 检验、Kaplan-Meier 曲线绘制及单因素 Cox 回归分析，最终生成汇总报告。 | WES,Clinical | CLINICAL_DATA_EXCEL,MUTATION_ANNOTATION_FORMAT_MAF | QC_STATS_REPORT,VISUALIZATION_RESULT,CLINICAL_DATA_EXCEL |
 | `tcell_intervention` | 该流程用于对单细胞RNA-seq数据进行T细胞干预前后的比较分析。输入为Seurat RDS文件，通过指定细胞类型、时间点和患者信息等元数据列，进行差异表达分析，输出包括压缩的结果文件、运行摘要、质控报告和分析清单等。 | bulk_RNA,sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,METADATA_SAMPLE_INFO,SCRNA_OBJECT_RDS | QC_STATS_REPORT |
 | `tmb_survival_analysis` | 从MAF文件和临床数据计算病人级肿瘤突变负荷（TMB），按TMB中位数将病人分为高/低组， 进行Kaplan-Meier生存分析和log-rank检验，输出生存曲线、TMB分布图及统计结果表。 适用于肿瘤队列的预后分析场景。 | WES,Clinical | MUTATION_ANNOTATION_FORMAT_MAF,CLINICAL_DATA_EXCEL | QC_STATS_REPORT,TABULAR_BIO_DATA,VISUALIZATION_RESULT |
 | `trim_galore` | 基于 Trim Galore 工具的 FASTQ 文件接头修剪与质量控制流程。支持单端和双端测序数据，可指定接头序列，输出修剪后的 FASTQ 文件和修剪报告。 | bulk_RNA | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ,QC_STATS_REPORT |
-| `umap` | 基于基因表达矩阵进行 UMAP 降维可视化分析，整合 CNCB 元数据和临床信息。 支持自动样本分组、生存分析数据提取，输出降维结果及样本信息报告。 | Clinical,bulk_RNA | TABULAR_BIO_DATA,METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL | TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
+| `umap` | 基于基因表达矩阵进行 UMAP 降维可视化分析，整合 CNCB 元数据和临床信息。 支持自动样本分组、生存分析数据提取，输出降维结果及样本信息报告。 | Clinical,bulk_RNA| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `wes_somatic_maf_landscape` | 本流程用于全外显子测序（WES）队列的体细胞突变景观分析。输入标准 MAF 文件，经过滤处理后绘制 Top N 突变基因 Oncoplot 及突变类型分布图。适用于癌症基因组学中的突变谱可视化与总结。 | WES | MUTATION_ANNOTATION_FORMAT_MAF | TABULAR_BIO_DATA,VISUALIZATION_RESULT,MUTATION_ANNOTATION_FORMAT_MAF |
 | `wes_somatic_pair` | 用于单个病人配对 tumor-normal WES 数据的体细胞变异分析流程。包含 FASTQ 质控、BWA 比对、Mutect2 变异检测、SnpEff 注释及 MultiQC 汇总报告。 输出包括过滤后的 VCF 文件、BAM 文件及完整的质控报告。 | WGS,WES | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | DNA_VARIANT_INDEX_TBI,DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT,DNA_VARIANT_VCF_GENERAL |
 | `wgcna` | 基于基因表达矩阵和临床表型数据执行 WGCNA 共表达网络分析，包括样本 QC、模块识别、模块 - 性状关联、hub 基因筛选及 bootstrap 稳定性评估。 适用于转录组数据的系统性分析，输出模块划分结果、关键 hub 基因列表及功能富集分析结果。 | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA | TABULAR_BIO_DATA,VISUALIZATION_RESULT |
-| `wgcna_hub` | 基于 WGCNA 算法构建基因共表达网络，识别与表型性状相关的关键模块和 Hub 基因。 支持从 CNCB 等平台的原始元数据自动解析样本分组和临床信息，输出模块 - 性状关联、候选 Hub 基因列表及功能富集结果。 | Clinical,bulk_RNA | METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA | TABULAR_BIO_DATA,QC_STATS_REPORT |
-| `wgcna_module_trait` | 基于 WGCNA 算法构建基因共表达网络，识别功能模块并分析与临床性状的关联关系。 支持 GO/KEGG/Hallmark 富集分析、生存分析和 hub 基因筛选，适用于批量 RNA-seq 数据的系统生物学研究。 | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,METADATA_SAMPLE_INFO,TABULAR_BIO_DATA | TABULAR_BIO_DATA,QC_STATS_REPORT |
+| `wgcna_hub` | 基于 WGCNA 算法构建基因共表达网络，识别与表型性状相关的关键模块和 Hub 基因。 支持从 CNCB 等平台的原始元数据自动解析样本分组和临床信息，输出模块 - 性状关联、候选 Hub 基因列表及功能富集结果。 | Clinical,bulk_RNA| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
+| `wgcna_module_trait` | 基于 WGCNA 算法构建基因共表达网络，识别功能模块并分析与临床性状的关联关系。 支持 GO/KEGG/Hallmark 富集分析、生存分析和 hub 基因筛选，适用于批量 RNA-seq 数据的系统生物学研究。 | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 
 ### 12.2 Study snapshot (20; sample_count property is null for 6 studies — sample-node counts fill the gap)
 

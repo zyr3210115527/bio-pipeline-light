@@ -763,7 +763,11 @@ def tool_validate_execution_chain(args):
             wanted = [(i["name"], _is_array_type(i.get("type"))) for i in card["inputs"]
                       if _is_file_type(i.get("type"))
                       and not _is_reference_resource(card, i["name"])
-                      and (i.get("required", True) or i["name"] in bindings)]
+                      and (i.get("required", True) or i["name"] in bindings)
+                      # bulk10 的两张 CNCB 原生元数据表由服务端从队列号推（见 _bulk10_params）。
+                      # 图里只有 HRA000001 一份 sample.csv/individual.csv，走 _resolve 必然
+                      # 解析失败并留下一条假的 no_confirmed_path，误导调用方去数据侧要文件。
+                      and not (gid in _BULK10 and i["name"] in ("sample_csv", "individual_csv"))]
         else:   # pipeline 级无卡：有对象/对象数组 binding 的输入都当 File 处理
             wanted = [(k, isinstance(v, list)) for k, v in bindings.items()
                       if isinstance(v, (dict, list))]
@@ -777,6 +781,8 @@ def tool_validate_execution_chain(args):
                 # （数据侧补 file_path）。light 走 Knowledge Card 而非槽表，没有 slot_not_bound。
                 exec_missing.append({"param": name, "tool_id": tool_key, "step": idx,
                                      "reason": "no_confirmed_path"})
+        if gid in _BULK10:
+            params.update(_bulk10_params(gid, params.get("expr", ""), bindings, errors))
         by_step.append({"step": idx, "tool_id": tool_key, "params": params})
         # 扁平视图：键就是卡片参数名（不加 `tool.` 前缀，与 knowledge_card 的 name 完全一致）。
         # 同名参数跨步取到不同路径时**从扁平视图里剔除并记进 ambiguous**——宁可缺，
@@ -1011,15 +1017,66 @@ _FLAVOR_CANON = {"logcpm": "logCPM", "fpkm": "FPKM", "tpm": "TPM",
 _MATRIX_NAME = re.compile(r"^(.*-Genes-)([A-Za-z]+)(-.*\.tsv)$", re.I)
 
 # 描述里没点名口径的流程，按方法本身要求的输入定：不定就等于让调用方随口挑一份，
-# 同一个问题两次规划给出不同文件。只收方法学上没有争议的两族：
+# 同一个问题两次规划给出不同文件。
 #   · WGCNA 族按官方推荐从原始 counts（VST）起步，不吃 TPM/FPKM；
-#   · 跨样本比较某个基因的表达高低（生存分组、箱线图、热图、降维、预排序 GSEA）
-#     必须先做长度+深度归一，counts 不可比 —— TPM。
+#   · bulk10 族（见 _BULK10）**一律 counts**——不是方法学推导，是 2026-08-24 交付的
+#     10 条流程 × 7 个队列全部 Succeeded 的实跑记录，每一条的 expr 都是
+#     `{STUDY}-Genes-counts-1.0.tsv`。这条早先按「跨样本比表达高低要归一」推成了 TPM，
+#     于是 km_survival/cox_model/gene_boxplot/umap/stage_heatmap 五个流程被服务端把
+#     调用方选对的 counts **主动换成没跑通过的 TPM**——归一在流程内部自己做。
+#   · gsea_pathway_enrichment 不属于 bulk10，预排序确实要 TPM，保留。
 _FLAVOR_FALLBACK = {
-    "wgcna": "counts", "wgcna_hub": "counts", "wgcna_module_trait": "counts",
-    "km_survival": "TPM", "cox_model": "TPM", "gene_boxplot": "TPM",
-    "umap": "TPM", "stage_heatmap": "TPM", "gsea_pathway_enrichment": "TPM",
+    "wgcna": "counts", "gsea_pathway_enrichment": "TPM",
 }
+
+# bulk10：2026-08-24 交付的十条 CNCB 原生元数据流程。共同契约见 SKILL.md §3.1。
+# tool_id 不带 task 前缀，docker 镜像带（task310_cox_model:v1）——两边都别写错。
+_BULK10 = {"de_enrichment", "deg_enrichment", "deg_trend", "gene_boxplot", "stage_heatmap",
+           "umap", "wgcna_module_trait", "wgcna_hub", "cox_model", "km_survival"}
+_FLAVOR_FALLBACK.update({t: "counts" for t in _BULK10})
+
+# bulk10 只在这 7 个队列上跑通过（nnewtest1..7）。图内另有 HRA001272 / HRA007413 两份
+# Genes-counts，但没有任何一条 bulk10 流程在它们上面跑过——HRA001272 的 counts 还多一层
+# `/RNAseq/` 目录，HRA007413 只有 1.2MB。选它们等于拿没验证过的输入去提交。
+_BULK10_STUDIES = ("HRA000073", "HRA000074", "HRA000122", "HRA002693",
+                   "HRA003107", "HRA006117", "HRA007167")
+
+# sample.csv / individual.csv 是 CNCB 原生元数据，路径由队列号唯一确定，且**不在图内**
+# （图里只有 HRA000001 一份）。所以既不能让调用方去图里查（查不到），也不能让它写进
+# assets（validate_plan 的接地校验会按 file_name 撞上 HRA000001 那份、报 file_path 不符）。
+# 与临床表/样本元信息表同一处置：服务端从队列号直接推，调用方不写也不查。
+_BULK10_META = "/cbb-data/gsa/agent/{study}/{name}.csv"
+
+# 五条流程带 case/control 分组；实跑记录里两个值都是字面量 case / control。
+_BULK10_LABELS = {"de_enrichment", "deg_enrichment", "deg_trend", "gene_boxplot"}
+
+_STUDY_IN_PATH = re.compile(r"/(HRA\d+)[/-]")
+
+def _bulk10_params(gid, expr_path, bindings, errors):
+    """bulk10 流程的确定性补全：两张 CNCB 原生元数据表 + 分组标签。
+
+    队列号从已解析的 expr 路径里取——不另开一次图查询，也不信调用方另给的队列号
+    （给错了就会把 A 队列的表达矩阵配上 B 队列的样本表，样本 ID 对不上，
+    执行端只会得到 0 个可用样本而不是报错）。
+    """
+    if not expr_path:
+        return {}
+    m = _STUDY_IN_PATH.search(expr_path)
+    if not m:
+        errors.append(f"{gid}: 无法从 expr 路径解析队列号，bulk10 流程必须能定位到 HRA 队列")
+        return {}
+    study = m.group(1)
+    if study not in _BULK10_STUDIES:
+        errors.append(
+            f"{gid}: {study} 不在 bulk10 已验证队列内。这十条流程只在 "
+            f"{'/'.join(_BULK10_STUDIES)} 上跑通过，选数据必须从这七个队列里选")
+        return {}
+    out = {n + "_csv": _BULK10_META.format(study=study, name=n)
+           for n in ("sample", "individual")}
+    if gid in _BULK10_LABELS:
+        out["case_label"] = str(bindings.get("case_label") or "case")
+        out["control_label"] = str(bindings.get("control_label") or "control")
+    return out
 
 def _pipeline_flavor(gid):
     """闭集描述里**首个**点名的定量口径 = 该流程的默认矩阵形态。
