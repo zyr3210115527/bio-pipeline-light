@@ -240,7 +240,7 @@ def _assert_privacy(query):
                 or re.search(rf"\b{v}\s*\[", query):
             raise ValueError(
                 f"read_cypher 隐私守卫：禁止对 individual 节点（变量 {v}）使用 properties()/keys()/"
-                "动态属性访问——这会导出患者级临床属性。请显式点取非临床字段（如 individual_accession）。")
+                "动态属性访问——这会导出患者级临床属性。请显式点取非临床字段（如 `00_individual_accession`）。")
         # RETURN 段禁止整节点导出（count(v)/id(v) 允许；v.prop 点取由属性守卫把关）
         for mseg in re.finditer(r"\bRETURN\b(.*?)(?=\b(?:MATCH|WHERE|UNWIND|CALL|UNION|ORDER|SKIP|LIMIT)\b|$)",
                                 query, re.IGNORECASE | re.S):
@@ -250,7 +250,7 @@ def _assert_privacy(query):
             if re.search(rf"(?<![\w.]){v}(?![\w.])", seg):
                 raise ValueError(
                     f"read_cypher 隐私守卫：禁止整体 RETURN individual 节点（变量 {v}）——"
-                    "请显式点取所需的非临床字段（如 {v}.individual_accession）或用 count() 聚合。")
+                    "请显式点取所需的非临床字段（如 `00_individual_accession`）或用 count() 聚合。")
 
 def _assert_no_sensitive_payload(rows):
     """结果面兜底守卫（与查询写法无关）。
@@ -280,7 +280,7 @@ def _assert_no_sensitive_payload(rows):
         raise ValueError(
             f"read_cypher 隐私守卫（结果面）：返回内容包含患者级临床属性 "
             f"{sorted(bad)}——不论查询怎么写都不放行。请只点取非临床字段"
-            "（individual_accession 等），或改成 count/avg 等聚合。")
+            "（`00_individual_accession` 等），或改成 count/avg 等聚合。")
 
 MAX_ROWS = 500
 # resolve_sample_roles 的 samples 预览条数。给 20 是因为模型在选队列这一步只需要

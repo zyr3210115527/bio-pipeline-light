@@ -236,7 +236,10 @@ for name, q in [
      "MATCH (i:individual) WHERE i.`00_sample_accession` IS NOT NULL RETURN count(*)"),
     ("12_ 存在性判断放行", "MATCH (i:individual) WHERE i.`12_surgery` IS NOT NULL RETURN count(*)"),
     # 属性名里嵌了数字（..._109_l）不能被当成 09_ 病理属性误杀：前缀必须落在名字开头
-    ("04_platelet_count_109_l 聚合放行", "MATCH (i:individual) RETURN avg(i.`04_platelet_count_109_l`)"),
+    # 该字段实测是 STRING（974 个非空），avg() 直接吃会被 Neo4j 拒（"can only handle
+    # numerical values"）——那是类型错，不是守卫误伤。这里用 toFloat() 包一层，才真正
+    # 测到「04_ 前缀的聚合查询能放行」这件事。
+    ("04_platelet_count_109_l 聚合放行", "MATCH (i:individual) RETURN avg(toFloat(i.`04_platelet_count_109_l`))"),
 ]:
     r = m.tool_read_cypher({"query": q})
     check(f"敏感前缀零误伤「{name}」", r["status"] == "ok", r)

@@ -40,7 +40,7 @@ provides knowledge and deterministic checks — there is **no "one-call Plan" en
 | `modal` (6) | **Only** `WES` / `WGS` / `bulk_RNA` / `sc-RNA` / `Clinical` / `Meta` — never invent spellings like `RNA-seq`. **The node property is `modal`, not `name`** — `(:modal {name:'sc-RNA'})` matches nothing and returns a silent zero. To find a modality's files, filter `T1.strategy = 'sc-RNA'` directly rather than traversing `in_modal` |
 | `datalevel` (4) | Properties are `level` / `name` / `description`, **not** `data_level`; 1 raw → 4 knowledge. (File-side `T1.data_level` / `T2.data_level` ARE called data_level.) |
 | `study` (20) / `project` (18) | `study_accession`, `tumor_type` (Title Case English, e.g. `Liver Cancer`; query with toLower + CONTAINS — one cancer has multiple spellings, see §4 recipe 3), `title`, `study_description`, `individual_count`, `sample_count` (**only 14/20 studies have it**: HRA000073/HRA000087/HRA002693/HRA006117/HRA007413/HRA016026 are null — sorting/filtering by it silently drops those 6; to size a cohort count `sample` nodes) |
-| `individual` (7131) | `individual_accession`; other properties are prefix-grouped: **only `00_*` is operational** (`00_sample_accession` / `00_run_accession` / `00_platform` / `00_strategy` …). **`01_`–`13_` are all patient-level sensitive**: 01_ demographics, 02_ family history, 03_ lifestyle, 04_ hematology, 09_ tumor pathology, 10_ invasion, 11_ molecular (`11_tmb` / `11_msi_score`), 12_ treatment, **13_ survival (`13_survival_days` / `13_survival_status` / `13_pfs_time` … — survival-analysis data lives here)**. Aggregates only (count / avg / IS NOT NULL); per-individual reads are refused by the server guard (§8) |
+| `individual` (7131) | **`00_individual_accession` is the id — there is NO bare `individual_accession` on this label** (that name exists only on `T1`/`T2`; using it here returns an all-null column, not an error). Other properties are prefix-grouped: **only `00_*` is operational** (`00_individual_accession` / `00_sample_accession` / `00_platform` / `00_strategy` …). **`01_`–`13_` are all patient-level sensitive**: 01_ demographics, 02_ family history, 03_ lifestyle, 04_ hematology, 09_ tumor pathology, 10_ invasion, 11_ molecular (`11_tmb` / `11_msi_score`), 12_ treatment, **13_ survival (`13_survival_days` / `13_survival_status` / `13_pfs_time` … — survival-analysis data lives here)**. Aggregates only (count / avg / IS NOT NULL); per-individual reads are refused by the server guard (§8) |
 | `sample` (10465) | `sample_accession`, `sample_name`, `tissue_type`, `specimen_type` (underscore style, e.g. `Patient_Solid_Tissue`), `gender`. **`tissue_type` is not a clean Tumor/Normal binary** (0821: Tumor 6258, Normal 2821, null 829, Blood 557 — no multi-value cells left, but null and `Blood` still break equality matching); `specimen_type` does still have `;`-separated multi-values (486 `Organoid;Patient_Solid_Tissue`). Always judge roles via `resolve_sample_roles`, never equality-matching |
 | `T1` | Raw files (FASTQ etc.): `t1_id`, `file_name`, `file_format` (literal), `semantic_format`, `data_level`, `study_accession` (all 6 populated for 28,229); `strategy` 28,222; `platform` / `sample_accession` / `individual_accession` / `sample_name` 28,184; `run_accession` / `experiment_accession` 27,070; `file_path` 26,879; `size` 25,417. **The 45 files missing those values are Clinical / `*_META` aggregate files** (not per-sample by nature) — do not conclude "no platform/sample info in graph" from them |
 | `T2` | Result files (VCF/BAM/MAF…): `t2_id`, `file_name`, `format`, `strategy`, `data_level`, `size`, `study_accession` (all 35,572); `semantic_format` 35,570; `file_path` 35,566; `run_accession` 31,717. **T2 has no `platform` / `sample_accession`** — for sample ownership walk `(T2)-[:generated_from]->(T1)-[:in_sample]->(sample)` |
@@ -52,12 +52,21 @@ Key relationships: `(tool)-[:next_tool]->(tool)` chains; `(tool)-[:input|output]
 `(study)-[:in_project]->(project)`; `(format)-[:subclass_of]->(format)` (specific → generic; walk up
 when matching tools by semantic format).
 
-**Numeric fields are INTEGER/FLOAT (0821 re-typed) — compare unquoted, no `toInteger()`**:
-`data_level`, `size`, `sample_count`, `individual_count`, `01_age`, `11_tmb`, `11_msi_score`,
-`13_survival_days` / `13_dfs_time` / `13_efs_time` / `13_pfs_time`. Write `f.data_level = 1`,
-`i.\`13_survival_days\` > 365`, `ORDER BY s.sample_count DESC`. Quoting them (`= '1'`, `> '365'`) does
-not error — it compares lexicographically and silently returns wrong or empty results. If a result looks
-anomalous that way, check field types before copying the anomaly into your conclusion.
+**Numeric-looking fields are STRING in the 0821 graph — wrap in `toInteger()`/`toFloat()` before any
+`<` `>` comparison or `ORDER BY`** (verified with `valueType()`): `data_level`, `size`, `01_age`,
+`11_tmb`, `11_msi_score`, `13_survival_days` / `13_dfs_time` / `13_efs_time` / `13_pfs_time`.
+**Only `study.sample_count` and `study.individual_count` are true INTEGER** (and only 14 studies carry
+them). Write `f.data_level = '1'`, `toInteger(i.\`13_survival_days\`) > 365`,
+`ORDER BY s.sample_count DESC`.
+
+Both mistakes are silent — neither errors, both return plausible-looking rows:
+- Unquoted equality on a STRING column matches nothing: `f.data_level = 1` → **0 rows** (`= '1'` → 28,228).
+- Unquoted `>` on a STRING column also yields **0 rows**: `i.\`13_survival_days\` > 365` → **0**
+  (`toInteger(...) > 365` → 2,465).
+- Quoted `>` compares lexicographically: `> '365'` → 2,110 but `> '99'` → **27**, because `'99' > '365'`
+  as text. `ORDER BY` without conversion sorts `'995'` above `'7061'`.
+
+If a count looks impossibly low or a max looks too small, check `valueType()` before believing it.
 
 ## 3. Closed tool catalog (truth = bio-pipeline-kg-matcher `data/csv/catalog`, rebuilt from the WDLs on 0823)
 

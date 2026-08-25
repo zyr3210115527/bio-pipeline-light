@@ -26,7 +26,7 @@ Neo4j 图谱（库 `neo4j`）是唯一事实源。只读：禁止 CREATE/MERGE/D
 - **modal 只有 6 个**：`WES`/`WGS`/`bulk_RNA`/`sc-RNA`/`Clinical`/`Meta`，别编 `RNA-seq`。**节点属性叫 `modal` 不是 `name`**（写 `(:modal {name:'sc-RNA'})` 静默 0 行）；找某模态的文件直接用 `T1.strategy='sc-RNA'`，别绕 `in_modal`
 - **datalevel 节点属性是 `level`/`name`/`description`，不是 data_level**（1 原始→4 知识）；文件侧的 `T1.data_level`/`T2.data_level` 才叫 data_level
 - `study`(20)/`project`(18)：`study_accession`、`tumor_type`（英文，toLower+CONTAINS 查）、`individual_count`、`sample_count`（**6 队列无值**：HRA000073/HRA000087/HRA002693/HRA006117/HRA007413/HRA016026——按它过滤会静默漏，要规模就数 sample 节点）
-- `individual`(7131)：**只有 `00_*` 是操作性标识**（00_sample_accession/00_run_accession/00_platform/00_strategy…）；**`01_`–`13_` 全是患者级敏感**：01_ 人口学、02_ 家族史、03_ 生活史、04_ 血液学、09_ 病理、10_ 侵犯、11_ 分子（`11_tmb`/`11_msi_score`）、12_ 治疗、**13_ 生存（`13_survival_days`/`13_survival_status`/`13_pfs_time`…生存分析用这里）**——只许聚合，个体取值被服务端拒
+- `individual`(7131)：**id 是 `00_individual_accession`，这个标签上没有裸的 `individual_accession`**（那个名字只在 T1/T2 上有；在 individual 上写它不报错，整列返回 null）。**只有 `00_*` 是操作性标识**（00_individual_accession/00_sample_accession/00_platform/00_strategy…）；**`01_`–`13_` 全是患者级敏感**：01_ 人口学、02_ 家族史、03_ 生活史、04_ 血液学、09_ 病理、10_ 侵犯、11_ 分子（`11_tmb`/`11_msi_score`）、12_ 治疗、**13_ 生存（`13_survival_days`/`13_survival_status`/`13_pfs_time`…生存分析用这里）**——只许聚合，个体取值被服务端拒
 - `sample`(10465)：`sample_accession`、`sample_name`、`tissue_type`（**不是干净二值**：0821 为 Tumor 6258 / Normal 2821 / null 829 / Blood 557，已无多值单元，但 null 和 `Blood` 仍会让等值匹配漏样本；判角色一律用 resolve_sample_roles）、`specimen_type`（仍有分号多值，486 个 `Organoid;Patient_Solid_Tissue`）、`gender`
 - `T1` 原始文件：`t1_id`/`file_name`/`file_format`/`semantic_format`/`data_level`/`study_accession`（全量有值）；`strategy`/`platform`/`sample_accession`/`sample_name` 28,184；`file_path` 26,879。**缺值的 45 个是 Clinical/`*_META` 聚合文件**（本就跨样本），别据此判「无样本信息」
 - `T2` 结果文件：`t2_id`/`file_name`/`format`/`strategy`/`data_level`/`study_accession`（全量）；`file_path` 35,566。**T2 无 platform/sample_accession**——样本归属走 `(T2)-[:generated_from]->(T1)-[:in_sample]->(sample)`
@@ -36,9 +36,18 @@ Neo4j 图谱（库 `neo4j`）是唯一事实源。只读：禁止 CREATE/MERGE/D
 `(T2)-[:generated_from]->(T1)`；`(sample)-[:in_individual]->(individual)`；`(individual)-[:in_study]->(study)`；
 `(format)-[:subclass_of]->(format)`（按语义格式找工具可沿边向上）。
 
-**数值字段不加引号、不用 toInteger**（0821 已改 INTEGER/FLOAT）：`data_level`/`size`/`sample_count`/
-`individual_count`/`01_age`/`11_tmb`/`11_msi_score`/`13_*`。写 `i.\`13_survival_days\` > 365`，
-写 `> '365'` 静默查不到。
+**看着像数字的字段在 0821 图里全是 STRING，比大小/排序前必须 `toInteger()`/`toFloat()`**（`valueType()`
+实测）：`data_level`/`size`/`01_age`/`11_tmb`/`11_msi_score`/`13_*`。**只有 `study.sample_count` 和
+`study.individual_count` 是真 INTEGER**（且只有 14 个 study 有值）。写 `f.data_level = '1'`、
+`toInteger(i.\`13_survival_days\`) > 365`、`ORDER BY s.sample_count DESC`。
+
+两种错法都不报错、都返回像模像样的结果：
+- 不加引号做等值 → **0 行**：`f.data_level = 1` 查不到，`= '1'` 才有 28,228。
+- 不加引号比大小 → 也是 **0 行**：`13_survival_days > 365` 得 0，`toInteger(...) > 365` 得 2,465。
+- 加了引号比大小 → 走词典序：`> '365'` 得 2,110，但 `> '99'` 只有 **27**（文本比较里 `'99' > '365'`）；
+  `ORDER BY` 不转换会把 `'995'` 排在 `'7061'` 前面。
+
+计数低得离谱或最大值明显偏小时，先 `valueType()` 查类型，别把异常直接写进结论。
 
 ## 3. 闭集工具目录
 
