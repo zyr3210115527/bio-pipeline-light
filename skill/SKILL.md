@@ -143,16 +143,27 @@ has a working default. Bind `expr` and stop.
 - `case_label` / `control_label` — the four label-taking pipelines above. The server supplies the
   literals `case` / `control`; override only if the user names different groups.
 
-**Data selection is restricted to seven cohorts.** These pipelines have proven Cromwell runs on exactly
-these studies, and on nothing else:
+**Data selection is restricted per pipeline, not per family.** The 26 proven Cromwell runs are recorded
+in `references/bulk10_proven_runs.tsv` (one row per run). Each pipeline may only be paired with the
+cohorts *it* has run on:
 
-`HRA000073` `HRA000074` `HRA000122` `HRA002693` `HRA003107` `HRA006117` `HRA007167`
+| tool_id | cohorts with a proven run |
+|---|---|
+| `de_enrichment`, `deg_enrichment`, `deg_trend`, `gene_boxplot`, `stage_heatmap` | `HRA003107` only |
+| `wgcna_module_trait`, `wgcna_hub` | `HRA003107`, `HRA007167` |
+| `cox_model`, `km_survival` | `HRA003107`, `HRA000073`, `HRA000074`, `HRA002693`, `HRA006117` |
+| `umap` | all seven: `HRA003107`, `HRA000073`, `HRA000074`, `HRA000122`, `HRA002693`, `HRA006117`, `HRA007167` |
 
-Picking any other cohort is an error, and the server rejects it. Two other studies (`HRA001272`,
-`HRA007413`) do have a `Genes-counts` file in the graph and will look like valid candidates — they are
-not: no bulk10 pipeline has ever run on them, HRA001272's path carries an extra `/RNAseq/` segment, and
-HRA007413's matrix is 1.2 MB. If the user asks for a cohort outside the seven, say so and offer one of
-the seven rather than substituting silently.
+The union is seven cohorts, but **do not plan against the union** — `de_enrichment` on `HRA007167`, or
+`km_survival` on `HRA000122`, are combinations that have never been run, and the server rejects them.
+`HRA003107` is the only cohort every one of the ten has run on; when the user does not name a cohort,
+it is the safe default. `HRA000122` is reachable by `umap` alone.
+
+Two further studies (`HRA001272`, `HRA007413`) do have a `Genes-counts` file in the graph and will look
+like valid candidates — they are not: no bulk10 pipeline has ever run on either, HRA001272's path
+carries an extra `/RNAseq/` segment, and HRA007413's matrix is 1.2 MB. If the user asks for a
+pipeline×cohort pair outside the table, say which cohorts that pipeline does support and offer one of
+them rather than substituting silently.
 
 **Quantification flavour: counts, always.** Not a methodological inference — every proven run of all ten
 pipelines used `{STUDY}-Genes-counts-1.0.tsv`. Normalisation happens inside the pipeline. Do not pick the
@@ -162,8 +173,8 @@ TPM or FPKM version for these ten.
 manifest), `run_summary` (run summary table).
 
 **One per-study exception**: `cox_model` reads survival status from `native_status_source_col` and the
-proven runs set it to `13_vital_status` for `HRA000073`, `HRA000074`, `HRA002693`, `HRA006117`. The
-default covers the other three.
+proven runs set it to `13_vital_status` for `HRA000073`, `HRA000074`, `HRA002693`, `HRA006117`. On
+`HRA003107` — cox_model's fifth and last proven cohort — the default applies. The server fills this in.
 
 ## 4. Query cookbook
 
@@ -618,23 +629,25 @@ get confused in practice:
   are limma two-group DE on an expression matrix alone; the enrichment target is the only difference.
 - `gsea_pathway_enrichment` does **not** pre-select DEGs (pre-ranked GSEA over all genes).
   `deg_enrichment` / `de_enrichment` are bulk10 members (§3.1): they parse grouping out of CNCB-native
-  metadata themselves, so they fit any two-group DE-plus-enrichment request **on one of the seven proven
-  cohorts**. `de_enrichment` returns DE + enrichment, `deg_enrichment` adds the functional-enrichment
-  panel; `deg_trend` is the same family when the user wants the trend/box/volcano visual set. Phrasing
-  like "case group vs control group" does not discriminate among them — every DE pipeline groups samples.
-  Outside the seven cohorts, use `diff_expr_go` / `diff_expr_kegg`, which take a matrix alone.
+  metadata themselves, so they fit any two-group DE-plus-enrichment request — but **only on `HRA003107`**,
+  the sole cohort either has run on. `de_enrichment` returns DE + enrichment, `deg_enrichment` adds the
+  functional-enrichment panel; `deg_trend` is the same family (also HRA003107-only) when the user wants
+  the trend/box/volcano visual set. Phrasing like "case group vs control group" does not discriminate
+  among them — every DE pipeline groups samples. On any other cohort, use `diff_expr_go` /
+  `diff_expr_kegg`, which take a matrix alone.
 - `survival_analysis` stratifies by a **named gene's mutation status** (MAF) and `tmb_survival_analysis`
   by **TMB median**. Grouping by a gene's **expression level** is `her2_pfs_survival` — it is the
   default for that whole shape, whatever the gene (HER2/ERBB2 is only its default, not its scope).
   `km_survival` (KM) and `cox_model` (multivariate Cox) are the bulk10 survival pair: they read survival
   time and status straight from `individual.csv`, so they are the right answer for overall-survival
-  questions on the seven proven cohorts.
+  questions on their five proven cohorts (`HRA003107`, `HRA000073`, `HRA000074`, `HRA002693`,
+  `HRA006117`) — and only those.
 - `rnaseq_unsupervised_cluster` is the end-to-end chain from counts; `preprocess_counts`,
   `hvg_pca_gmm` and `bootstrap_stability` are single steps carved out of it and take logCPM.
-- `wgcna` is the full co-expression chain and the default for a co-expression / hub-gene request on a
-  cohort **outside** the seven. On one of the seven, prefer the bulk10 pair: `wgcna_hub` for hub-gene
-  output, `wgcna_module_trait` for module↔trait association — both parse grouping from CNCB metadata
-  with no clinical table to bind.
+- `wgcna` is the full co-expression chain and the default for a co-expression / hub-gene request on any
+  cohort other than `HRA003107` / `HRA007167`. On those two, prefer the bulk10 pair: `wgcna_hub` for
+  hub-gene output, `wgcna_module_trait` for module↔trait association — both parse grouping from CNCB
+  metadata with no clinical table to bind.
 
 | tool | function | modal | inputs | outputs |
 |---|---|---|---|---|

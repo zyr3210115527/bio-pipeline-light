@@ -1035,11 +1035,29 @@ _BULK10 = {"de_enrichment", "deg_enrichment", "deg_trend", "gene_boxplot", "stag
            "umap", "wgcna_module_trait", "wgcna_hub", "cox_model", "km_survival"}
 _FLAVOR_FALLBACK.update({t: "counts" for t in _BULK10})
 
-# bulk10 只在这 7 个队列上跑通过（nnewtest1..7）。图内另有 HRA001272 / HRA007413 两份
-# Genes-counts，但没有任何一条 bulk10 流程在它们上面跑过——HRA001272 的 counts 还多一层
-# `/RNAseq/` 目录，HRA007413 只有 1.2MB。选它们等于拿没验证过的输入去提交。
-_BULK10_STUDIES = ("HRA000073", "HRA000074", "HRA000122", "HRA002693",
-                   "HRA003107", "HRA006117", "HRA007167")
+# 已验证组合是**逐流程**的，不是十条共用一份队列白名单。真值表在
+# skill/references/bulk10_proven_runs.tsv（26 条 Succeeded 的 Cromwell 记录，一行一次实跑）。
+# union 恰好是 7 个队列，但按 union 放行就会批准 de_enrichment×HRA007167 这类从没跑过的组合
+# ——那条流程只在 HRA003107 上跑过。HRA000122 更极端：十条里只有 umap 碰过它。
+# 图内另有 HRA001272 / HRA007413 两份 Genes-counts，任何一条 bulk10 都没在上面跑过
+# （HRA001272 的 counts 多一层 `/RNAseq/` 目录，HRA007413 只有 1.2MB），一律不放行。
+_BULK10_RUNS: dict = {}
+
+def load_bulk10_runs() -> None:
+    """加载 bulk10 已验证的 (tool_id, study) 组合。文件缺失则留空 = 不放行任何组合。"""
+    path = os.path.join(SKILL_REF, "bulk10_proven_runs.tsv")
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, newline="") as f:
+            for row in csv.DictReader(f, delimiter="\t"):
+                t, s = (row.get("tool_id") or "").strip(), (row.get("study") or "").strip()
+                if t and s:
+                    _BULK10_RUNS.setdefault(t, set()).add(s)
+    except Exception:
+        _BULK10_RUNS.clear()
+
+load_bulk10_runs()
 
 # sample.csv / individual.csv 是 CNCB 原生元数据，路径由队列号唯一确定，且**不在图内**
 # （图里只有 HRA000001 一份）。所以既不能让调用方去图里查（查不到），也不能让它写进
@@ -1047,13 +1065,17 @@ _BULK10_STUDIES = ("HRA000073", "HRA000074", "HRA000122", "HRA002693",
 # 与临床表/样本元信息表同一处置：服务端从队列号直接推，调用方不写也不查。
 _BULK10_META = "/cbb-data/gsa/agent/{study}/{name}.csv"
 
-# 五条流程带 case/control 分组；实跑记录里两个值都是字面量 case / control。
+# 四条流程带 case/control 分组；实跑记录里两个值都是字面量 case / control。
 _BULK10_LABELS = {"de_enrichment", "deg_enrichment", "deg_trend", "gene_boxplot"}
+
+# cox_model 在这四个队列上要显式指定生存状态列；HRA003107 用默认值。
+_BULK10_STATUS_COL = {"cox_model": ({"HRA000073", "HRA000074", "HRA002693", "HRA006117"},
+                                    "13_vital_status")}
 
 _STUDY_IN_PATH = re.compile(r"/(HRA\d+)[/-]")
 
 def _bulk10_params(gid, expr_path, bindings, errors):
-    """bulk10 流程的确定性补全：两张 CNCB 原生元数据表 + 分组标签。
+    """bulk10 流程的确定性补全：两张 CNCB 原生元数据表 + 分组标签 + 生存状态列。
 
     队列号从已解析的 expr 路径里取——不另开一次图查询，也不信调用方另给的队列号
     （给错了就会把 A 队列的表达矩阵配上 B 队列的样本表，样本 ID 对不上，
@@ -1066,16 +1088,20 @@ def _bulk10_params(gid, expr_path, bindings, errors):
         errors.append(f"{gid}: 无法从 expr 路径解析队列号，bulk10 流程必须能定位到 HRA 队列")
         return {}
     study = m.group(1)
-    if study not in _BULK10_STUDIES:
+    ok = _BULK10_RUNS.get(gid) or set()
+    if study not in ok:
         errors.append(
-            f"{gid}: {study} 不在 bulk10 已验证队列内。这十条流程只在 "
-            f"{'/'.join(_BULK10_STUDIES)} 上跑通过，选数据必须从这七个队列里选")
+            f"{gid}: 没有 {gid} × {study} 的实跑记录。{gid} 只在 "
+            f"{'/'.join(sorted(ok)) if ok else '（无）'} 上跑通过，选数据只能从这里面选")
         return {}
     out = {n + "_csv": _BULK10_META.format(study=study, name=n)
            for n in ("sample", "individual")}
     if gid in _BULK10_LABELS:
         out["case_label"] = str(bindings.get("case_label") or "case")
         out["control_label"] = str(bindings.get("control_label") or "control")
+    studies, col = _BULK10_STATUS_COL.get(gid, (set(), ""))
+    if study in studies:
+        out["native_status_source_col"] = col
     return out
 
 def _pipeline_flavor(gid):

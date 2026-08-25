@@ -1,0 +1,27 @@
+tool_id	study	cromwell_id	testnum	extra_params
+de_enrichment	HRA003107	e2b7df7d-d91f-4651-9aaa-c14c394a6032	1	case_label,control_label
+wgcna_module_trait	HRA003107	dc810107-f19b-4d2b-8c58-65c1873cfb97	1
+wgcna_module_trait	HRA007167	40731f79-f519-4d43-838f-98e4aa3d0e82	7
+gene_boxplot	HRA003107	394f91b8-8f69-40bd-9856-601a8a624824	1	case_label,control_label
+stage_heatmap	HRA003107	9aba297e-6cfb-4fab-9032-5d6e5e6cf2cc	1
+cox_model	HRA003107	88ec8e1f-d243-4419-8f8c-7e2f80f648e9	1
+cox_model	HRA000073	cd0f5249-f739-4aef-a955-029b94570abe	2	native_status_source_col=13_vital_status
+cox_model	HRA000074	b79e50fb-84fb-4d69-9378-29493fa20c8c	3	native_status_source_col=13_vital_status
+cox_model	HRA002693	4728f714-7728-47e1-b6ce-3f23173d4f5b	5	native_status_source_col=13_vital_status
+cox_model	HRA006117	3590227e-80b8-478e-92a7-8e8bf0c3f292	6	native_status_source_col=13_vital_status
+wgcna_hub	HRA003107	40bd0231-6487-4432-8c1f-8ea70b0bcd7e	1
+wgcna_hub	HRA007167	fcbd431e-5b64-4aaf-aa67-1e52df272fa2	7
+umap	HRA003107	3b362bfd-1472-4394-bc4e-2a3bb5cfd5f1	1
+umap	HRA000073	5a87b4a9-7f53-400a-a441-b0c4d8c62d83	2
+umap	HRA000074	a9b3a12c-b2e2-44e3-8652-3ffa0c465a3f	3
+umap	HRA000122	c82b95f7-b1be-4399-b596-d11fb1084cc1	4
+umap	HRA002693	b16464ea-19b0-4d85-9394-9f684c5750bb	5
+umap	HRA006117	1d95c800-336b-472b-8f83-bda85bfda497	6
+umap	HRA007167	44ec639f-1786-441f-bb46-90722c137cc0	7
+deg_enrichment	HRA003107	86203941-fda3-46a6-8e46-78d54cc6b20c	1	case_label,control_label
+deg_trend	HRA003107	8181ebfa-7cd5-42f5-a8c2-925174e4059d	1	case_label,control_label
+km_survival	HRA003107	ec89826d-337b-4573-9763-e83a90484fc3	1
+km_survival	HRA000073	7dbfd9ea-9cf3-406b-bb5a-c8e769d08249	2
+km_survival	HRA000074	766ead90-9e93-4df5-af0a-c6524265fb1d	3
+km_survival	HRA002693	cc1b8630-da9f-4f37-ae3f-5a753c7a54b6	5
+km_survival	HRA006117	8dbb3185-7048-4020-aa88-d9c9a876dad0	6
