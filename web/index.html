@@ -457,6 +457,12 @@ function planView(plan) {
   if (chips.length)
     body.appendChild(el(`<div class="sec"><div class="ichips">${chips.map(c => `<span class="ichip">${esc(c)}</span>`).join("")}</div></div>`));
 
+  // 知识查询（information/unsupported/no_candidate）没有推荐可展开，答案就在顶层 answer。
+  // 以前只渲染 rec.match_note，空推荐时整张卡片是空白的——用户问「A 和 B 有哪些共同输入
+  // 格式」，服务端答了，页面上什么也没有。
+  if (plan.answer)
+    body.appendChild(el(`<div class="sec"><div class="note">${esc(plan.answer)}</div></div>`));
+
   if (rec.match_note)
     body.appendChild(el(`<div class="sec"><div class="note">${esc(rec.match_note)}</div></div>`));
 

@@ -71,15 +71,9 @@ If a count looks impossibly low or a max looks too small, check `valueType()` be
 ## 3. Closed tool catalog (truth = bio-pipeline-kg-matcher `data/csv/catalog`, rebuilt from the WDLs on 0823)
 
 > The copies under `references/` (`tool_catalog.csv`, `knowledge_cards_map.json`, `io_slot.csv`) are a
-> **snapshot** of that truth. `tool_catalog.csv` is still byte-identical to upstream `58f6be6` (0823);
-> `knowledge_cards_map.json` and `io_slot.csv` were **extended on 2026-08-24** with the bulk10 family
-> (§3.1) and no longer match `58f6be6`. `io_slot.csv` is read only by `light_router.py`'s `load_slots()`
-> — the decommissioned offline arm; nothing on the serving path reads it. The Knowledge Cards **are** on
-> the serving path: no card ⇒ `validate_plan` skips contract validation and emits no `execution_params`.
->
-> ⚠️ **`~/bio-pipeline-kg-matcher` on this machine is NOT the upstream truth** — it is an unversioned
-> pre-0823 copy (no `.git`). The live repo is **`/tmp/kgm`**; verify with `git log --oneline -1` →
-> `58f6be6` before treating any local copy as contract truth.
+> snapshot of that truth; `knowledge_cards_map.json` and `io_slot.csv` were extended on 2026-08-24 with
+> the bulk10 family (§3.1). The Knowledge Cards are on the serving path: no card ⇒ `validate_plan` skips
+> contract validation and emits no `execution_params`.
 
 Runtime catalog: **51 tools = 12 atomic (11 orchestrable; `multiqc` is terminal-only, never orchestrated)
 + 38 pipeline + 1 task_pipeline**, 1:1 with the 51 graph `tool` nodes. Full fields (catalog_id, I/O
@@ -205,7 +199,15 @@ Standard recipes:
 2. **Chain assembly + verification**: for each hop, intersect upstream `output` / `semantic_output`
    with downstream `input` formats. Report gaps honestly ("graph missing: <hop>, expected input
    <format>; suggestion <filler tool or note>") — **never fabricate a tool that does not exist**.
-3. **Data selection** (English vocab; ready-made matrices live in T2):
+3. **Data selection** (English vocab; ready-made matrices live in T2).
+
+   **Gate first — is the data already fixed?** For the ten bulk10 pipelines the answer is a lookup, not
+   a search: the pipeline determines the cohort set (§3.1 table) and the file is always
+   `{STUDY}-Genes-counts-1.0.tsv`. **Run no data query for them** — no `tumor_type` matching, no
+   `find_t1_by_*`, no `resolve_sample_roles`. A graph search there can only produce a cohort that has
+   never been run, which the server rejects. Everything below applies to the other 41 tools, where the
+   cohort genuinely has to be discovered.
+
    - Cohort: `tumor_type` is **English Title Case** — match with `toLower(s.tumor_type) CONTAINS '<english>'`;
      Chinese matches nothing. All values measured 0821 (20 studies): `Liver Cancer`,
      `Hepatocellular Carcinoma`, `Lung Cancer`, `Non-Small Cell Lung Carcinoma`, `Malignant Glioma`,
@@ -283,8 +285,10 @@ Standard recipes:
    chain (catalog rules, §3).
 3. **Assemble & verify the chain** (recipe 2): data → preprocessing → alignment → quantification/variant
    → downstream; annotate tool, input format, output format, verification point per hop; list gaps honestly.
-4. **Select data** (recipe 3): cohort + format + sample constraints + pairing; give file counts, sources,
-   `file_path`, availability flags.
+4. **Select data** — **bulk10 first**: if the chosen tool is one of the ten (§3.1), the cohort comes from
+   its proven-run row and the file is `{STUDY}-Genes-counts-1.0.tsv`; write it down and move to step 5
+   with **zero queries**. Otherwise use recipe 3: cohort + format + sample constraints + pairing; give
+   file counts, sources, `file_path`, availability flags.
 5. **Output**: **tool-chain/v2 JSON** (§9). Keep total tool calls within the round budget (§6).
 
 ## 6. Efficiency discipline (HARD — round budget)
@@ -380,16 +384,112 @@ query; answer content must be fully grounded:
 - Server-side backstop: `read_cypher` refuses non-aggregate queries over `individual`'s **`01_`–`13_`
   numbered-prefix** clinical properties (only `00_*` operational identifiers pass). When you receive that
   refusal, do not rewrite the query to bypass it; explain the privacy boundary to the user honestly.
+- **Causal claims** ("does feature X cause lung adenocarcinoma?", "can you infer the complete causal
+  mechanism of T-ALL from this data?", "prove A drives B") → **give no recommendation at all**. Every
+  tool in the closed set analyses observational data; it yields association and covariation, never
+  causation. The correct answer states that epistemic boundary, then says what *is* obtainable
+  (differential expression, co-expression modules, survival association) and what causal inference would
+  require (intervention experiments, time-series cohorts, Mendelian-randomisation data). **This outranks
+  the "if the tool exists, rank1 is mandatory" rule below** — answering a causal question with a `wgcna`
+  recommendation implies the question is answerable from the data at hand, and it is not.
+
+**Only those two categories are refusals. `unsupported` / `no_candidate` are not refusals, and they are
+never a licence to skip the answer** — both still require a top-level `answer` (§9), and that answer must
+give the **nearest feasible path**. The most common measured over-refusal is dismissing a **modality
+mismatch** in one line: "unsupervised clustering on WES data" gets judged `unsupported` on the grounds
+that every clustering pipeline in the closed set consumes an expression matrix, and the answer stops
+there. The correct response explains that WES must first go `fastp` → `bwa` → `gatk` / `bcftools` to
+yield variants, that only after matricisation can it reach `hvg_pca_gmm` /
+`rnaseq_unsupervised_cluster`, and precisely which step is missing. Before writing `unsupported`, answer
+three questions: (1) is there a same-family pipeline for a different modality? (2) does it become
+feasible when split into two stages? (3) is there another route to what the user actually wants
+(cluster assignments / enrichment results / survival curves)? Only when all three come back empty is
+`unsupported` correct, and even then `answer` must state *what is missing*, not merely "unsupported".
+
+**`no_candidate` means "no tool", never "no data".** Keeping those two apart matters: conflating them is
+the single largest source of residual error in the measured set. "Cell–cell communication analysis in an
+APL cohort" has tools — `scrna_cell_communication`, `breast_cellchat`, `immunotherapy_cellchat` — the
+graph merely holds no single-cell cohort for that cancer type; answering `no_candidate` with empty
+recommendations reports a *data* gap as a *tool* gap. **If the tool exists, rank1 is mandatory**: keep
+the status at `ok`, put "no matching cohort/file in the graph" in `match_note`, and name a substitutable
+existing cohort in `answer`. `no_candidate` plus empty recommendations is correct only when not one of
+the 51 closed-set tools can do the thing at all. Input-modality mismatches follow the same rule — "I have
+WES and want cluster assignments" leads with `rnaseq_unsupervised_cluster`, "somatic calling starting
+from a MAF" leads with `wes_somatic_pair`, and `match_note` / `answer` carry the gap (expression
+quantification missing in the first; MAF is the end product of calling, so the second must restart from
+FASTQ). Empty recommendations leave the user with nothing executable.
 
 ## 9. Output contract: tool-chain/v2 (front-end truth = bio-pipeline-kg-matcher's pipeline_router)
 
 **Hard rule — violation counts as task failure**: the final answer must be **exactly one tool-chain/v2
 JSON object** — no prose, no markdown fences, no multiple candidates, no text before or after the JSON.
-`recommendations[0]` is the single strict top-1 recommendation; `candidates[]` is filled only when an
-atomic chain is possible. **When `selection_status` is `information` / `unsupported` / `no_candidate`,
-`recommendations` may be empty** — for pure data-distribution or inventory questions do not invent a
-pipeline just to fill the slot (that is fabrication); every other status requires a rank-1 entry. Human-readable note fields (`match_note` etc.) may be written in the user's
-language.
+
+**`recommendations` holds at most one entry** (strict top-1; `recommendations[0]` *is* the
+recommendation). When a second pipeline is worth mentioning, put the trade-off into `match_note` as one
+sentence rather than emitting a second entry — measured across 165 cases, each extra recommendation adds
+~1,700 characters and ~8 seconds to the answer (one recommendation averages 15.7 s, two average 24.7 s)
+and the execution end never consumes anything past index 0. `candidates[]` is filled only when an atomic
+chain is possible.
+
+**When there is no recommendation to give, the top-level `answer` field *is* the deliverable.**
+When `selection_status` is `information` / `unsupported` / `no_candidate`, `recommendations` may be
+empty — for pure data-distribution or inventory questions do not invent a pipeline just to fill the slot
+(that is fabrication); every other status requires a rank-1 entry. But **an empty `recommendations` does
+not license an empty answer**: in that case you must write a top-level `answer` — two to five sentences,
+in the user's language, naming every relevant `tool_id`, semantic format and study accession explicitly.
+`match_note` lives *inside* `recommendations[i]` and therefore has nowhere to live when the list is empty;
+do not park the answer there, and do not invent `note` / `summary` / `explanation` — the front end and
+`validate_plan` recognise only `answer`. Shipping an empty shell (no recommendations, no answer) answers
+nothing and is reported as a grounding violation. Human-readable fields (`answer`, `match_note`) may be
+written in the user's language.
+
+**Response patterns for knowledge queries** (questions *about the tools*, not requests for a plan). These
+are a large share of real traffic and have determinate answers: always `selection_status: "information"`
+with empty `recommendations` and a populated `answer`.
+
+**Draw the boundary first — getting it wrong is expensive in both directions.** The single test is
+**whether the question states an analysis goal**.
+
+- Goal stated ("I want to do X", "to do X", "I have `<data>` and want Y", "achieve X") → **this is a
+  planning request and must carry a rank-1 recommendation**, even when it goes on to ask "which tools
+  are there / which candidate tools / how do their inputs and outputs differ". "Which tools do I need"
+  asks *what to use in order to accomplish X*; it is not a metadata question. Put the comparison in
+  `match_note` (and optionally an additional `answer`) — **but never drop the recommendation**. Two
+  analyses at once ("immune infiltration + WGCNA") still gets a rank-1: pick the primary leg and name
+  the other in `match_note`. **When two analyses are named side by side, rank-1 is the one mentioned
+  first in the question** ("complete both alternative-splicing analysis and somatic variant calling" →
+  rank-1 is the splicing pipeline). This ordering is a hard rule; do not reorder by which leg feels more
+  upstream or more fundamental.
+  **When the goal is not achievable as stated, still lead with the nearest viable pipeline** and spell
+  out the missing step in `match_note` / `answer` — "unsupervised clustering on BAM" recommends
+  `rnaseq_unsupervised_cluster` while noting that quantification to counts must come first. Only when
+  not even a nearest candidate exists may `recommendations` be empty with `unsupported`.
+- No goal, only tool properties (formats, position in a chain, whether two tools connect, how A and B
+  differ) → this is a genuine knowledge query; use the table below.
+
+Four knowledge-query shapes and where their answers come from:
+
+| Question shape | Source of truth | `answer` must state |
+|---|---|---|
+| "which **input** formats does X take", "which tools accept F as input" | §12.1 column 4 — **zero queries** | every input format of X; or each matching tool, listed in full |
+| "which **output** formats does X produce", "which output formats differ between A and B" | §12.1 has **no output column** — query the graph | each side's outputs, then the intersection / difference |
+| "can X's output feed Y", "what must line up when chaining A then B" | X's outputs ∩ Y's inputs | the joining semantic format by name, or exactly which link is missing |
+| "designing a workflow from A, B, C — what is redundant, what is missing" | §12.1 summaries + the chaining query above | each tool's position in the chain, then the duplicates and the gaps |
+
+```cypher
+// Tool I/O. tool_name is exactly §12.1's first column (51/51 match); OPTIONAL keeps the row
+// alive when a tool has no output edge at all.
+MATCH (t:tool) WHERE t.tool_name IN ['gene_boxplot','ipf_trajectory_regulon']
+OPTIONAL MATCH (t)-[:input]->(i:format) OPTIONAL MATCH (t)-[:output]->(o:format)
+RETURN t.tool_name, collect(DISTINCT i.format), collect(DISTINCT o.format)
+// Can X's output feed Y? Returns the joining formats; an empty array means they do not connect.
+MATCH (a:tool {tool_name:'bwa'})-[:output]->(f:format)<-[:input]-(b:tool {tool_name:'gatk'})
+RETURN collect(f.format)
+```
+
+**An empty result is itself the answer.** "Which tools output FASTQ?" returns zero rows; the correct
+response is "no tool in the closed set produces FASTQ — it is an upstream input only", not an empty shell
+and not another round probing a different predicate.
 
 **`read_cypher` row cap (affects conclusion correctness)**: at most **500 rows** per call. When exceeded,
 the return carries `truncated: true` and `row_count` — **what you hold is then a truncated sample, not the
@@ -411,6 +511,7 @@ with the graph's own facts, so authoring them only costs generation time and inv
 (catalog_id, tool_kind, name, description, inputs, outputs are filled); inside each asset write only
 `file_name` and `match_reason` (**never write `file_path` from memory**); inside `candidates[].tool_chain`
 write only each step's `tool_id`. What you must supply: `schema_version`, `selection_status`, `intent`,
+the top-level `answer` whenever `recommendations` is empty,
 and per recommendation `pipeline_id`, `match_note`, `data.assets[].file_name` + `match_reason`, plus the
 tool_chain ordering.
 
@@ -530,6 +631,17 @@ consumes, not what you type. When delivering to a front-end / for integration, p
 }
 ```
 
+Knowledge-query shape (empty `recommendations` ⇒ `answer` is mandatory; this should normally settle in
+one round with zero or one query):
+
+```json
+{"schema_version":"tool-chain/v2","selection_status":"information","candidates":[],"recommendations":[],
+ "answer":"gatk takes REFERENCE_GENOME_FASTA, DNA_GENOMIC_ALIGNMENT_BAM, DNA_ALIGNMENT_INDEX_BAI and TARGET_INTERVAL_LIST; tmb_survival_analysis takes MUTATION_ANNOTATION_FORMAT_MAF and CLINICAL_DATA_EXCEL. The two input sets are disjoint — there is no shared input format. They are consecutive rather than interchangeable: gatk's variant output must be converted to MAF before tmb_survival_analysis can consume it.",
+ "intent":{"query_text":"...","analysis_goal":"tool input-format comparison","disease":null,
+           "omics_type":null,"input_hint":null,"requested_outputs":[],"study_accessions":[],
+           "source":"rule","ambiguous":false}}
+```
+
 Key points: `assets` carry per-file provenance and `match_reason`; `inputs/outputs` `artifact` values use
 the ArtifactType vocabulary (`references/artifact_type.csv`); `candidates[]` is filled only for viable
 atomic chains, else empty with `selection_status` explaining why. **Single-sample assets (FASTQ/BAM etc.)
@@ -551,7 +663,7 @@ above remains the default and final answer):
 ## 一、数据：队列 <HRAxxxxx>（<n> 样本），输入 <format> × <n>，路径 <dir>；可复用 T2 现成 <format>
 ## 二、方法链路：| # | 工具 | 输入格式 | 输出格式 | 验证点 |（逐环节）
 ## 三、链路完整性：✅ 完整 / ⚠️ 缺：<环节>（建议 <X>）
-## 四、可执行性：工具环境（实测 which）、数据可达性（实测路径）、参考文件、算力估计
+## 四、可执行性：`validate_execution_chain` 的 `submittable` / 缺失项、数据可达性（图内 `file_path`）、参考文件
 ```
 
 ## 10. Pre-submission gate (execution-contract validation, scenario 1)
@@ -635,6 +747,12 @@ get confused in practice:
   the trend/box/volcano visual set. Phrasing like "case group vs control group" does not discriminate
   among them — every DE pipeline groups samples. On any other cohort, use `diff_expr_go` /
   `diff_expr_kegg`, which take a matrix alone.
+  **Pick the bulk10 pair only when the question names a cohort** (or names the tool itself). Measured
+  across 22 DE questions in the 165-case set: not one plain "差异表达分析 / do DE plus enrichment"
+  request meant `HRA003107`, yet the bulk10 siblings were chosen three times and were wrong each time.
+  Default a cohort-less DE request to `diff_expr_go` / `diff_expr_kegg`, split by which enrichment
+  word the question uses — GO → `diff_expr_go`; KEGG / Reactome / pathway → `diff_expr_kegg`; neither
+  named → `diff_expr_go`.
 - `survival_analysis` stratifies by a **named gene's mutation status** (MAF) and `tmb_survival_analysis`
   by **TMB median**. Grouping by a gene's **expression level** is `her2_pfs_survival` — it is the
   default for that whole shape, whatever the gene (HER2/ERBB2 is only its default, not its scope).
@@ -661,11 +779,11 @@ get confused in practice:
 | `cox_model` | 整合基因表达矩阵与临床元数据，执行 Cox 比例风险回归分析和 Kaplan-Meier 生存曲线绘制。 支持自定义样本分组、生存时间/状态列映射，输出风险比、P 值及前 N 个显著基因。 适用于癌症预后标志物筛选和临床亚组生存差异分析场景。 | Clinical,bulk_RNA| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `dataset_downstream` | 对单细胞RNA-seq数据集进行标准化下游分析，包括基因排序、细胞类型注释和恶性细胞标记。 输入为Seurat RDS文件和基因排序文件，输出包括压缩的结果文件、运行摘要和质量控制报告。 | sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,SCRNA_OBJECT_RDS | QC_STATS_REPORT |
 | `dataset_matrix_annotation` | 该流程用于对单细胞RNA-seq数据集进行矩阵注释和细胞类型标注。输入为Seurat RDS格式的整合数据文件，输出包括注释结果压缩包、运行摘要、输入质量控制报告和分析清单等文件。 | sc-RNA | TABULAR_BIO_DATA,SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA | QC_STATS_REPORT |
-| `de_enrichment` | 本流程整合 CNCB 元数据，执行差异表达分析并生成富集分析结果。支持自动样本分组、生存分析关联，输出火山图、热图及富集分析可视化。适用于具有临床元数据的 bulk RNA-seq 数据。 | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) + case/control labels | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
-| `deg_enrichment` | 本流程整合表达矩阵、样本元数据和临床信息，执行差异表达分析并生成火山图、热图及功能富集分析结果。 支持自动分组识别、生存分析关联，适用于批量 RNA-seq 数据的标准化差异表达与富集分析场景。 | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) + case/control labels | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
+| `de_enrichment` | 本流程整合 CNCB 元数据，执行差异表达分析并生成富集分析结果。支持自动样本分组、生存分析关联，输出火山图、热图及富集分析可视化。适用于具有临床元数据的 bulk RNA-seq 数据。 **HRA003107 only — pick only when the question names that cohort; a cohort-less DE request goes to `diff_expr_go`/`diff_expr_kegg`.** | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) + case/control labels | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
+| `deg_enrichment` | 本流程整合表达矩阵、样本元数据和临床信息，执行差异表达分析并生成火山图、热图及功能富集分析结果。 支持自动分组识别、生存分析关联，适用于批量 RNA-seq 数据的标准化差异表达与富集分析场景。 **HRA003107 only — same rule as `de_enrichment`: no cohort named, do not pick it.** | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) + case/control labels | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `deg_trend` | 本流程用于差异表达基因(DEG)的趋势分析与可视化。输入基因表达矩阵、样本元数据和临床信息，自动完成样本分组、差异分析，并生成火山图、热图、箱线图和趋势图等多种可视化结果。适用于批量 RNA-seq 数据的临床关联分析场景。 | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) + case/control labels | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
-| `diff_expr_go` | 基于表达矩阵进行差异基因分析（limma）并针对上下调基因分别进行 GO 功能富集（clusterProfiler）。 适用于 FPKM/TPM 定量数据的两组比较场景，输出差异基因列表及 GO 富集结果表。 | bulk_RNA | TABULAR_BIO_DATA | TABULAR_BIO_DATA |
-| `diff_expr_kegg` | 基于 limma 包进行两组样本差异表达分析，并使用 ReactomePA 对上下调基因进行通路富集。 适用于人类基因表达矩阵（FPKM/TPM），输出差异基因列表及富集结果。 | bulk_RNA | TABULAR_BIO_DATA | TABULAR_BIO_DATA |
+| `diff_expr_go` | 基于表达矩阵进行差异基因分析（limma）并针对上下调基因分别进行 GO 功能富集（clusterProfiler）。 适用于 FPKM/TPM 定量数据的两组比较场景，输出差异基因列表及 GO 富集结果表。 **No cohort restriction — the default for a generic DE/enrichment request; pick it when the question says GO, or says nothing about the enrichment target.** | bulk_RNA | TABULAR_BIO_DATA | TABULAR_BIO_DATA |
+| `diff_expr_kegg` | 基于 limma 包进行两组样本差异表达分析，并使用 ReactomePA 对上下调基因进行通路富集。 适用于人类基因表达矩阵（FPKM/TPM），输出差异基因列表及富集结果。 **No cohort restriction — pick it when the question says KEGG / Reactome / pathway.** | bulk_RNA | TABULAR_BIO_DATA | TABULAR_BIO_DATA |
 | `driver_gene_gender_analysis` | 该流程基于 WES MAF 文件、临床表和 MetaInfo 表，对驱动基因的突变频率进行性别分层分析。 通过卡方检验比较男性和女性样本中每个驱动基因的突变率，并输出统计结果表、诊断表及多种可视化图表（分组柱状图、瀑布图、热图、火山图）。 | Clinical,WES | CLINICAL_DATA_EXCEL,MUTATION_ANNOTATION_FORMAT_MAF | TABULAR_BIO_DATA,VISUALIZATION_RESULT,MUTATION_ANNOTATION_FORMAT_MAF |
 | `fastp` | 对双端测序FASTQ文件进行质量过滤、接头修剪和质控报告生成。输入为样本ID和双端FASTQ文件，输出为修剪后的FASTQ文件以及HTML和JSON格式的质控报告。适用于WES等双端测序数据的预处理步骤。 | WES | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | QC_STATS_REPORT,RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ |
 | `fastqc` | 对输入的 FASTQ 文件进行质量评估，生成 HTML 和 ZIP 格式的 FastQC 报告。 适用于 WES、WGS、RNA-seq 和单细胞测序等多种测序数据类型，可接收原始或修剪后的 FASTQ 文件。 | bulk_RNA,sc-RNA,WES,WGS | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | QC_STATS_REPORT |

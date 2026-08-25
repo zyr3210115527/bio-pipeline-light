@@ -893,6 +893,32 @@ def tool_validate_plan(args):
     elif not recs and _sel not in _NO_REC_OK:
         v.append("recommendations 为空（selection_status 不是 information/unsupported/"
                  "no_candidate 时必须有 rank1 推荐，否则改用 rejected）")
+    # 空 recommendations 合法**不等于**可以不回答。165 例实测：99 例交了空 recommendations，
+    # 其中 72 例整个 JSON 里一个自然语言字段都没有——「cellranger_workflow 和 breast_cellchat
+    # 有哪些共同输入格式」这种题，模型查完图、判了 information，然后交了个空壳，用户什么也
+    # 没拿到。剩下 27 例把答案挂在自创顶层字段上（match_note 21 / note 3 / summary 2 /
+    # explanation 1），前端一个都不认。所以顶层 `answer` 是契约字段：没有推荐时它就是答案本身。
+    if not recs and _sel in _NO_REC_OK and not str(plan.get("answer") or "").strip():
+        v.append("recommendations 为空时必须给顶层 answer：用自然语言直接回答问题"
+                 "（涉及的 tool_id/格式/队列号要写全）。空 recommendations + 空 answer "
+                 "= 什么也没回答")
+    # `no_candidate` 字面意思是「闭集里没有能做这件事的工具」。可实测里它几乎总是被用来说
+    # 「没有匹配的**数据**」——「我想在急性早幼粒细胞白血病队列里做细胞通讯分析」判 no_candidate，
+    # 而同一份 answer 里白纸黑字写着 scrna_cell_communication。自己刚点了名的候选，不是「没有候选」。
+    # 手册写了这条规则但只有六七成会照做（165 例里反复出现 Q_0044/Q_0055 这类抖动），
+    # 所以在这儿判死：answer 里出现任何闭集 tool_id，`no_candidate` + 空推荐就是自相矛盾。
+    # 只卡 `no_candidate`——`unsupported` 要留给「因果推断/机制断言」这类本就不该给推荐的问题
+    # （实测 Q_0190/Q_0290 就是靠空推荐才判对的），一起卡会把拒绝纪律拆掉。
+    if not recs and _sel == "no_candidate":
+        _ans = str(plan.get("answer") or "")
+        _named = [t for t in CATALOG
+                  if re.search(r"(?<![A-Za-z0-9_])" + re.escape(t) + r"(?![A-Za-z0-9_])", _ans)]
+        if _named:
+            v.append(
+                f"selection_status=no_candidate 与 answer 自相矛盾：answer 里已经点名了闭集工具"
+                f"（{'、'.join(_named[:4])}）。no_candidate 只用于「闭集 51 个工具没有一个能做」；"
+                f"缺的是数据/队列就不算。把其中最接近目标的一条放进 recommendations[0]、"
+                f"状态改回 ok，数据缺口写进 match_note")
     for i, rec in enumerate(recs):
         # 调用方偶发把整条推荐写成字符串（或把 assets 写成裸文件名数组）。以前这里直接
         # 抛 'str' object has no attribute 'get'，整轮校验丢失、模型收到一句无从修起的
@@ -1262,6 +1288,53 @@ def tool_hydrate_plan(args):
 
     meta_to_graph = {c["meta_id"]: gid for gid, c in KC_MAP.items() if gid != c["meta_id"]}
     filled = []
+
+    # —— 顶层 answer 归一 ——
+    # 没有推荐可给时，答案本身就是交付物，但 v2 信封里 match_note 长在 recommendations[i]
+    # 下面，空推荐时无处可写。实测模型会自己造一个顶层字段来装（match_note 21 / note 3 /
+    # summary 2 / explanation 1，共 4 种形态），前端一个都不认，等于白写。这里统一收编到
+    # `answer`：已经生成的内容不浪费，也不必为此多烧一轮修正。
+    if not str(plan.get("answer") or "").strip():
+        for k in ("match_note", "summary", "note", "explanation", "information"):
+            cand = plan.get(k)
+            if isinstance(cand, str) and cand.strip():
+                plan["answer"] = cand.strip()
+                if k != "answer":
+                    plan.pop(k, None)
+                filled.append(f"answer←{k}")
+                break
+
+    # —— no_candidate 自相矛盾：把 answer 里已经点名的工具提成 rank1 ——
+    # `no_candidate` 的字面意思是「闭集 51 个工具没有一个能做」，但实测它几乎总是被用来说
+    # 「没有匹配的**数据**」或「输入模态对不上」——Q_0054/Q_0055/Q_0235 三例都判了
+    # no_candidate + 空推荐，而同一份 answer 开头就写着「闭集内能做聚类分型的是
+    # rnaseq_unsupervised_cluster」。手册写过这条规则，回传违规让它自己改也试过：
+    # 修正轮照样原样再交一遍（模型认为输入格式不符就不该推荐），一轮白烧。
+    # 所以在服务端确定性地做掉：按出现顺序取 answer 里第一个闭集 tool_id 提成 rank1，
+    # 差距说明由 answer 承载（match_note 指回 answer）。用户至少拿到一条可执行的东西，
+    # 也不必为此多花一轮。只处理 `no_candidate`——`unsupported` 要留给「因果推断/机制断言」
+    # 这类本就不该给推荐的问题（Q_0190/Q_0290 靠空推荐才判对），一起处理会拆掉拒绝纪律。
+    if (not plan.get("recommendations")
+            and str(plan.get("selection_status") or "").lower() == "no_candidate"):
+        _ans = str(plan.get("answer") or "")
+        _hits = sorted(
+            ((mm.start(), t) for t in CATALOG
+             for mm in [re.search(r"(?<![A-Za-z0-9_])" + re.escape(t) + r"(?![A-Za-z0-9_])", _ans)]
+             if mm),
+            key=lambda p: p[0])
+        if _hits:
+            _tid = _hits[0][1]
+            plan["recommendations"] = [{
+                "pipeline_id": _tid, "rank": 1,
+                "match_note": "闭集内最接近目标的流程；与本次请求的差距见 answer",
+                "tool": {"tool_id": _tid},
+            }]
+            # 状态改 `missing_from_graph` 而不是 `ok`：这类问题的缺口恰恰在数据侧
+            # （WES 想要聚类分型 / 从 MAF 起步做体细胞检测），assets 本来就填不出来，
+            # 判 `ok` 会立刻撞上下面「ok 必须给出图内真实文件」那条违规、白烧一轮修正。
+            # `missing_from_graph` 在 _NO_REC_OK 里，语义正是「工具有、图内没有对得上的数据」。
+            plan["selection_status"] = "missing_from_graph"
+            filled.append(f"rank1←answer({_tid})")
 
     def _hydrate_tool(block, pid):
         gid = meta_to_graph.get(pid, pid)

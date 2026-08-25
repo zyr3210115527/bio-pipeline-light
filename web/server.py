@@ -667,7 +667,16 @@ class AgentRunner:
                 # 工具调用泄漏成文本：解析回真正的调用，并把这段标记从文本里抹掉，
                 # 免得它被当成终答再触发一轮「JSON 语法有误」的无效修补
                 leaked = _parse_leaked_tool_calls(answer_text)
-                if leaked:
+                if leaked and self.force_final:
+                    # **收敛后不许复活泄漏调用**。force_final 本来靠 tool_choice=none 兜底，
+                    # 但 none 只挡住结构化 tool_calls，模型照样能把调用写进正文——这里再解析
+                    # 回去就等于绕过了整个取数预算。165 例实测最长的两例（139.1s / 121.3s，
+                    # 各 7 轮 / 5 轮、取数 4 次以上）全是这么漏出去的，长尾就这一个洞。
+                    # 收敛后一律按终答处理：正文里通常已经带着可用的 JSON，_finalize 会剥出来；
+                    # 真剥不出来才走一轮修正，那也是有界的。
+                    print(f"[web] round {rnd}: 已收敛，忽略泄漏的 "
+                          f"{[c['name'] for c in leaked]}", file=sys.stderr)
+                elif leaked:
                     calls = leaked
                     answer_text = ""
                     self.emit({"type": "text_reset", "keep": committed_text})
