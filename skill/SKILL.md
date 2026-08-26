@@ -34,8 +34,8 @@ provides knowledge and deterministic checks — there is **no "one-call Plan" en
 
 | Node | Key properties (caveats) |
 |---|---|
-| `tool` (51) | `tool_name`, `function` (Chinese sentence), `semantic_output` (`;`-separated), `catalog_id` (T001…) |
-| `function` (90) | Analysis function, Chinese sentence; match with CONTAINS substring |
+| `tool` (55) | `tool_name`, `function` (controlled term, see below), `semantic_output` (`;`-separated), `catalog_id` (T001…T055) |
+| `function` (30) | **A controlled vocabulary since the 0826 rebuild — 30 fixed Chinese terms, not free text.** Every one of the 55 tools carries at least one `has_function` edge (89 edges total), so function is now the most reliable way to go from an intent to a tool set. **Match by equality on the exact term**, not CONTAINS: `测序质量评估` `接头与低质量序列修剪` `序列格式转换` `DNA序列比对` `RNA序列比对` `比对后处理与去重` `变异质量校正` `体细胞变异检测` `胚系变异检测` `结构变异检测` `拷贝数变异分析` `基因融合检测` `可变剪接分析` `变异过滤与处理` `变异注释` `突变景观与可视化` `肿瘤演化与克隆推断` `表达定量` `表达矩阵预处理与归一化` `单细胞比对与定量` `单细胞下游分析` `细胞通讯分析` `轨迹推断` `差异表达分析` `功能富集分析` `共表达网络分析` `无监督聚类分析` `免疫浸润与微环境分析` `生存分析` `可视化与报告`. Note there is **no space** in `DNA序列比对` / `RNA序列比对`. `可视化与报告` is a co-tag on 18 tools and discriminates nothing — never select on it alone |
 | `format` (35) | e.g. `RAW_PAIRED_END_R1_FASTQ`, `DNA_VARIANT_VCF_GENERAL`, `MUTATION_ANNOTATION_FORMAT_MAF`, plus `CLINICAL` / `*_META` |
 | `modal` (6) | **Only** `WES` / `WGS` / `bulk_RNA` / `sc-RNA` / `Clinical` / `Meta` — never invent spellings like `RNA-seq`. **The node property is `modal`, not `name`** — `(:modal {name:'sc-RNA'})` matches nothing and returns a silent zero. To find a modality's files, filter `T1.strategy = 'sc-RNA'` directly rather than traversing `in_modal` |
 | `datalevel` (4) | Properties are `level` / `name` / `description`, **not** `data_level`; 1 raw → 4 knowledge. (File-side `T1.data_level` / `T2.data_level` ARE called data_level.) |
@@ -75,18 +75,18 @@ If a count looks impossibly low or a max looks too small, check `valueType()` be
 > the bulk10 family (§3.1). The Knowledge Cards are on the serving path: no card ⇒ `validate_plan` skips
 > contract validation and emits no `execution_params`.
 
-Runtime catalog: **51 tools = 12 atomic (11 orchestrable; `multiqc` is terminal-only, never orchestrated)
-+ 38 pipeline + 1 task_pipeline**, 1:1 with the 51 graph `tool` nodes. Full fields (catalog_id, I/O
+Runtime catalog: **55 tools = 12 atomic (11 orchestrable; `multiqc` is terminal-only, never orchestrated)
++ 42 pipeline + 1 task_pipeline**, 1:1 with the 55 graph `tool` nodes. Full fields (catalog_id, I/O
 formats, omics, variants, slot bindings) in `references/tool_catalog.csv`; ArtifactType vocabulary in
 `references/artifact_type.csv`.
 
 - **Atomic closed set (11)**: `bwa` `fastp` `fastqc` `featurecounts` `gatk` `bcftools` `snpeff` `samtools` `star` `trim_galore` `rsem` (`multiqc` terminal-only)
 - **task_pipeline (1)**: `rnaseq_singletask`
-- **pipeline (38)**: `diff_expr_go` `diff_expr_kegg` `immune_infiltration_iobr` `wes_somatic_maf_landscape` `wes_somatic_pair` `survival_analysis` `tmb_survival_analysis` `her2_pfs_survival` `driver_gene_gender_analysis` `rnaseq_unsupervised_cluster` `wgcna` `wgcna_hub` `wgcna_module_trait` `cellranger_workflow` `paired_fastq_to_unmapped_bam` `cnvkit_cnv_clinical` `cox_model` `km_survival` `gsea_pathway_enrichment` `hvg_pca_gmm` `preprocess_counts` `rmats_alternative_splicing` `scrna_cell_communication` `bootstrap_stability` etc. (full table in CSV)
+- **pipeline (42)**: `diff_expr_go` `diff_expr_kegg` `immune_infiltration_iobr` `wes_somatic_maf_landscape` `wes_somatic_pair` `survival_analysis` `tmb_survival_analysis` `her2_pfs_survival` `driver_gene_gender_analysis` `rnaseq_unsupervised_cluster` `wgcna` `wgcna_hub` `wgcna_module_trait` `cellranger_workflow` `paired_fastq_to_unmapped_bam` `cnvkit_cnv_clinical` `cox_model` `km_survival` `gsea_pathway_enrichment` `hvg_pca_gmm` `preprocess_counts` `rmats_alternative_splicing` `scrna_cell_communication` `bootstrap_stability` `gatk_germline_cohort` `manta_structural_variants` `star_fusion` `tumor_evolution_inference` etc. (full table in CSV)
 
 Catalog rules (decide Plan shape):
 
-- `recommendations[]` carries **business pipelines** (38 + task); `candidates[]` carries **only atomic chains that pass closed-set validation** (within the 11).
+- `recommendations[]` carries **business pipelines** (42 + task); `candidates[]` carries **only atomic chains that pass closed-set validation** (within the 11).
 - **Non-atomized needs** (differential expression, enrichment, WGCNA, survival …) have no atomic
   expression → `candidates[]` returns `unsupported`; **never pad an atomic chain with pipeline nodes**.
   `recommendations[]` still carries the business pipeline as usual.
@@ -178,7 +178,7 @@ it silently returns 0 rows:
 
 | Template | Purpose |
 |---|---|
-| `find_tools_by_function` | Tools by Chinese function substring (`has_function` CONTAINS) |
+| `find_tools_by_function` | Tools by function term. Since 0826 `function` is a closed 30-term vocabulary — **match by equality on a term from §2's list**; CONTAINS still works but a partial term silently matches nothing (`'差异'` no longer hits `差异表达分析`'s node under equality, and under CONTAINS it hits only that one) |
 | `find_tools_by_input_format` / `find_tools_by_output_format` | Tools by input/output format. **`bootstrap_stability`, `hvg_pca_gmm`, `multiqc` have no `input` edge in the graph** — input-format queries never find them; when needed, query by `has_function` or tool name, and do not conclude "tool not in graph" |
 | `find_tool_input_output` | Single tool's I/O contract |
 | `find_tools_by_modal` | Tools by modal |
@@ -192,10 +192,14 @@ it silently returns 0 rows:
 
 Standard recipes:
 
-1. **Request → tool matching**: multi-keyword OR over `tool_name` / `function`. Naming patterns:
-   `deg_*` / `de_*` = differential, `wgcna*` = co-expression, `*survival` / `km_*` / `cox_*` = survival,
-   `*enrichment` = enrichment, `*cellchat` = cell communication, `tmb_*` = tumor mutation burden.
-   Function text is Chinese — include Chinese keywords (e.g. `'差异'`, `'富集'`, `'生存'`).
+1. **Request → tool matching**: **start from `function`, not from `tool_name`.** Since the 0826 rebuild
+   `function` is a closed 30-term vocabulary (§2) covering all 55 tools, so map the request onto one term
+   and match it by equality — one query, complete recall, no keyword guessing. `我想做生存分析` → `生存分析`
+   → the 5 survival tools; `做个差异表达` → `差异表达分析` → the 8 DE tools. Only when no term fits should you
+   fall back to keyword OR over `tool_name`, where the naming patterns are: `deg_*` / `de_*` = differential,
+   `wgcna*` = co-expression, `*survival` / `km_*` / `cox_*` = survival, `*enrichment` = enrichment,
+   `*cellchat` = cell communication, `tmb_*` = tumor mutation burden. **`function` narrows to a family, it does
+   not pick the member** — the family still has to be split by cohort/input/output, which is what §12.1 is for.
 2. **Chain assembly + verification**: for each hop, intersect upstream `output` / `semantic_output`
    with downstream `input` formats. Report gaps honestly ("graph missing: <hop>, expected input
    <format>; suggestion <filler tool or note>") — **never fabricate a tool that does not exist**.
@@ -413,7 +417,7 @@ graph merely holds no single-cell cohort for that cancer type; answering `no_can
 recommendations reports a *data* gap as a *tool* gap. **If the tool exists, rank1 is mandatory**: keep
 the status at `ok`, put "no matching cohort/file in the graph" in `match_note`, and name a substitutable
 existing cohort in `answer`. `no_candidate` plus empty recommendations is correct only when not one of
-the 51 closed-set tools can do the thing at all. Input-modality mismatches follow the same rule — "I have
+the 55 closed-set tools can do the thing at all. Input-modality mismatches follow the same rule — "I have
 WES and want cluster assignments" leads with `rnaseq_unsupervised_cluster`, "somatic calling starting
 from a MAF" leads with `wes_somatic_pair`, and `match_note` / `answer` carry the gap (expression
 quantification missing in the first; MAF is the end product of calling, so the second must restart from
@@ -477,7 +481,7 @@ Four knowledge-query shapes and where their answers come from:
 | "designing a workflow from A, B, C — what is redundant, what is missing" | §12.1 summaries + the chaining query above | each tool's position in the chain, then the duplicates and the gaps |
 
 ```cypher
-// Tool I/O. tool_name is exactly §12.1's first column (51/51 match); OPTIONAL keeps the row
+// Tool I/O. tool_name is exactly §12.1's first column (55/55 match); OPTIONAL keeps the row
 // alive when a tool has no output edge at all.
 MATCH (t:tool) WHERE t.tool_name IN ['gene_boxplot','ipf_trajectory_regulon']
 OPTIONAL MATCH (t)-[:input]->(i:format) OPTIONAL MATCH (t)-[:output]->(o:format)
@@ -731,7 +735,7 @@ Five things to get right when transcribing execution params:
 
 Measured on the connected graph. Tool/cohort matching should start here, not with exploratory queries.
 
-### 12.1 Tool catalog snapshot (51)
+### 12.1 Tool catalog snapshot (55)
 
 Several pipelines differ by exactly one discriminating detail; the full descriptions below carry it,
 so read to the end of the row rather than matching on the opening clause. The families that actually
@@ -789,6 +793,7 @@ get confused in practice:
 | `fastqc` | 对输入的 FASTQ 文件进行质量评估，生成 HTML 和 ZIP 格式的 FastQC 报告。 适用于 WES、WGS、RNA-seq 和单细胞测序等多种测序数据类型，可接收原始或修剪后的 FASTQ 文件。 | bulk_RNA,sc-RNA,WES,WGS | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | QC_STATS_REPORT |
 | `featurecounts` | 该流程使用 featureCounts 工具对 RNA-seq 比对后的 BAM 文件进行基因水平计数。 输入为最终 BAM 文件和 GTF 注释文件，输出为基因计数矩阵、统计摘要和运行日志。 适用于 RNA-seq 定量分析中的基因表达计数步骤。 | bulk_RNA | DNA_GENOMIC_ALIGNMENT_BAM | QC_STATS_REPORT,TABULAR_BIO_DATA |
 | `gatk` | 基于 GATK 最佳实践的全外显子组（WES）肿瘤-正常配对体细胞变异检测流程。 流程对肿瘤和正常样本分别进行 MarkDuplicates 标记重复、BaseRecalibrator 碱基质量校正， 然后使用 Mutect2 进行体细胞变异检测，并通过 FilterMutectCalls 进行过滤， 同时评估样本污染和构建读段方向偏倚模型。 | WES | DNA_ALIGNMENT_INDEX_BAI,REFERENCE_GENOME_FASTA,TARGET_INTERVAL_LIST,DNA_GENOMIC_ALIGNMENT_BAM | DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT,DNA_VARIANT_INDEX_TBI,DNA_VARIANT_VCF_GENERAL |
+| `gatk_germline_cohort` | GATK 最佳实践的**队列级胚系**变异检测：HaplotypeCaller 逐样本产 gVCF → GenomicsDB 合并 → 联合分型 → VQSR 过滤，输出队列 VCF/TBI 与质控统计。与 `gatk`（原子工具，走 Mutect2 体细胞分支）分工不同：**要胚系、要队列联合分型就用它**；单病人配对的体细胞检测走 `wes_somatic_pair`。**图内无 Knowledge Card**，validate_plan 只做闭集与数据校验、不出 execution_params。 | WGS,WES,Clinical | DNA_GENOMIC_ALIGNMENT_BAM,TARGET_INTERVAL_LIST,REFERENCE_GENOME_FASTA,METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL,DNA_VARIANT_VCF_GENERAL,DNA_VARIANT_INDEX_TBI | DNA_VARIANT_VCF_GENERAL,DNA_VARIANT_INDEX_TBI,DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT,TABULAR_BIO_DATA,VISUALIZATION_RESULT |
 | `gene_boxplot` | 基于基因表达矩阵和临床元数据生成箱线图、火山图、热图等可视化结果。支持从 CNCB 原生格式元数据自动映射样本分组信息，可整合生存分析和肿瘤分期数据。适用于 bulk RNA-seq 数据的探索性可视化分析。 | Clinical,bulk_RNA| TABULAR_BIO_DATA(counts, required) + case/control labels | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `gsea_pathway_enrichment` | 本流程基于limma moderated t统计量构建全基因排序，使用fgseaMultilevel执行预排序GSEA。 输入为表达矩阵和样本元数据，输出包括通路富集结果、显著通路、排序基因列表及可视化图表。 适用于病例-对照转录组比较分析，支持协变量校正和配对设计。 | bulk_RNA | TABULAR_BIO_DATA | VISUALIZATION_RESULT,TABULAR_BIO_DATA,QC_STATS_REPORT |
 | `her2_pfs_survival` | 基于 TPM 表达矩阵、临床信息及样本元信息，分析特定基因（默认 HER2）表达水平与无进展生存期（PFS）的关联。 流程自动匹配样本 accession，执行 Winsorizing 处理，生成 KM 生存曲线、Logrank 统计量及质量控制报告。 | Clinical,bulk_RNA | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA | VISUALIZATION_RESULT,QC_STATS_REPORT,TABULAR_BIO_DATA |
@@ -798,6 +803,7 @@ get confused in practice:
 | `ipf_trajectory_regulon` | 对特发性肺纤维化(IPF)单细胞RNA-seq数据进行轨迹推断和调控子分析。输入为Seurat RDS对象，输出包括分析结果压缩包、运行摘要、质控报告和文件清单等。 | bulk_RNA,sc-RNA | SCRNA_OBJECT_RDS,METADATA_SAMPLE_INFO,REFERENCE_GENOME_FASTA | QC_STATS_REPORT |
 | `km_survival` | 整合基因表达矩阵与临床元数据，执行 Kaplan-Meier 生存分析和 Cox 比例风险模型。 支持样本分组、肿瘤分期过滤和生存数据验证，输出生存曲线及统计结果。 | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `lung_tme_annotation_cnv` | 基于单细胞RNA-seq数据对肺癌肿瘤微环境进行细胞类型注释和拷贝数变异(CNV)分析。 输入为Seurat RDS文件和基因排序文件，输出包括压缩的结果包、运行摘要、质控报告和分析清单。 | sc-RNA | SCRNA_OBJECT_RDS,TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA | QC_STATS_REPORT |
+| `manta_structural_variants` | Manta 结构变异检测：从比对 BAM 调用大片段缺失/重复/倒位/易位，输出 SV VCF 与统计表。**闭集内唯一做结构变异的流程**（function `结构变异检测` 只此一条），SNV/InDel 不归它管——那是 `wes_somatic_pair` / `gatk_germline_cohort`。**图内无 Knowledge Card**。 | WGS,WES | DNA_GENOMIC_ALIGNMENT_BAM,REFERENCE_GENOME_FASTA | DNA_VARIANT_VCF_GENERAL,DNA_VARIANT_INDEX_TBI,TABULAR_BIO_DATA,QC_STATS_REPORT |
 | `multiqc` | 接收任意数量的上游质控文件（如 FastQC、fastp、SAMtools、BCFtools、SnpEff 等）， 生成交互式 MultiQC HTML 汇总报告及实际使用的配置文件。适用于 WES、WGS、RNA-seq 等流程。 | bulk_RNA,WES,WGS | - | QC_STATS_REPORT |
 | `paired_fastq_to_unmapped_bam` | 将双端 FASTQ 测序数据转换为未比对的 BAM 文件 (uBAM)，并添加完整的 Read Group 信息。 适用于 GATK 最佳实践流程的起始步骤，输出可用于后续变异检测流程的标准化 BAM 文件。 | WES | RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM | DNA_GENOMIC_ALIGNMENT_BAM |
 | `preprocess_counts` | 对RNA-seq原始count矩阵执行样本质量控制、低表达基因过滤和logCPM标准化。 输入为基因ID为第一列、其余列为样本count值的TSV矩阵，输出标准化后的logCPM矩阵及QC统计文件。 | bulk_RNA | TABULAR_BIO_DATA | TABULAR_BIO_DATA,QC_STATS_REPORT |
@@ -810,10 +816,12 @@ get confused in practice:
 | `snpeff` | 基于 SnpEff 工具对 VCF 文件进行变异效应注释的独立流程。输入为未压缩或压缩的 VCF 文件，输出包含注释后的 VCF、HTML/CSV 格式的统计报告以及运行日志。适用于 WES/WGS 体细胞或胚系突变的生物学效应预测。 | WES,WGS | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA | DNA_VARIANT_VCF_GENERAL,QC_STATS_REPORT |
 | `stage_heatmap` | 本流程用于生成基于肿瘤分期的基因表达热图可视化。整合表达矩阵、元数据文件和临床信息文件，自动匹配样本信息并筛选目标分期样本，输出分期热图及样本映射报告。适用于 CNCB 等公共数据库来源的 bulk RNA-seq 数据可视化分析。 | Clinical,bulk_RNA| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `star` | 该流程使用 STAR 比对工具对 RNA-seq 数据进行 rRNA 去除和基因组比对。流程包含两个步骤：首先将 reads 比对到 rRNA 参考索引以去除 rRNA 污染，然后将未比对的 reads 比对到基因组参考索引，输出未排序的基因组 BAM、转录组 BAM、基因计数文件和日志。 | bulk_RNA | REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ | RNA_TRANSCRIPTOME_ALIGNMENT_BAM,DNA_GENOMIC_ALIGNMENT_BAM,REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ |
+| `star_fusion` | STAR-Fusion 基因融合检测：从**双端 FASTQ 起步**比对并识别融合转录本，输出融合事件表与 HTML 报告。**闭集内唯一做基因融合的流程**。注意起点是 FASTQ 不是表达矩阵——手上只有 counts 矩阵时它做不了，这是数据缺口不是工具缺口（按 §8 给 rank1 并在 match_note 说明）。与 `star`（原子比对工具）同名前缀但不是一回事。**图内无 Knowledge Card**。 | RNA,Clinical | METADATA_SAMPLE_INFO,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | TABULAR_BIO_DATA,QC_STATS_REPORT |
 | `survival_analysis` | 基于 WDL 1.0 和 Cromwell 的生存分析流程，用于评估指定基因突变状态与无进展生存期（PFS）的关系。 流程整合了突变提取、Log-rank 检验、Kaplan-Meier 曲线绘制及单因素 Cox 回归分析，最终生成汇总报告。 | WES,Clinical | CLINICAL_DATA_EXCEL,MUTATION_ANNOTATION_FORMAT_MAF | QC_STATS_REPORT,VISUALIZATION_RESULT,CLINICAL_DATA_EXCEL |
 | `tcell_intervention` | 该流程用于对单细胞RNA-seq数据进行T细胞干预前后的比较分析。输入为Seurat RDS文件，通过指定细胞类型、时间点和患者信息等元数据列，进行差异表达分析，输出包括压缩的结果文件、运行摘要、质控报告和分析清单等。 | bulk_RNA,sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,METADATA_SAMPLE_INFO,SCRNA_OBJECT_RDS | QC_STATS_REPORT |
 | `tmb_survival_analysis` | 从MAF文件和临床数据计算病人级肿瘤突变负荷（TMB），按TMB中位数将病人分为高/低组， 进行Kaplan-Meier生存分析和log-rank检验，输出生存曲线、TMB分布图及统计结果表。 适用于肿瘤队列的预后分析场景。 | WES,Clinical | MUTATION_ANNOTATION_FORMAT_MAF,CLINICAL_DATA_EXCEL | QC_STATS_REPORT,TABULAR_BIO_DATA,VISUALIZATION_RESULT |
 | `trim_galore` | 基于 Trim Galore 工具的 FASTQ 文件接头修剪与质量控制流程。支持单端和双端测序数据，可指定接头序列，输出修剪后的 FASTQ 文件和修剪报告。 | bulk_RNA | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ,QC_STATS_REPORT |
+| `tumor_evolution_inference` | 肿瘤演化与克隆推断：由变异/表达数据重建克隆结构与演化关系，输出克隆分配表与演化树图。**闭集内唯一做克隆演化的流程**。它推断的是克隆谱系，**不是因果机制**——「能否推断致病因果」仍按 §8 的因果拒绝纪律处理，不要拿这条去顶。**图内无 Knowledge Card**。 | sc-RNA,WGS,RNA | DNA_GENOMIC_ALIGNMENT_BAM,TABULAR_BIO_DATA,DNA_VARIANT_VCF_GENERAL | TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
 | `umap` | 基于基因表达矩阵进行 UMAP 降维可视化分析，整合 CNCB 元数据和临床信息。 支持自动样本分组、生存分析数据提取，输出降维结果及样本信息报告。 | Clinical,bulk_RNA| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `wes_somatic_maf_landscape` | 本流程用于全外显子测序（WES）队列的体细胞突变景观分析。输入标准 MAF 文件，经过滤处理后绘制 Top N 突变基因 Oncoplot 及突变类型分布图。适用于癌症基因组学中的突变谱可视化与总结。 | WES | MUTATION_ANNOTATION_FORMAT_MAF | TABULAR_BIO_DATA,VISUALIZATION_RESULT,MUTATION_ANNOTATION_FORMAT_MAF |
 | `wes_somatic_pair` | 用于单个病人配对 tumor-normal WES 数据的体细胞变异分析流程。包含 FASTQ 质控、BWA 比对、Mutect2 变异检测、SnpEff 注释及 MultiQC 汇总报告。 输出包括过滤后的 VCF 文件、BAM 文件及完整的质控报告。 | WGS,WES | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | DNA_VARIANT_INDEX_TBI,DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT,DNA_VARIANT_VCF_GENERAL |

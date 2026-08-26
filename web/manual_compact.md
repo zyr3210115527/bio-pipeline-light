@@ -19,10 +19,20 @@ Neo4j 图谱（库 `neo4j`）是唯一事实源。只读：禁止 CREATE/MERGE/D
 **`hydrate_plan` 与 `validate_plan` 不在本会话工具列表里**：你输出终答后，服务端自动依次跑
 「确定性补全 → 接地校验」。所以样板字段不用你写（见 §9），也不要为了自检多花一轮。
 
-## 2. 图谱模型（0821 交付：81,628 节点 / 364,184 关系）
+## 2. 图谱模型（0826 交付）
 
-- `tool`(51)：`tool_name`、`function`（中文整句，CONTAINS 子串匹配）、`semantic_output`（`;` 分隔）、`catalog_id`
-- `function`(90) / `format`(35) / `modal`(6) / `datalevel`(4)
+- `tool`(55)：`tool_name`、`function`（**受控词**，见下）、`semantic_output`（`;` 分隔）、`catalog_id`(T001…T055)
+- `function`(30)：**0826 起是受控词表，不再是自由文本**。55 个工具全部挂了 `has_function`（共 89 条边），
+  所以「意图 → 工具集合」现在走 function 最可靠，**按整词等值匹配**，别再用子串猜：
+  `测序质量评估` `接头与低质量序列修剪` `序列格式转换` `DNA序列比对` `RNA序列比对` `比对后处理与去重`
+  `变异质量校正` `体细胞变异检测` `胚系变异检测` `结构变异检测` `拷贝数变异分析` `基因融合检测`
+  `可变剪接分析` `变异过滤与处理` `变异注释` `突变景观与可视化` `肿瘤演化与克隆推断` `表达定量`
+  `表达矩阵预处理与归一化` `单细胞比对与定量` `单细胞下游分析` `细胞通讯分析` `轨迹推断`
+  `差异表达分析` `功能富集分析` `共表达网络分析` `无监督聚类分析` `免疫浸润与微环境分析`
+  `生存分析` `可视化与报告`。`DNA序列比对`/`RNA序列比对` **中间没有空格**；
+  `可视化与报告` 挂了 18 个工具、区分不出任何东西，**不许单靠它选型**。
+  **function 只能缩到「族」，选不出「族里的哪一条」**——那一步靠 §8.1。
+- `format`(42) / `modal`(6) / `datalevel`(4)
 - **modal 只有 6 个**：`WES`/`WGS`/`bulk_RNA`/`sc-RNA`/`Clinical`/`Meta`，别编 `RNA-seq`。**节点属性叫 `modal` 不是 `name`**（写 `(:modal {name:'sc-RNA'})` 静默 0 行）；找某模态的文件直接用 `T1.strategy='sc-RNA'`，别绕 `in_modal`
 - **datalevel 节点属性是 `level`/`name`/`description`，不是 data_level**（1 原始→4 知识）；文件侧的 `T1.data_level`/`T2.data_level` 才叫 data_level
 - `study`(20)/`project`(18)：`study_accession`、`tumor_type`（英文，toLower+CONTAINS 查）、`individual_count`、`sample_count`（**6 队列无值**：HRA000073/HRA000087/HRA002693/HRA006117/HRA007413/HRA016026——按它过滤会静默漏，要规模就数 sample 节点）
@@ -51,7 +61,7 @@ Neo4j 图谱（库 `neo4j`）是唯一事实源。只读：禁止 CREATE/MERGE/D
 
 ## 3. 闭集工具目录
 
-51 = **12 atomic（11 可编排，multiqc 仅收尾）+ 38 pipeline + 1 task_pipeline**（`rnaseq_singletask`），与图内 tool 一一对应。
+55 = **12 atomic（11 可编排，multiqc 仅收尾）+ 42 pipeline + 1 task_pipeline**（`rnaseq_singletask`），与图内 tool 一一对应。
 atomic 闭集：`bwa` `fastp` `fastqc` `featurecounts` `gatk` `bcftools` `snpeff` `samtools` `star` `trim_galore` `rsem`。
 字段全表在 `references/tool_catalog.csv`；ArtifactType 词表在 `references/artifact_type.csv`。
 
@@ -88,13 +98,13 @@ atomic 闭集：`bwa` `fastp` `fastqc` `featurecounts` `gatk` `bcftools` `snpeff
 ## 4. 查询配方
 
 15 条官方模板在 `references/query_templates/`（按名取用，0821 实跑 15/15 有行）。**属性名大小写照抄**——`t1_id` 写成 `T1_id` 不报错、静默 0 行：
-find_tools_by_function（中文子串找工具）/ find_tools_by_input_format / find_tools_by_output_format（**注意 bootstrap_stability/hvg_pca_gmm/multiqc 无 input 边**，按输入格式永远找不到，需要时按 has_function/工具名查）/
+find_tools_by_function（**按 §2 的 30 个受控词整词等值**找工具；写半个词（'差异'）等值匹配静默 0 行）/ find_tools_by_input_format / find_tools_by_output_format（**注意 bootstrap_stability/hvg_pca_gmm/multiqc 无 input 边**，按输入格式永远找不到，需要时按 has_function/工具名查）/
 find_tool_input_output / find_tools_by_modal / trace_next_tool_chain / recommend_next_tools_via_output_match /
 trace_paths_from_input_format_to_output_format / find_t1_by_study_and_format / find_t1_by_modal /
 count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_samples / trace_sample_hierarchy / trace_data_lineage。
 
 配方要点：
-1. **请求→工具**：命名模式 `deg_*`/`de_*`=差异、`wgcna*`=共表达、`*survival`/`km_*`/`cox_*`=生存、`*enrichment`=富集、`*cellchat`=细胞通讯、`tmb_*`=突变负荷；function 是中文，带中文关键词（'差异'/'富集'/'生存'）。**或直接查 §8 快照表，不用查**
+1. **请求→工具**：**先把需求映射到 §2 的 30 个 function 受控词，按整词等值查一次**——55 个工具全挂了边，召回是完整的，不用拿关键词猜（`想做生存分析`→`生存分析`→5 条；`做个差异表达`→`差异表达分析`→8 条）。没有词对得上才退回按 `tool_name` 关键词 OR：`deg_*`/`de_*`=差异、`wgcna*`=共表达、`*survival`/`km_*`/`cox_*`=生存、`*enrichment`=富集、`*cellchat`=细胞通讯、`tmb_*`=突变负荷。**function 只缩到族，族里选哪条看 §8.1；§8.1 快照本身就够用时一次都不用查**
 2. **组装验链**：上一工具 output/semantic_output ∩ 下一工具 input 的 format 交集；缺口如实报，绝不虚构工具
 3. **选数据**：
    - **先过闸：数据是不是已经定死了**。bulk10 那十条流程（§3.1）不用查——队列由流程本身决定（见 §3.1 实跑表），
@@ -162,7 +172,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 只是图里没有该癌种的单细胞队列；模型判了 `no_candidate` + 空推荐，等于把"缺数据"说成"缺工具"。
 正确做法：**工具存在就必须给 rank1**，状态照常写 `ok`，把"图内没有匹配队列/文件"
 写进 `match_note`（并在 `answer` 里点名可替换的现成队列）。
-只有闭集 51 个工具里**一个都做不了这件事**，才轮得到 `no_candidate` + 空推荐。
+只有闭集 55 个工具里**一个都做不了这件事**，才轮得到 `no_candidate` + 空推荐。
 同理，「我有 WES 数据想得到聚类分型」「我想从 MAF 出发做体细胞变异检测」这类**输入模态对不上**
 的问题也一样：先给最接近的那条 rank1（前者 `rnaseq_unsupervised_cluster`，后者
 `wes_somatic_pair`），再在 `match_note`/`answer` 里说明差在哪一步（前者缺表达定量，
@@ -170,7 +180,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 
 ## 8. 实测快照（白名单来源；图谱更新后需重测）
 
-### 8.1 工具目录快照（51）
+### 8.1 工具目录快照（55）
 
 | tool | 功能摘要（**加粗处是同族流程的判别点**，按用户问句里出现的那个词选） | modal | 需要的输入语义格式 |
 |---|---|---|---|
@@ -194,6 +204,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `fastqc` | 对输入的 FASTQ 文件进行质量评估，生成 HTM | bulk_RNA,sc-RNA,WES,WGS | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
 | `featurecounts` | 该流程使用 featureCounts 工具对 RN | bulk_RNA | DNA_GENOMIC_ALIGNMENT_BAM |
 | `gatk` | 基于 GATK 最佳实践的全外显子组（WES）肿瘤- | WES | DNA_ALIGNMENT_INDEX_BAI,REFERENCE_GENOME_FASTA,TARGET_INTERVAL_LIST,DNA_GENOMIC_ALIGNMENT_BAM |
+| `gatk_germline_cohort` | **队列级胚系**变异检测（HaplotypeCaller→GenomicsDB→联合分型→VQSR）。与 `gatk`（原子、走 Mutect2 **体细胞**）分工不同：**要胚系、要队列联合分型**就用它；单病人配对体细胞走 `wes_somatic_pair`。**无 Knowledge Card** | WGS,WES,Clinical | DNA_GENOMIC_ALIGNMENT_BAM,TARGET_INTERVAL_LIST,REFERENCE_GENOME_FASTA |
 | `gene_boxplot` | **bulk10**：基因表达**箱线图**可视化；**仅 HRA003107** | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填）＋case/control 标签 |
 | `gsea_pathway_enrichment` | **不先筛差异基因**，全基因排序做预排序 GSEA（fgsea） | bulk_RNA | TABULAR_BIO_DATA |
 | `her2_pfs_survival` | 按**基因表达高低分组**做生存/PFS 的**默认流程**（基因不限 HER2/ERBB2，问句点名任何基因都算）；要 TPM+临床+元信息。问 **OS/多因素 Cox** 且队列在 §3.1 七队列内 → 改 km_survival / cox_model | Clinical,bulk_RNA | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA |
@@ -203,6 +214,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `ipf_trajectory_regulon` | 对特发性肺纤维化(IPF)单细胞RNA-seq数据进 | bulk_RNA,sc-RNA | SCRNA_OBJECT_RDS,METADATA_SAMPLE_INFO,REFERENCE_GENOME_FASTA |
 | `km_survival` | **bulk10**：Kaplan-Meier 总生存（OS），生存数据直接读 individual.csv；仅 HRA003107/000073/000074/002693/006117 | bulk_RNA,Clinical | TABULAR_BIO_DATA（counts，唯一必填） |
 | `lung_tme_annotation_cnv` | 基于单细胞RNA-seq数据对肺癌肿瘤微环境进行细胞 | sc-RNA | SCRNA_OBJECT_RDS,TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA |
+| `manta_structural_variants` | **结构变异**检测（大片段缺失/重复/倒位/易位），闭集内唯一一条。SNV/InDel 不归它管。**无 Knowledge Card** | WGS,WES | DNA_GENOMIC_ALIGNMENT_BAM,REFERENCE_GENOME_FASTA |
 | `multiqc` | 接收任意数量的上游质控文件（如 FastQC、fas | bulk_RNA,WES,WGS | - |
 | `paired_fastq_to_unmapped_bam` | 将双端 FASTQ 测序数据转换为未比对的 BAM  | WES | RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM |
 | `preprocess_counts` | 上面整链拆出的**单步**：counts→QC→过滤→logCPM | bulk_RNA | TABULAR_BIO_DATA |
@@ -215,10 +227,12 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `snpeff` | 基于 SnpEff 工具对 VCF 文件进行变异效应 | WES,WGS | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA |
 | `stage_heatmap` | **bulk10**：按**肿瘤分期**的表达热图；**仅 HRA003107** | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填） |
 | `star` | 该流程使用 STAR 比对工具对 RNA-seq 数 | bulk_RNA | REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ |
+| `star_fusion` | **基因融合**检测，闭集内唯一一条。**从双端 FASTQ 起步**，只有 counts 矩阵时做不了——那是缺数据不是缺工具，按 §7 照样给 rank1。与原子工具 `star` 不是一回事。**无 Knowledge Card** | RNA,Clinical | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ,METADATA_SAMPLE_INFO |
 | `survival_analysis` | 按**指定基因的突变状态**（MAF）分组做 PFS：KM+log-rank+Cox | WES,Clinical | CLINICAL_DATA_EXCEL,MUTATION_ANNOTATION_FORMAT_MAF |
 | `tcell_intervention` | 该流程用于对单细胞RNA-seq数据进行T细胞干预前 | bulk_RNA,sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,METADATA_SAMPLE_INFO,SCRNA_OBJECT_RDS |
 | `tmb_survival_analysis` | 按 **TMB 中位数**分高低组做 KM 生存（先从 MAF 算病人级 TMB） | WES,Clinical | MUTATION_ANNOTATION_FORMAT_MAF,CLINICAL_DATA_EXCEL |
 | `trim_galore` | 基于 Trim Galore 工具的 FASTQ 文 | bulk_RNA | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
+| `tumor_evolution_inference` | **肿瘤演化与克隆推断**，闭集内唯一一条。推的是克隆谱系，**不是因果机制**——问因果仍按 §7 拒绝纪律，别拿它顶。**无 Knowledge Card** | sc-RNA,WGS,RNA | DNA_GENOMIC_ALIGNMENT_BAM,TABULAR_BIO_DATA,DNA_VARIANT_VCF_GENERAL |
 | `umap` | **bulk10**：表达矩阵 **UMAP** 降维可视化；七个队列全可（§3.1 里唯一一条） | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填） |
 | `wes_somatic_maf_landscape` | 本流程用于全外显子测序（WES）队列的体细胞突变景观 | WES | MUTATION_ANNOTATION_FORMAT_MAF |
 | `wes_somatic_pair` | 用于单个病人配对 tumor-normal WES  | WGS,WES | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
@@ -391,7 +405,7 @@ Clinical/Meta 六种，0821 起 WXS 已并入 WES，Targeted-Capture/TCR-Seq/Unk
 | 「A、B、C 设计流程，哪些环节重复/缺少」 | §8.1 功能摘要 + 上一条的衔接查询 | 逐个工具的环节定位，再点名重复项与缺口 |
 
 ```cypher
-// 工具 I/O（tool_name 就是 §8.1 首列，51/51 对得上；OPTIONAL 保证没有输出边时也返回行）
+// 工具 I/O（tool_name 就是 §8.1 首列，55/55 对得上；OPTIONAL 保证没有输出边时也返回行）
 MATCH (t:tool) WHERE t.tool_name IN ['gene_boxplot','ipf_trajectory_regulon']
 OPTIONAL MATCH (t)-[:input]->(i:format) OPTIONAL MATCH (t)-[:output]->(o:format)
 RETURN t.tool_name, collect(DISTINCT i.format), collect(DISTINCT o.format)

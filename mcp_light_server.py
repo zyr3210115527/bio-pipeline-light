@@ -916,7 +916,7 @@ def tool_validate_plan(args):
         if _named:
             v.append(
                 f"selection_status=no_candidate 与 answer 自相矛盾：answer 里已经点名了闭集工具"
-                f"（{'、'.join(_named[:4])}）。no_candidate 只用于「闭集 51 个工具没有一个能做」；"
+                f"（{'、'.join(_named[:4])}）。no_candidate 只用于「闭集 55 个工具没有一个能做」；"
                 f"缺的是数据/队列就不算。把其中最接近目标的一条放进 recommendations[0]、"
                 f"状态改回 ok，数据缺口写进 match_note")
     for i, rec in enumerate(recs):
@@ -1305,7 +1305,7 @@ def tool_hydrate_plan(args):
                 break
 
     # —— no_candidate 自相矛盾：把 answer 里已经点名的工具提成 rank1 ——
-    # `no_candidate` 的字面意思是「闭集 51 个工具没有一个能做」，但实测它几乎总是被用来说
+    # `no_candidate` 的字面意思是「闭集 55 个工具没有一个能做」，但实测它几乎总是被用来说
     # 「没有匹配的**数据**」或「输入模态对不上」——Q_0054/Q_0055/Q_0235 三例都判了
     # no_candidate + 空推荐，而同一份 answer 开头就写着「闭集内能做聚类分型的是
     # rnaseq_unsupervised_cluster」。手册写过这条规则，回传违规让它自己改也试过：

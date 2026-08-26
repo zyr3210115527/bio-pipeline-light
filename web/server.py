@@ -579,7 +579,7 @@ def _repair_hint(violations):
                      "（信息型、需求超出闭集、图内查无——这三种状态允许 recommendations 为空），"
                      "要么从手册 §8.1 闭集目录里选语义最贴近的 pipeline 补一条 rank1 推荐。")
     if "不在闭集目录" in v or "非闭集 atomic" in v:
-        hints.append("pipeline_id/tool_id 必须逐字取自手册 §8.1 的 51 个工具名（不能为 null、"
+        hints.append("pipeline_id/tool_id 必须逐字取自手册 §8.1 的 55 个工具名（不能为 null、"
                      "不能自造），atomic 链只能用 §3 的 11 个可编排 atomic。")
     if "图内不存在" in v or "file_path 与图内记录不符" in v:
         hints.append("assets 只保留本会话查询结果里逐字出现过的 file_name/file_path，"
