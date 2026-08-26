@@ -91,7 +91,7 @@
 
 ### 与之前版本的区别
 
-| | 旧（重 MCP / light v2.0） | 现在（light v2.1） |
+| | 旧（重 MCP / light v2.0） | 现在（light v2.2） |
 |---|---|---|
 | Plan 从哪来 | 一次调用 `route_pipeline_request` 拿现成 Plan（重版 server 内嵌 LLM；v2.0 是词表规则，去名集仅 1.4%） | Plan 由前端自己的模型按手册产出。v2.2 补回同名兼容层给只能调一次工具的客户端，但内部跑的是完整模型循环、无词表降级 |
 | 前端形态 | 无模型的后端也能直连 | **必须有模型在环**——要么前端自己的，要么用 `route_pipeline_request` 借服务端配的那个 |
@@ -99,7 +99,7 @@
 | 提交判定 | 重版有 `execution_params`/`submittable` / v2.0 没有 | `validate_execution_chain` 补齐：`execution_params` + `execution_params_missing` + `submittable` |
 | 拒绝无关问题 | `rule_baseline_plan` 内置词表相关性门 | 拒绝纪律在 SKILL.md（`off_topic`/`privacy` 两类 reason），由调用方模型执行 |
 | 患者隐私 | 无专门防护 | `read_cypher` 服务端守卫：临床属性（`01_`–`13_` 全部编号前缀，只放行 `00_*`）仅聚合/存在性判断，防整节点导出/别名/动态下标绕过，自动 LIMIT 500 |
-| 图谱 | 0812 交付 | 0821 交付（81,621 节点 / 364,184 关系；0819 列名规范 + 0821 数值字段改类型/清洗），SKILL.md 已同步 |
+| 图谱 | 0812 交付 | 0826 交付（81,572 节点 / 364,260 关系 / 55 工具 / 30 受控功能词；0819 列名规范 + 0821 数值字段改类型/清洗 + 0824 软件更新补 4 个工具），SKILL.md 与 knowledge cards 已同步 |
 | 回归手段 | 96 例含水测试集 | `benchmark/system_test.py`（12 场景 101 断言）+ `integration_test.py` + `benchmark/template_audit.py`（15 条官方模板逐条实跑，断言返回行且无整列 null），图谱更新后必跑 |
 
 ## 目录结构
@@ -132,7 +132,7 @@ Neo4j。这不是遗漏：`entities/individual.csv` 是 7290 行患者级记录�
 `read_cypher` 的隐私守卫明令不许模型逐行读的 `01_`–`13_` 列。把它提交进公开仓等于把守卫绕过去，
 所以数据走线下交付。
 
-1. **要数据**：向图谱交付方索取 `import 0821.zip`（约 4.4 MB 压缩 / 64 MB 解压，31 个 CSV）。
+1. **要数据**：向图谱交付方索取 `import 0826.zip`（约 4.4 MB 压缩 / 64 MB 解压，31 个 CSV）。
 2. **解压到 Neo4j 的 import 目录**（`LOAD CSV` 的 `file:///` 只认这里）：
    ```
    $NEO4J_HOME/import/
@@ -140,27 +140,39 @@ Neo4j。这不是遗漏：`entities/individual.csv` 是 7290 行患者级记录�
    ├── relations/    19 个关系文件
    └── reference/    formats, function, multimodal, data_level, format_subclass
    ```
-3. **建图**（约 40 秒。注意必须用 cypher-shell：脚本里的 `CALL {} IN TRANSACTIONS` 在 HTTP
+3. **建图**（约 40 秒。必须用 cypher-shell：脚本里的 `CALL {} IN TRANSACTIONS` 在 HTTP
    `/tx/commit` 端点上跑不了）：
    ```bash
    $NEO4J_HOME/bin/cypher-shell -a bolt://127.0.0.1:7687 -u neo4j -p <密码> \
      --fail-at-end --format plain --file scripts/load_graph.cypher
    ```
    **脚本第 0 步会 `DETACH DELETE` 清空当前库**，别对着有别的数据的实例跑。
-4. **校验加载没截断**——对上这几个数才算成功（0821 交付）：
+
+   **登不上图谱服务器时**（只开了 HTTP 端口，够不到它的 import 目录）改用
+   `scripts/load_graph_http.py`：CSV 在本地读、按批走 UNWIND + 参数发过去，不依赖
+   `file:///` 也不依赖 `CALL {} IN TRANSACTIONS`，语义与 `load_graph.cypher` 逐条对齐
+   （空串不落属性、count 字段转整数、individual 按 accession MERGE 后写覆盖先写）。
+   ```bash
+   NEO4J_URL=http://<host>:7480/db/neo4j/tx/commit NEO4J_USER=neo4j NEO4J_PASSWORD=<密码> \
+     python3 scripts/load_graph_http.py /path/to/import
+   ```
+   本机约 20 秒、跨网段约 60 秒。它自己校验总数，且期望值是从各 CSV 行数推出来的而非写死。
+4. **校验加载没截断**——对上这几个数才算成功（0826 交付）：
    ```cypher
-   MATCH (n) RETURN count(n);                      // 81628
-   MATCH ()-[r]->() RETURN count(r);               // 364184
+   MATCH (n) RETURN count(n);                      // 81572
+   MATCH ()-[r]->() RETURN count(r);               // 364260
    MATCH (n:T1) RETURN count(n);                   // 28229
    MATCH (n:T2) RETURN count(n);                   // 35572
    MATCH (n:individual) RETURN count(n);           // 7131（CSV 7290 行，按 accession 去重）
    MATCH ()-[r:in_sample]->() RETURN count(r);     // 28184
+   MATCH (n:tool) RETURN count(n);                 // 55  ← 闭集，少一个模型就查不到该工具
+   MATCH (n:function) RETURN count(n);             // 30  ← 受控词表，同上
    ```
    `individual` 少于 CSV 行数是正常的：159 个患者同时进了两个研究，按 accession MERGE 成一个
    节点，多研究归属由 `in_study` 边承载（7290 条边 > 7131 个节点）。
 
 数据换版本后，`SKILL.md` / `manual_compact.md` 第 8、12 节的实测快照（队列样本数、T2 产物清单、
-脏字段警告）是照 0821 逐条查出来写的，**必须重新推导**，否则模型会拿旧数字做规划。
+脏字段警告）是照当版交付逐条查出来写的，**必须重新推导**，否则模型会拿旧数字做规划。
 
 ## 快速开始
 
