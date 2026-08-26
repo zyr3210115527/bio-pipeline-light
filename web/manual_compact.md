@@ -204,7 +204,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `fastqc` | 对输入的 FASTQ 文件进行质量评估，生成 HTM | bulk_RNA,sc-RNA,WES,WGS | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
 | `featurecounts` | 该流程使用 featureCounts 工具对 RN | bulk_RNA | DNA_GENOMIC_ALIGNMENT_BAM |
 | `gatk` | 基于 GATK 最佳实践的全外显子组（WES）肿瘤- | WES | DNA_ALIGNMENT_INDEX_BAI,REFERENCE_GENOME_FASTA,TARGET_INTERVAL_LIST,DNA_GENOMIC_ALIGNMENT_BAM |
-| `gatk_germline_cohort` | **队列级胚系**变异检测（HaplotypeCaller→GenomicsDB→联合分型→VQSR）。与 `gatk`（原子、走 Mutect2 **体细胞**）分工不同：**要胚系、要队列联合分型**就用它；单病人配对体细胞走 `wes_somatic_pair`。**无 Knowledge Card** | WGS,WES,Clinical | DNA_GENOMIC_ALIGNMENT_BAM,TARGET_INTERVAL_LIST,REFERENCE_GENOME_FASTA |
+| `gatk_germline_cohort` | **队列级胚系**变异检测（HaplotypeCaller→GenomicsDB→联合分型→VQSR）。与 `gatk`（原子、走 Mutect2 **体细胞**）分工不同：**要胚系、要队列联合分型**就用它；单病人配对体细胞走 `wes_somatic_pair`。 | WGS,WES,Clinical | DNA_GENOMIC_ALIGNMENT_BAM,TARGET_INTERVAL_LIST,REFERENCE_GENOME_FASTA |
 | `gene_boxplot` | **bulk10**：基因表达**箱线图**可视化；**仅 HRA003107** | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填）＋case/control 标签 |
 | `gsea_pathway_enrichment` | **不先筛差异基因**，全基因排序做预排序 GSEA（fgsea） | bulk_RNA | TABULAR_BIO_DATA |
 | `her2_pfs_survival` | 按**基因表达高低分组**做生存/PFS 的**默认流程**（基因不限 HER2/ERBB2，问句点名任何基因都算）；要 TPM+临床+元信息。问 **OS/多因素 Cox** 且队列在 §3.1 七队列内 → 改 km_survival / cox_model | Clinical,bulk_RNA | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA |
@@ -214,7 +214,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `ipf_trajectory_regulon` | 对特发性肺纤维化(IPF)单细胞RNA-seq数据进 | bulk_RNA,sc-RNA | SCRNA_OBJECT_RDS,METADATA_SAMPLE_INFO,REFERENCE_GENOME_FASTA |
 | `km_survival` | **bulk10**：Kaplan-Meier 总生存（OS），生存数据直接读 individual.csv；仅 HRA003107/000073/000074/002693/006117 | bulk_RNA,Clinical | TABULAR_BIO_DATA（counts，唯一必填） |
 | `lung_tme_annotation_cnv` | 基于单细胞RNA-seq数据对肺癌肿瘤微环境进行细胞 | sc-RNA | SCRNA_OBJECT_RDS,TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA |
-| `manta_structural_variants` | **结构变异**检测（大片段缺失/重复/倒位/易位），闭集内唯一一条。SNV/InDel 不归它管。**无 Knowledge Card** | WGS,WES | DNA_GENOMIC_ALIGNMENT_BAM,REFERENCE_GENOME_FASTA |
+| `manta_structural_variants` | **结构变异**检测（大片段缺失/重复/倒位/易位），闭集内唯一一条。SNV/InDel 不归它管。 | WGS,WES | DNA_GENOMIC_ALIGNMENT_BAM,REFERENCE_GENOME_FASTA |
 | `multiqc` | 接收任意数量的上游质控文件（如 FastQC、fas | bulk_RNA,WES,WGS | - |
 | `paired_fastq_to_unmapped_bam` | 将双端 FASTQ 测序数据转换为未比对的 BAM  | WES | RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM |
 | `preprocess_counts` | 上面整链拆出的**单步**：counts→QC→过滤→logCPM | bulk_RNA | TABULAR_BIO_DATA |
@@ -227,12 +227,12 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `snpeff` | 基于 SnpEff 工具对 VCF 文件进行变异效应 | WES,WGS | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA |
 | `stage_heatmap` | **bulk10**：按**肿瘤分期**的表达热图；**仅 HRA003107** | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填） |
 | `star` | 该流程使用 STAR 比对工具对 RNA-seq 数 | bulk_RNA | REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ |
-| `star_fusion` | **基因融合**检测，闭集内唯一一条。**从双端 FASTQ 起步**，只有 counts 矩阵时做不了——那是缺数据不是缺工具，按 §7 照样给 rank1。与原子工具 `star` 不是一回事。**无 Knowledge Card** | RNA,Clinical | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ,METADATA_SAMPLE_INFO |
+| `star_fusion` | **基因融合**检测，闭集内唯一一条。**从双端 FASTQ 起步**，只有 counts 矩阵时做不了——那是缺数据不是缺工具，按 §7 照样给 rank1。与原子工具 `star` 不是一回事。 | RNA,Clinical | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ,METADATA_SAMPLE_INFO |
 | `survival_analysis` | 按**指定基因的突变状态**（MAF）分组做 PFS：KM+log-rank+Cox | WES,Clinical | CLINICAL_DATA_EXCEL,MUTATION_ANNOTATION_FORMAT_MAF |
 | `tcell_intervention` | 该流程用于对单细胞RNA-seq数据进行T细胞干预前 | bulk_RNA,sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,METADATA_SAMPLE_INFO,SCRNA_OBJECT_RDS |
 | `tmb_survival_analysis` | 按 **TMB 中位数**分高低组做 KM 生存（先从 MAF 算病人级 TMB） | WES,Clinical | MUTATION_ANNOTATION_FORMAT_MAF,CLINICAL_DATA_EXCEL |
 | `trim_galore` | 基于 Trim Galore 工具的 FASTQ 文 | bulk_RNA | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
-| `tumor_evolution_inference` | **肿瘤演化与克隆推断**，闭集内唯一一条。推的是克隆谱系，**不是因果机制**——问因果仍按 §7 拒绝纪律，别拿它顶。**无 Knowledge Card** | sc-RNA,WGS,RNA | DNA_GENOMIC_ALIGNMENT_BAM,TABULAR_BIO_DATA,DNA_VARIANT_VCF_GENERAL |
+| `tumor_evolution_inference` | **肿瘤演化与克隆推断**，闭集内唯一一条。推的是克隆谱系，**不是因果机制**——问因果仍按 §7 拒绝纪律，别拿它顶。 | sc-RNA,WGS,RNA | DNA_GENOMIC_ALIGNMENT_BAM,TABULAR_BIO_DATA,DNA_VARIANT_VCF_GENERAL |
 | `umap` | **bulk10**：表达矩阵 **UMAP** 降维可视化；七个队列全可（§3.1 里唯一一条） | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填） |
 | `wes_somatic_maf_landscape` | 本流程用于全外显子测序（WES）队列的体细胞突变景观 | WES | MUTATION_ANNOTATION_FORMAT_MAF |
 | `wes_somatic_pair` | 用于单个病人配对 tumor-normal WES  | WGS,WES | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
@@ -419,7 +419,7 @@ RETURN collect(f.format)
 
 **read_cypher 结果上限 500 行**：超出带 `truncated: true`——手上是截断样本不是全集，不许下「共有 N 个/全部是」这类全称结论；要总数用 count() 重查，要细节加过滤。
 
-**命名契约（Knowledge Card 对齐）**：原子工具 tool_id 用卡内 `meta.id`（如 `bwa_mem_paired` 而非 `bwa`）；pipeline 级工具用图谱 tool_id。槽位名由服务端按卡补全，不用你写。
+**命名契约（Knowledge Card 对齐）**：原子工具 tool_id 用卡内 `meta.id`（如 `bwa_mem_paired` 而非 `bwa`）；只有 bcftools/bwa/fastp/featurecounts/gatk/rsem/samtools/snpeff/star 这 9 个两者不同，其余 46 个卡片 id 就等于图谱 tool_id，pipeline 级工具照写图谱 tool_id 即可。槽位名由服务端按卡补全，不用你写。
 
 **你只写判断性内容，样板由服务端补**。下列字段一律**不要生成**（服务端在你输出后确定性填上，
 你写了也会被图内事实覆盖，纯属浪费生成时间）：
@@ -486,13 +486,14 @@ schema 示例（**这就是你该输出的完整长度**）：
 
 用户要提交链到执行端（或问「能不能跑/缺什么」）时调 `validate_execution_chain`：五阶段（注册/卡契约必填输入/绑定结构/数据探查/链流转），
 输出 tool-chain-validation/v1.2 报告 + execution_params（**键=卡片参数名**，值是图内真实路径，只认 `/` 开头确认路径，绝不伪造）+ execution_params_missing + submittable。
-**errors 清零且 submittable=true 才可提交**；false 时不得宣称能跑，如实列出 missing。pipeline 级工具无卡时明确警告「跳过契约校验」。
+**errors 清零且 submittable=true 才可提交**；false 时不得宣称能跑，如实列出 missing。（0824 交付后 55 个工具全都有卡，不再出现「跳过契约校验」的警告。）
 
-转录执行参数时注意五条：
-- **回包里的 `tool_id` 是卡片 `meta.id`，不是你传进去的图谱 tool_id**——传 `star` 回来 `star_rrna_and_genome_alignment`（与 `normalized_steps` 一致；无卡的 pipeline 工具原样回传）。对步骤请按 `step` 下标取，别拿 `tool_id` 字符串去匹配你的请求。
+转录执行参数时注意六条：
+- **回包里的 `tool_id` 是卡片 `meta.id`，不是你传进去的图谱 tool_id**——传 `star` 回来 `star_rrna_and_genome_alignment`（与 `normalized_steps` 一致）。只有这 9 个原子工具两者不同：bcftools/bwa/fastp/featurecounts/gatk/rsem/samtools/snpeff/star，其余 46 个卡片 id 就等于图谱 tool_id。对步骤请按 `step` 下标取，别拿 `tool_id` 字符串去匹配你的请求。
 - **多步链以 `execution_params_by_step` 为准**（`[{step, tool_id, params}]`）。`execution_params` 是扁平便捷视图，同名参数（如 trim_galore 和 star 都有 `read1`）跨步取到不同路径时会被剔除并列进 `execution_params_ambiguous`——**扁平视图里没有的参数不等于缺，去 by_step 里取**。
 - **`Array[File]` 参数的值是路径数组**（fastqc 的 `fastqs`、multiqc 的 `qc_files`），不是字符串，别当成单个路径转录。
-- **参考/索引资源不会出现在 execution_params 里,也不会报缺**：`star` 的 `rrna_star_index`/`genome_star_index`、`rsem` 的 `rsem_index`、`featurecounts` 的 `gtf_file`、`gatk` 的 `interval_list` 共 5 个走执行端容器内默认值，**不要替用户去图里找路径、也不要因为它们"缺"就说链跑不了**。注意 `bcftools` 的 `filtered_vcf_index` 名字里带 index 但**不是**参考资源，它是 `.tbi` 伴随索引，必须绑。
+- **参考/索引资源不会出现在 execution_params 里,也不会报缺**：由卡片自带 `reference_resource` 标记，现有 9 个（`star` 的 `rrna_star_index`/`genome_star_index`、`rsem` 的 `rsem_index`、`featurecounts` 的 `gtf_file`、`gatk` 的 `interval_list`、`manta_structural_variants` 的 `reference_fasta`/`reference_fai` 等），走执行端容器内默认值，**不要替用户去图里找路径、也不要因为它们"缺"就说链跑不了**。注意 `bcftools` 的 `filtered_vcf_index` 名字里带 index 但**不是**参考资源，它是 `.tbi` 伴随索引，必须绑。
+- **有的卡是「二选一」输入（`require_any`）**：组内参数各自 required=false，但整组必须至少绑一个，只查必填查不出「一个都没给」。`scrna_cell_communication` 要 `seurat_rds` 或 `combined_counts`，`paired_fastq_to_unmapped_bam` 要 `sample_name` 或 `sample_accession`。都不给是契约错误，报告会点名哪一组。bulk10 的样本表虽然也是这个形状，但那两张表服务端按队列号推（§3.1），**不用你绑、也不会报缺**。
 - `execution_params_missing` 的元素是对象 `{param, tool_id, step, reason}`，`reason=no_confirmed_path` 表示绑定没问题、是图里没有该资产的确认路径（要数据侧补 `file_path`），转述时别说成"用户没绑"。
 
 ## 11. 边界与原则

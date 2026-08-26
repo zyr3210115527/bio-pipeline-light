@@ -53,7 +53,9 @@ def load_knowledge_cards() -> None:
         gid = c.get("graph_tool_id") or card_id
         KC_MAP[gid] = {"meta_id": card_id,
                        "inputs": c.get("inputs", []),
-                       "outputs": c.get("outputs", [])}
+                       "outputs": c.get("outputs", []),
+                       # 二选一约束，来自交付卡的 interface.validators[type=one_of]
+                       "require_any": c.get("require_any", [])}
         if gid != card_id:
             KC_MAP.setdefault(card_id, KC_MAP[gid])
 
@@ -96,7 +98,20 @@ REFERENCE_RESOURCES: set = {
 }
 
 def _is_reference_resource(card, name) -> bool:
-    return bool(card) and (card.get("meta_id"), name) in REFERENCE_RESOURCES
+    """参考资源判定：先看卡片自带的 reference_resource 标记，再看上面这张兜底表。
+
+    标记由 scripts/build_knowledge_cards.py 从交付包生成，判据是两条硬证据——
+    artifact_type 属于参考资源类，或卡片给了 /opt/... 这样的容器内绝对路径默认值。
+    上面那张手工表覆盖不了 0824 新进来的 33 个工具，留着是防交付包哪天不带这个字段。
+    """
+    if not card:
+        return False
+    for i in card.get("inputs") or []:
+        if i.get("name") == name:
+            if i.get("reference_resource"):
+                return True
+            break
+    return (card.get("meta_id"), name) in REFERENCE_RESOURCES
 
 # ---------- 目录加载（从 skill/references/tool_catalog.csv，不内嵌） ----------
 ATOMIC_IDS: set[str] = set()
@@ -649,6 +664,16 @@ def tool_validate_execution_chain(args):
                    and not _is_reference_resource(card, i["name"])]
         if missing:
             errors.append(f"{card['meta_id']} 缺必填输入: {missing}")
+        # 二选一约束：卡片 interface.validators 里的 one_of，每组至少绑一个。
+        # bulk10 十个工具的样本表就是这个形状——meta_xlsx 一张表顶 sample_csv +
+        # individual_csv 两张，三个参数各自 required=false，只查必填查不出「一个都没给」。
+        # 但 bulk10 的这两张 CNCB 原生元数据表由服务端按队列号推（_bulk10_params），
+        # 手册明写「不写进 inputs 也不查图」，所以含它们的组不能反过来要求调用方绑。
+        for grp in card.get("require_any") or []:
+            if gid in _BULK10 and set(grp) & {"sample_csv", "individual_csv"}:
+                continue
+            if not any(n in bindings for n in grp):
+                errors.append(f"{card['meta_id']} 缺必填输入: {grp} 至少需提供一个")
         # 绑定结构检查（对齐重版：binding 必须为对象；Array[File] 额外允许对象数组）
         bad_bind = []
         for i in card["inputs"]:

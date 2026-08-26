@@ -10,6 +10,12 @@
   ],
   "inputs": [
    {
+    "name": "pair_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
     "name": "filtered_vcf",
     "type": "File",
     "format": "VCF.gz",
@@ -25,7 +31,8 @@
     "name": "reference_fasta",
     "type": "String",
     "format": "FASTA",
-    "required": true
+    "required": true,
+    "reference_resource": true
    }
   ],
   "outputs": [
@@ -43,6 +50,201 @@
     "name": "qc_files",
     "type": "Array[File]",
     "format": "TSV/TXT"
+   }
+  ]
+ },
+ "bootstrap_stability": {
+  "graph_tool_id": "bootstrap_stability",
+  "name_cn": "Bootstrap聚类稳定性评估",
+  "category": "聚类分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "logcpm_tsv",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "bootstrap_n",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "retain_fraction",
+    "type": "Float",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "hvg_n",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "pca_n",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "k_min",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "k_max",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "loess_span",
+    "type": "Float",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "seed",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "perm_n",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "ari_high_threshold",
+    "type": "Float",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "nmi_high_threshold",
+    "type": "Float",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "cpu",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "memory",
+    "type": "String",
+    "format": null,
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "bootstrap_pairwise_ari_nmi_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "bootstrap_run_labels_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "bootstrap_k_frequency_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "bootstrap_status_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "bootstrap_summary_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "bootstrap_pvalues_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "bootstrap_permutation_null_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "bootstrap_pairwise_metrics_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "bootstrap_pairwise_metrics_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "bootstrap_best_k_frequency_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "bootstrap_best_k_frequency_pdf",
+    "type": "File",
+    "format": "PDF"
+   }
+  ]
+ },
+ "breast_cellchat": {
+  "graph_tool_id": "breast_cellchat",
+  "name_cn": "乳腺癌细胞通讯分析",
+  "category": "细胞通讯分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "input_rds",
+    "type": "File",
+    "format": "RDS",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "task_log",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "input_qc",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "analysis_manifest",
+    "type": "File",
+    "format": "TXT"
    }
   ]
  },
@@ -77,7 +279,8 @@
     "name": "reference_fasta",
     "type": "String",
     "format": "FASTA",
-    "required": true
+    "required": true,
+    "reference_resource": true
    }
   ],
   "outputs": [
@@ -90,6 +293,885 @@
     "name": "bwa_log",
     "type": "File",
     "format": "TXT"
+   }
+  ]
+ },
+ "cellranger_workflow": {
+  "graph_tool_id": "cellranger_workflow",
+  "name_cn": "10x Genomics 单细胞 RNA-seq cellranger分析流程",
+  "category": "单细胞测序分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "sample_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "fastq_file1",
+    "type": "File",
+    "format": "FASTQ",
+    "required": true
+   },
+   {
+    "name": "fastq_file2",
+    "type": "File",
+    "format": "FASTQ",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "fastqc_reports",
+    "type": "File",
+    "format": "FASTQ.gz"
+   },
+   {
+    "name": "raw_feature_bc_matrix",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "filtered_feature_bc_matrix",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "web_summary",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "cloupe_file",
+    "type": "File",
+    "format": null
+   },
+   {
+    "name": "bam_file",
+    "type": "File",
+    "format": "BAM"
+   },
+   {
+    "name": "metrics_summary",
+    "type": "File",
+    "format": "CSV"
+   }
+  ]
+ },
+ "celltype_case_control_de": {
+  "graph_tool_id": "celltype_case_control_de",
+  "name_cn": "单细胞特定细胞类型病例-对照差异表达分析",
+  "category": "差异表达分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "input_rds",
+    "type": "File",
+    "format": "RDS",
+    "required": true
+   },
+   {
+    "name": "target_cell_type",
+    "type": "String",
+    "format": null,
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "task_log",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "input_qc",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "analysis_manifest",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "cnvkit_cnv_clinical": {
+  "graph_tool_id": "cnvkit_cnv_clinical",
+  "name_cn": "配对肿瘤-正常样本 CNVkit 拷贝数变异分析",
+  "category": "拷贝数变异分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "normal_bais",
+    "type": "Array[File]+",
+    "format": "BAI",
+    "required": true
+   },
+   {
+    "name": "tumor_bais",
+    "type": "Array[File]+",
+    "format": "BAI",
+    "required": true
+   },
+   {
+    "name": "normal_bams",
+    "type": "Array[File]+",
+    "format": "BAM",
+    "required": true
+   },
+   {
+    "name": "sample_ids",
+    "type": "Array[String]+",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "tumor_bams",
+    "type": "Array[File]+",
+    "format": "BAM",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "cnr_files",
+    "type": "File",
+    "format": null
+   },
+   {
+    "name": "cns_files",
+    "type": "File",
+    "format": null
+   },
+   {
+    "name": "called_segments",
+    "type": "File",
+    "format": null
+   },
+   {
+    "name": "cnv_beds",
+    "type": "File",
+    "format": "BED"
+   },
+   {
+    "name": "scatter_plots",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "diagram_plots",
+    "type": "File",
+    "format": "PDF"
+   }
+  ]
+ },
+ "cox_model": {
+  "graph_tool_id": "cox_model",
+  "name_cn": "Cox 生存预后分析",
+  "category": "生存分析",
+  "reusable_for": [
+   "bulk-RNA-seq",
+   "Clinical"
+  ],
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "meta_xlsx",
+    "type": "File?",
+    "format": "XLSX",
+    "required": false
+   },
+   {
+    "name": "clinical_xls",
+    "type": "File?",
+    "format": "XLS",
+    "required": false
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "clinical_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ],
+  "docker_image_tag": "task310_cox_model",
+  "require_any": [
+   [
+    "meta_xlsx",
+    "sample_csv"
+   ],
+   [
+    "individual_csv",
+    "meta_xlsx"
+   ]
+  ]
+ },
+ "dataset_downstream": {
+  "graph_tool_id": "dataset_downstream",
+  "name_cn": "单细胞数据集下游分析流程",
+  "category": "单细胞分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "dataset_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "input_rds",
+    "type": "File",
+    "format": "RDS",
+    "required": true
+   },
+   {
+    "name": "gene_order",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "task_log",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "input_qc",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "analysis_manifest",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "dataset_matrix_annotation": {
+  "graph_tool_id": "dataset_matrix_annotation",
+  "name_cn": "数据集矩阵注释流程",
+  "category": "单细胞数据注释",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "dataset_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "input_rds",
+    "type": "File",
+    "format": "RDS",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "task_log",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "input_qc",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "analysis_manifest",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "de_enrichment": {
+  "graph_tool_id": "de_enrichment",
+  "name_cn": "差异表达与富集分析",
+  "category": "差异表达分析与富集分析",
+  "reusable_for": [
+   "bulk-RNA-seq"
+  ],
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "case_label",
+    "type": "String",
+    "format": null,
+    "required": false
+   },
+   {
+    "name": "control_label",
+    "type": "String",
+    "format": null,
+    "required": false
+   },
+   {
+    "name": "meta_xlsx",
+    "type": "File?",
+    "format": "XLSX",
+    "required": false
+   },
+   {
+    "name": "clinical_xls",
+    "type": "File?",
+    "format": "XLS",
+    "required": false
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "clinical_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ],
+  "docker_image_tag": "task283_de_enrichment",
+  "require_any": [
+   [
+    "meta_xlsx",
+    "sample_csv"
+   ],
+   [
+    "individual_csv",
+    "meta_xlsx"
+   ]
+  ]
+ },
+ "deg_enrichment": {
+  "graph_tool_id": "deg_enrichment",
+  "name_cn": "差异表达与功能富集分析",
+  "category": "差异表达与功能富集分析",
+  "reusable_for": [
+   "bulk-RNA-seq"
+  ],
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "case_label",
+    "type": "String",
+    "format": null,
+    "required": false
+   },
+   {
+    "name": "control_label",
+    "type": "String",
+    "format": null,
+    "required": false
+   },
+   {
+    "name": "meta_xlsx",
+    "type": "File?",
+    "format": "XLSX",
+    "required": false
+   },
+   {
+    "name": "clinical_xls",
+    "type": "File?",
+    "format": "XLS",
+    "required": false
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "clinical_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ],
+  "docker_image_tag": "task419_deg_enrichment",
+  "require_any": [
+   [
+    "meta_xlsx",
+    "sample_csv"
+   ],
+   [
+    "individual_csv",
+    "meta_xlsx"
+   ]
+  ]
+ },
+ "deg_trend": {
+  "graph_tool_id": "deg_trend",
+  "name_cn": "差异表达趋势分析",
+  "category": "差异表达分析",
+  "reusable_for": [
+   "bulk-RNA-seq"
+  ],
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "case_label",
+    "type": "String",
+    "format": null,
+    "required": false
+   },
+   {
+    "name": "control_label",
+    "type": "String",
+    "format": null,
+    "required": false
+   },
+   {
+    "name": "meta_xlsx",
+    "type": "File?",
+    "format": "XLSX",
+    "required": false
+   },
+   {
+    "name": "clinical_xls",
+    "type": "File?",
+    "format": "XLS",
+    "required": false
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "clinical_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ],
+  "docker_image_tag": "task423_deg_trend",
+  "require_any": [
+   [
+    "meta_xlsx",
+    "sample_csv"
+   ],
+   [
+    "individual_csv",
+    "meta_xlsx"
+   ]
+  ]
+ },
+ "diff_expr_go": {
+  "graph_tool_id": "diff_expr_go",
+  "name_cn": "差异表达与 GO 富集分析",
+  "category": "差异表达与富集分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "expression_matrix",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "group_a_samples",
+    "type": "Array[String]",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "group_b_samples",
+    "type": "Array[String]",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "quant_type",
+    "type": "String",
+    "format": null,
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "differential_expression",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "upregulated_genes",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "downregulated_genes",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "go_mf_up",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "go_cc_up",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "go_bp_up",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "go_mf_down",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "go_cc_down",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "go_bp_down",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "gene_id_mapping",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "background_genes",
+    "type": "File",
+    "format": "TSV"
+   }
+  ]
+ },
+ "diff_expr_kegg": {
+  "graph_tool_id": "diff_expr_kegg",
+  "name_cn": "差异表达与 Reactome 通路富集分析流程",
+  "category": "差异表达与通路富集",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "expression_matrix",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "group_a_samples",
+    "type": "Array[String]",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "group_b_samples",
+    "type": "Array[String]",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "quant_type",
+    "type": "String",
+    "format": null,
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "differential_expression",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "upregulated_genes",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "downregulated_genes",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "reactome_up",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "reactome_down",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "gene_id_mapping",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "background_genes",
+    "type": "File",
+    "format": "TSV"
+   }
+  ]
+ },
+ "driver_gene_gender_analysis": {
+  "graph_tool_id": "driver_gene_gender_analysis",
+  "name_cn": "驱动基因突变频率性别分层分析",
+  "category": "驱动基因分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "maf",
+    "type": "File",
+    "format": "MAF",
+    "required": true
+   },
+   {
+    "name": "clinical_xls",
+    "type": "File",
+    "format": "XLS",
+    "required": true
+   },
+   {
+    "name": "metainfo_xlsx",
+    "type": "File",
+    "format": "XLSX",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "sample_mapping_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "group_sizes_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "cohort_summary_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "gene_results_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "binary_matrix_tsv_gz",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "grouped_barplot_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "grouped_barplot_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "difference_waterfall_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "difference_waterfall_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "mutation_heatmap_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "mutation_heatmap_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "volcano_plot_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "volcano_plot_pdf",
+    "type": "File",
+    "format": "PDF"
    }
   ]
  },
@@ -185,6 +1267,12 @@
   ],
   "inputs": [
    {
+    "name": "sample_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
     "name": "bam",
     "type": "File",
     "format": "BAM",
@@ -194,7 +1282,8 @@
     "name": "gtf_file",
     "type": "File",
     "format": "GTF",
-    "required": true
+    "required": true,
+    "reference_resource": true
    },
    {
     "name": "paired_end",
@@ -206,7 +1295,7 @@
     "name": "strandedness",
     "type": "Int",
     "format": null,
-    "required": true
+    "required": false
    }
   ],
   "outputs": [
@@ -237,6 +1326,18 @@
   ],
   "inputs": [
    {
+    "name": "pair_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "tumor_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
     "name": "tumor_bam",
     "type": "File",
     "format": "coordinate-sorted BAM",
@@ -246,6 +1347,12 @@
     "name": "tumor_bai",
     "type": "File",
     "format": "BAI",
+    "required": true
+   },
+   {
+    "name": "normal_id",
+    "type": "String",
+    "format": null,
     "required": true
    },
    {
@@ -264,7 +1371,8 @@
     "name": "interval_list",
     "type": "File",
     "format": "GATK interval_list",
-    "required": true
+    "required": true,
+    "reference_resource": true
    }
   ],
   "outputs": [
@@ -289,14 +1397,815 @@
     "format": "VCF.gz"
    },
    {
-    "name": "contamination",
-    "type": "File",
-    "format": "TABLE"
-   },
-   {
     "name": "read_orientation_model",
     "type": "File",
     "format": "TAR.gz"
+   },
+   {
+    "name": "contamination",
+    "type": "File",
+    "format": "TABLE"
+   }
+  ]
+ },
+ "gatk_germline_cohort": {
+  "graph_tool_id": "gatk_germline_cohort",
+  "name_cn": "GATK 胚系联合分型与队列质控流程",
+  "category": "胚系变异检测",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "sample_ids",
+    "type": "Array[String]+",
+    "format": "BAM",
+    "required": true
+   },
+   {
+    "name": "analysis_ready_bams",
+    "type": "Array[File]+",
+    "format": "BAM",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "sample_gvcfs",
+    "type": "File",
+    "format": "VCF"
+   },
+   {
+    "name": "raw_joint_vcf",
+    "type": "File",
+    "format": "VCF.gz"
+   },
+   {
+    "name": "filtered_vcf",
+    "type": "File",
+    "format": "VCF.gz"
+   },
+   {
+    "name": "pass_vcf",
+    "type": "File",
+    "format": "VCF.gz"
+   },
+   {
+    "name": "sample_qc_metrics",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "site_qc_metrics",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "variant_eval",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "group_variant_frequencies",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "cohort_summary",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "genotype_landscape",
+    "type": "File",
+    "format": "SVG"
+   },
+   {
+    "name": "mendelian_violation_metrics",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "giab_summary",
+    "type": "File",
+    "format": "CSV"
+   }
+  ]
+ },
+ "gene_boxplot": {
+  "graph_tool_id": "gene_boxplot",
+  "name_cn": "基因表达差异与箱线图可视化流程",
+  "category": "差异表达分析",
+  "reusable_for": [
+   "bulk-RNA-seq"
+  ],
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "case_label",
+    "type": "String",
+    "format": null,
+    "required": false
+   },
+   {
+    "name": "control_label",
+    "type": "String",
+    "format": null,
+    "required": false
+   },
+   {
+    "name": "meta_xlsx",
+    "type": "File?",
+    "format": "XLSX",
+    "required": false
+   },
+   {
+    "name": "clinical_xls",
+    "type": "File?",
+    "format": "XLS",
+    "required": false
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "clinical_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ],
+  "docker_image_tag": "task303_gene_boxplot",
+  "require_any": [
+   [
+    "meta_xlsx",
+    "sample_csv"
+   ],
+   [
+    "individual_csv",
+    "meta_xlsx"
+   ]
+  ]
+ },
+ "gsea_pathway_enrichment": {
+  "graph_tool_id": "gsea_pathway_enrichment",
+  "name_cn": "GSEA 通路富集分析",
+  "category": "通路富集分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "expression_matrix",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "sample_metadata",
+    "type": "File",
+    "format": "CSV",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "gsea_results",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "significant_pathways",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "ranked_genes",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "enrichment_plot",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "leading_edge_heatmap",
+    "type": "File",
+    "format": "PDF"
+   }
+  ]
+ },
+ "her2_pfs_survival": {
+  "graph_tool_id": "her2_pfs_survival",
+  "name_cn": "HER2 表达与无进展生存期分析",
+  "category": "生存分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "tpm_matrix",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "clinical_xls",
+    "type": "File",
+    "format": "XLS",
+    "required": true
+   },
+   {
+    "name": "metainfo_xlsx",
+    "type": "File",
+    "format": "XLSX",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "summary_txt",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "summary_json",
+    "type": "File",
+    "format": "JSON"
+   },
+   {
+    "name": "qc_summary",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "logrank_statistics",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "analysis_table",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "png_figures",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "pdf_figures",
+    "type": "File",
+    "format": "PDF"
+   }
+  ]
+ },
+ "hvg_pca_gmm": {
+  "graph_tool_id": "hvg_pca_gmm",
+  "name_cn": "高变基因筛选-PCA降维-GMM聚类流程",
+  "category": "聚类分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "logcpm_tsv",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "hvg_n",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "pca_n",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "k_min",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "k_max",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "loess_span",
+    "type": "Float",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "seed",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "cpu",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "memory",
+    "type": "String",
+    "format": null,
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "hvg_stats_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "hvg_matrix_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "pca_scores_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "pca_variance_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "gmm_k_metrics_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "gmm_soft_assignments_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "best_k_txt",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "cluster_summary_txt",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "k_vs_bic_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "k_vs_bic_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "pca_clusters_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "pca_clusters_pdf",
+    "type": "File",
+    "format": "PDF"
+   }
+  ]
+ },
+ "immune_infiltration_iobr": {
+  "graph_tool_id": "immune_infiltration_iobr",
+  "name_cn": "免疫浸润分析 (IOBR CIBERSORT)",
+  "category": "免疫微环境分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "expression_tsv",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "clinical_xls",
+    "type": "File",
+    "format": "XLS",
+    "required": true
+   },
+   {
+    "name": "metainfo_xlsx",
+    "type": "File",
+    "format": "XLSX",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "analysis_status_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "summary_json",
+    "type": "File",
+    "format": "JSON"
+   },
+   {
+    "name": "summary_txt",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "sample_manifest_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "cibersort_full_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "immune_fraction_all_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "immune_fraction_reliable_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "reliable_samples_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "gender_wilcoxon_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "stacked_bar_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "stacked_bar_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "immune_boxplot_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "immune_boxplot_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "immune_heatmap_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "immune_heatmap_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "immune_correlation_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "immune_correlation_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "gender_significant_boxplot_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "gender_significant_boxplot_pdf",
+    "type": "File",
+    "format": "PDF"
+   }
+  ]
+ },
+ "immunotherapy_cellchat": {
+  "graph_tool_id": "immunotherapy_cellchat",
+  "name_cn": "免疫治疗细胞通讯分析",
+  "category": "细胞通讯分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "input_rds",
+    "type": "File",
+    "format": "RDS",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "task_log",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "input_qc",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "analysis_manifest",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "ipf_trajectory_regulon": {
+  "graph_tool_id": "ipf_trajectory_regulon",
+  "name_cn": "IPF轨迹推断与调控子分析",
+  "category": "单细胞转录组分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "input_rds",
+    "type": "File",
+    "format": "RDS",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "task_log",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "input_qc",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "analysis_manifest",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "km_survival": {
+  "graph_tool_id": "km_survival",
+  "name_cn": "Kaplan-Meier生存分析",
+  "category": "生存分析",
+  "reusable_for": [
+   "bulk-RNA-seq",
+   "Clinical"
+  ],
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "meta_xlsx",
+    "type": "File?",
+    "format": "XLSX",
+    "required": false
+   },
+   {
+    "name": "clinical_xls",
+    "type": "File?",
+    "format": "XLS",
+    "required": false
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "clinical_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ],
+  "docker_image_tag": "task438_km_survival",
+  "require_any": [
+   [
+    "meta_xlsx",
+    "sample_csv"
+   ],
+   [
+    "individual_csv",
+    "meta_xlsx"
+   ]
+  ]
+ },
+ "lung_tme_annotation_cnv": {
+  "graph_tool_id": "lung_tme_annotation_cnv",
+  "name_cn": "肺癌肿瘤微环境注释与CNV分析",
+  "category": "肿瘤微环境分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "input_rds",
+    "type": "File",
+    "format": "RDS",
+    "required": true
+   },
+   {
+    "name": "gene_order",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "task_log",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "input_qc",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "analysis_manifest",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "manta_structural_variants": {
+  "graph_tool_id": "manta_structural_variants",
+  "name_cn": "Manta结构变异检测流程",
+  "category": "结构变异分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "sample_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "tumor_bam",
+    "type": "File",
+    "format": "BAM",
+    "required": true
+   },
+   {
+    "name": "tumor_bai",
+    "type": "File",
+    "format": "BAI",
+    "required": true
+   },
+   {
+    "name": "reference_fasta",
+    "type": "File",
+    "format": "FASTA",
+    "required": true,
+    "reference_resource": true
+   },
+   {
+    "name": "reference_fai",
+    "type": "File",
+    "format": "FAI",
+    "required": true,
+    "reference_resource": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "manta_vcf",
+    "type": "File",
+    "format": "VCF.gz"
+   },
+   {
+    "name": "high_confidence_sv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "sv_type_summary",
+    "type": "File",
+    "format": "TSV"
    }
   ]
  },
@@ -314,13 +2223,13 @@
    {
     "name": "report_id",
     "type": "String",
-    "format": null,
+    "format": "TSV",
     "required": true
    },
    {
     "name": "qc_files",
     "type": "Array[File]+",
-    "format": null,
+    "format": "TSV",
     "required": true
    }
   ],
@@ -337,6 +2246,441 @@
    }
   ]
  },
+ "paired_fastq_to_unmapped_bam": {
+  "graph_tool_id": "paired_fastq_to_unmapped_bam",
+  "name_cn": "双端 FASTQ 转未比对 BAM",
+  "category": "数据预处理",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "sample_name",
+    "type": "String",
+    "format": null,
+    "required": false
+   },
+   {
+    "name": "sample_accession",
+    "type": "String?",
+    "format": null,
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "output_unmapped_bam",
+    "type": "File",
+    "format": "BAM"
+   },
+   {
+    "name": "unmapped_bam_list",
+    "type": "File",
+    "format": "BAM"
+   }
+  ],
+  "require_any": [
+   [
+    "sample_accession",
+    "sample_name"
+   ]
+  ]
+ },
+ "preprocess_counts": {
+  "graph_tool_id": "preprocess_counts",
+  "name_cn": "RNA-seq Count矩阵预处理",
+  "category": "数据预处理",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "count_tsv",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "sample_missing_threshold",
+    "type": "Float",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "min_cpm",
+    "type": "Float",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "min_sample_fraction",
+    "type": "Float",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "min_samples_after_filter",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "cpu",
+    "type": "Int",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "memory",
+    "type": "String",
+    "format": null,
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "normalized_logcpm_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "sample_qc_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "gene_qc_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "preprocess_summary_txt",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "kept_samples_txt",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "rmats_alternative_splicing": {
+  "graph_tool_id": "rmats_alternative_splicing",
+  "name_cn": "可变剪接分析（rMATS）流程",
+  "category": "可变剪接分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "group1_bams",
+    "type": "Array[File]+",
+    "format": "BAM",
+    "required": true
+   },
+   {
+    "name": "group2_bams",
+    "type": "Array[File]+",
+    "format": "BAM",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "input_qc_report",
+    "type": "File",
+    "format": "BAM"
+   },
+   {
+    "name": "all_events_jcec",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "significant_events_jcec",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "all_events_jc",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "significant_events_jc",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "event_tables",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "rmats_archive",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "sashimi_archive",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "sashimi_pdfs",
+    "type": "File",
+    "format": "PDF"
+   }
+  ]
+ },
+ "rnaseq_singletask": {
+  "graph_tool_id": "rnaseq_singletask",
+  "name_cn": "RNA-seq 单任务分析流程",
+  "category": "转录组分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "sample_name",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "sample_r1",
+    "type": "File",
+    "format": "FASTQ.gz",
+    "required": true
+   },
+   {
+    "name": "sample_r2",
+    "type": "File?",
+    "format": "FASTQ.gz",
+    "required": false
+   },
+   {
+    "name": "rrna_star_index",
+    "type": "File",
+    "format": "TBI",
+    "required": true
+   },
+   {
+    "name": "star_genome_index",
+    "type": "File",
+    "format": "TBI",
+    "required": true
+   },
+   {
+    "name": "rsem_index",
+    "type": "File",
+    "format": "TBI",
+    "required": true
+   },
+   {
+    "name": "gtf_file",
+    "type": "File",
+    "format": "GTF",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "fastqc_htmls",
+    "type": "File",
+    "format": "FASTQ.gz"
+   },
+   {
+    "name": "genome_bam",
+    "type": "File",
+    "format": "BAM"
+   },
+   {
+    "name": "transcript_bam",
+    "type": "File",
+    "format": "BAM"
+   },
+   {
+    "name": "dedup_bam",
+    "type": "File",
+    "format": "BAM"
+   },
+   {
+    "name": "rsem_genes",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "rsem_isoforms",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "featurecounts",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "multiqc_report",
+    "type": "File",
+    "format": "HTML"
+   },
+   {
+    "name": "data_type",
+    "type": "File",
+    "format": null
+   }
+  ]
+ },
+ "rnaseq_unsupervised_cluster": {
+  "graph_tool_id": "rnaseq_unsupervised_cluster",
+  "name_cn": "RNA-seq 无监督聚类分析流程",
+  "category": "聚类分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "count_tsv",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "normalized_logcpm_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "sample_qc_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "gene_qc_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "preprocess_summary_txt",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "kept_samples_txt",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "hvg_stats_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "hvg_matrix_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "pca_scores_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "pca_variance_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "gmm_k_metrics_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "gmm_soft_assignments_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "best_k_txt",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "cluster_summary_txt",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "k_vs_bic_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "k_vs_bic_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "pca_clusters_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "pca_clusters_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "bootstrap_pairwise_ari_nmi_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "bootstrap_run_labels_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "bootstrap_k_frequency_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "bootstrap_status_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "bootstrap_summary_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "bootstrap_pvalues_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "bootstrap_permutation_null_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "bootstrap_pairwise_metrics_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "bootstrap_pairwise_metrics_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "bootstrap_best_k_frequency_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "bootstrap_best_k_frequency_pdf",
+    "type": "File",
+    "format": "PDF"
+   }
+  ]
+ },
  "rsem_quantification": {
   "graph_tool_id": "rsem",
   "name_cn": "RSEM 基因与转录本表达定量",
@@ -345,6 +2689,12 @@
    "RNA-seq"
   ],
   "inputs": [
+   {
+    "name": "sample_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
    {
     "name": "transcriptome_bam",
     "type": "File",
@@ -355,7 +2705,8 @@
     "name": "rsem_index",
     "type": "File",
     "format": "RSEM index directory",
-    "required": true
+    "required": true,
+    "reference_resource": true
    },
    {
     "name": "paired_end",
@@ -378,7 +2729,7 @@
    {
     "name": "stat_files",
     "type": "Array[File]",
-    "format": null
+    "format": "TSV"
    },
    {
     "name": "rsem_log",
@@ -389,7 +2740,7 @@
  },
  "samtools_alignment_processing": {
   "graph_tool_id": "samtools",
-  "name_cn": "SAM/BAM 排序、去重、索引与统计",
+  "name_cn": "SAM/BAM 排序、索引与统计",
   "category": "alignment_processing",
   "reusable_for": [
    "WES",
@@ -444,14 +2795,98 @@
    },
    {
     "name": "dedup_bam",
-    "type": "File?",
+    "type": "File",
     "format": "BAM"
    },
    {
     "name": "markdup_metrics",
-    "type": "File?",
+    "type": "File",
     "format": "TXT"
    }
+  ]
+ },
+ "scrna_cell_communication": {
+  "graph_tool_id": "scrna_cell_communication",
+  "name_cn": "单细胞细胞通讯差异分析与配体靶基因优先级流程",
+  "category": "单细胞细胞通讯分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "seurat_rds",
+    "type": "File?",
+    "format": "RDS",
+    "required": false
+   },
+   {
+    "name": "combined_counts",
+    "type": "File?",
+    "format": "TSV",
+    "required": false
+   },
+   {
+    "name": "receiver_cell_type",
+    "type": "String",
+    "format": null,
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "conversion_qc",
+    "type": "File",
+    "format": "RDS"
+   },
+   {
+    "name": "differential_communication",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "differential_qc",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "pair_summary",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "differential_heatmap",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "ligand_activities",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "ligand_target_links",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "prioritized_ligand_receptor",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "nichenet_qc",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "nichenet_heatmap",
+    "type": "File",
+    "format": "PDF"
+   }
+  ],
+  "require_any": [
+   [
+    "combined_counts",
+    "seurat_rds"
+   ]
   ]
  },
  "snpeff_annotation": {
@@ -464,6 +2899,12 @@
    "targeted-sequencing"
   ],
   "inputs": [
+   {
+    "name": "pair_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
    {
     "name": "input_vcf",
     "type": "File",
@@ -500,6 +2941,80 @@
    }
   ]
  },
+ "stage_heatmap": {
+  "graph_tool_id": "stage_heatmap",
+  "name_cn": "肿瘤分期热图分析",
+  "category": "数据可视化",
+  "reusable_for": [
+   "bulk-RNA-seq"
+  ],
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "meta_xlsx",
+    "type": "File?",
+    "format": "XLSX",
+    "required": false
+   },
+   {
+    "name": "clinical_xls",
+    "type": "File?",
+    "format": "XLS",
+    "required": false
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "clinical_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ],
+  "docker_image_tag": "task305_stage_heatmap",
+  "require_any": [
+   [
+    "meta_xlsx",
+    "sample_csv"
+   ],
+   [
+    "individual_csv",
+    "meta_xlsx"
+   ]
+  ]
+ },
  "star_rrna_and_genome_alignment": {
   "graph_tool_id": "star",
   "name_cn": "STAR rRNA 去除与基因组比对",
@@ -508,6 +3023,12 @@
    "RNA-seq"
   ],
   "inputs": [
+   {
+    "name": "sample_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
    {
     "name": "read1",
     "type": "File",
@@ -524,13 +3045,15 @@
     "name": "rrna_star_index",
     "type": "File",
     "format": "STAR index directory",
-    "required": true
+    "required": true,
+    "reference_resource": true
    },
    {
     "name": "genome_star_index",
     "type": "File",
     "format": "STAR index directory",
-    "required": true
+    "required": true,
+    "reference_resource": true
    }
   ],
   "outputs": [
@@ -541,7 +3064,7 @@
    },
    {
     "name": "rrna_removed_r2",
-    "type": "File?",
+    "type": "File",
     "format": "FASTQ.gz"
    },
    {
@@ -561,6 +3084,252 @@
    }
   ]
  },
+ "star_fusion": {
+  "graph_tool_id": "star_fusion",
+  "name_cn": "STAR-Fusion 融合基因检测流程",
+  "category": "融合基因分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "sample_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "left_fastqs",
+    "type": "Array[File]+",
+    "format": "FASTQ.gz",
+    "required": true
+   },
+   {
+    "name": "right_fastqs",
+    "type": "Array[File]+",
+    "format": "FASTQ.gz",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "fusion_inspector_validated_fusions",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "fusion_inspector_report",
+    "type": "File",
+    "format": "HTML"
+   },
+   {
+    "name": "reviewed_fusions",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "high_confidence_fusions",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "filter_summary",
+    "type": "File",
+    "format": "TSV"
+   }
+  ]
+ },
+ "survival_analysis": {
+  "graph_tool_id": "survival_analysis",
+  "name_cn": "生存分析流程",
+  "category": "生存分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "maf_file",
+    "type": "File",
+    "format": "MAF",
+    "required": true
+   },
+   {
+    "name": "clinical_file",
+    "type": "File",
+    "format": "XLS",
+    "required": true
+   },
+   {
+    "name": "metainfo_file",
+    "type": "File",
+    "format": "XLSX",
+    "required": true
+   },
+   {
+    "name": "gene_symbol",
+    "type": "String",
+    "format": null,
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "merged_data_file",
+    "type": "File",
+    "format": "CSV"
+   },
+   {
+    "name": "km_plot_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "km_plot_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "logrank_stats_out",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "cox_results_out",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "cox_summary_out",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "final_summary",
+    "type": "File",
+    "format": "TSV"
+   }
+  ]
+ },
+ "tcell_intervention": {
+  "graph_tool_id": "tcell_intervention",
+  "name_cn": "T细胞干预分析流程",
+  "category": "单细胞转录组分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "input_rds",
+    "type": "File",
+    "format": "RDS",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "task_log",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "input_qc",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "analysis_manifest",
+    "type": "File",
+    "format": "TXT"
+   }
+  ]
+ },
+ "tmb_survival_analysis": {
+  "graph_tool_id": "tmb_survival_analysis",
+  "name_cn": "肿瘤突变负荷生存分析流程",
+  "category": "生存分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "maf_file",
+    "type": "File",
+    "format": "MAF",
+    "required": true
+   },
+   {
+    "name": "clinical_file",
+    "type": "File",
+    "format": "XLS",
+    "required": true
+   },
+   {
+    "name": "metainfo_file",
+    "type": "File",
+    "format": "XLSX",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "patient_tmb_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "survival_input_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "logrank_summary_tsv",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "analysis_report_json",
+    "type": "File",
+    "format": "JSON"
+   },
+   {
+    "name": "km_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "km_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "tmb_histogram_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "tmb_histogram_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "tmb_boxplot_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "tmb_boxplot_pdf",
+    "type": "File",
+    "format": "PDF"
+   }
+  ]
+ },
  "trim_galore": {
   "graph_tool_id": "trim_galore",
   "name_cn": "FASTQ 接头和低质量序列修剪",
@@ -571,6 +3340,12 @@
    "WGS"
   ],
   "inputs": [
+   {
+    "name": "sample_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
    {
     "name": "read1",
     "type": "File",
@@ -598,7 +3373,7 @@
    },
    {
     "name": "trimmed_r2",
-    "type": "File?",
+    "type": "File",
     "format": "FASTQ.gz"
    },
    {
@@ -608,281 +3383,74 @@
    }
   ]
  },
- "de_enrichment": {
-  "graph_tool_id": "de_enrichment",
-  "name_cn": "差异表达与富集分析",
-  "category": "差异表达分析与富集分析",
-  "reusable_for": [
-   "bulk-RNA-seq"
-  ],
-  "docker_image_tag": "task283_de_enrichment",
+ "tumor_evolution_inference": {
+  "graph_tool_id": "tumor_evolution_inference",
+  "name_cn": "患者级肿瘤克隆演化推断",
+  "category": "肿瘤进化分析",
+  "reusable_for": [],
   "inputs": [
    {
-    "name": "expr",
+    "name": "sample_manifest",
     "type": "File",
-    "format": "TSV",
+    "format": "CSV",
     "required": true
-   },
-   {
-    "name": "sample_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
-   },
-   {
-    "name": "individual_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
-   },
-   {
-    "name": "case_label",
-    "type": "String?",
-    "format": null,
-    "required": false
-   },
-   {
-    "name": "control_label",
-    "type": "String?",
-    "format": null,
-    "required": false
    }
   ],
   "outputs": [
    {
-    "name": "results_tar_gz",
+    "name": "genomic_clone_prevalence",
     "type": "File",
-    "format": "TAR.GZ"
+    "format": "TSV"
    },
    {
-    "name": "output_manifest",
+    "name": "genomic_clone_prevalence_plot",
     "type": "File",
-    "format": "TXT"
+    "format": "SVG"
+   },
+   {
+    "name": "single_cell_clonal_composition",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "patient_event_comparison",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "clone_event_matrix",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "patient_phylogeny_edges",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "patient_trees_newick",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "patient_tree_plot",
+    "type": "File",
+    "format": "SVG"
+   },
+   {
+    "name": "pseudotime_abundance_trends",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "pseudotime_abundance_plot",
+    "type": "File",
+    "format": "SVG"
    },
    {
     "name": "run_summary",
     "type": "File",
-    "format": "TXT"
-   }
-  ]
- },
- "deg_enrichment": {
-  "graph_tool_id": "deg_enrichment",
-  "name_cn": "差异表达与功能富集分析",
-  "category": "差异表达与功能富集分析",
-  "reusable_for": [
-   "bulk-RNA-seq"
-  ],
-  "docker_image_tag": "task419_deg_enrichment",
-  "inputs": [
-   {
-    "name": "expr",
-    "type": "File",
-    "format": "TSV",
-    "required": true
-   },
-   {
-    "name": "sample_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
-   },
-   {
-    "name": "individual_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
-   },
-   {
-    "name": "case_label",
-    "type": "String?",
-    "format": null,
-    "required": false
-   },
-   {
-    "name": "control_label",
-    "type": "String?",
-    "format": null,
-    "required": false
-   }
-  ],
-  "outputs": [
-   {
-    "name": "results_tar_gz",
-    "type": "File",
-    "format": "TAR.GZ"
-   },
-   {
-    "name": "output_manifest",
-    "type": "File",
-    "format": "TXT"
-   },
-   {
-    "name": "run_summary",
-    "type": "File",
-    "format": "TXT"
-   }
-  ]
- },
- "deg_trend": {
-  "graph_tool_id": "deg_trend",
-  "name_cn": "差异表达趋势分析",
-  "category": "差异表达分析",
-  "reusable_for": [
-   "bulk-RNA-seq"
-  ],
-  "docker_image_tag": "task423_deg_trend",
-  "inputs": [
-   {
-    "name": "expr",
-    "type": "File",
-    "format": "TSV",
-    "required": true
-   },
-   {
-    "name": "sample_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
-   },
-   {
-    "name": "individual_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
-   },
-   {
-    "name": "case_label",
-    "type": "String?",
-    "format": null,
-    "required": false
-   },
-   {
-    "name": "control_label",
-    "type": "String?",
-    "format": null,
-    "required": false
-   }
-  ],
-  "outputs": [
-   {
-    "name": "results_tar_gz",
-    "type": "File",
-    "format": "TAR.GZ"
-   },
-   {
-    "name": "output_manifest",
-    "type": "File",
-    "format": "TXT"
-   },
-   {
-    "name": "run_summary",
-    "type": "File",
-    "format": "TXT"
-   }
-  ]
- },
- "gene_boxplot": {
-  "graph_tool_id": "gene_boxplot",
-  "name_cn": "基因表达差异与箱线图可视化流程",
-  "category": "差异表达分析",
-  "reusable_for": [
-   "bulk-RNA-seq"
-  ],
-  "docker_image_tag": "task303_gene_boxplot",
-  "inputs": [
-   {
-    "name": "expr",
-    "type": "File",
-    "format": "TSV",
-    "required": true
-   },
-   {
-    "name": "sample_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
-   },
-   {
-    "name": "individual_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
-   },
-   {
-    "name": "case_label",
-    "type": "String?",
-    "format": null,
-    "required": false
-   },
-   {
-    "name": "control_label",
-    "type": "String?",
-    "format": null,
-    "required": false
-   }
-  ],
-  "outputs": [
-   {
-    "name": "results_tar_gz",
-    "type": "File",
-    "format": "TAR.GZ"
-   },
-   {
-    "name": "output_manifest",
-    "type": "File",
-    "format": "TXT"
-   },
-   {
-    "name": "run_summary",
-    "type": "File",
-    "format": "TXT"
-   }
-  ]
- },
- "stage_heatmap": {
-  "graph_tool_id": "stage_heatmap",
-  "name_cn": "肿瘤分期热图分析",
-  "category": "数据可视化",
-  "reusable_for": [
-   "bulk-RNA-seq"
-  ],
-  "docker_image_tag": "task305_stage_heatmap",
-  "inputs": [
-   {
-    "name": "expr",
-    "type": "File",
-    "format": "TSV",
-    "required": true
-   },
-   {
-    "name": "sample_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
-   },
-   {
-    "name": "individual_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
-   }
-  ],
-  "outputs": [
-   {
-    "name": "results_tar_gz",
-    "type": "File",
-    "format": "TAR.GZ"
-   },
-   {
-    "name": "output_manifest",
-    "type": "File",
-    "format": "TXT"
-   },
-   {
-    "name": "run_summary",
-    "type": "File",
-    "format": "TXT"
+    "format": "TSV"
    }
   ]
  },
@@ -893,13 +3461,24 @@
   "reusable_for": [
    "bulk-RNA-seq"
   ],
-  "docker_image_tag": "task383_umap",
   "inputs": [
    {
     "name": "expr",
     "type": "File",
     "format": "TSV",
     "required": true
+   },
+   {
+    "name": "meta_xlsx",
+    "type": "File?",
+    "format": "XLSX",
+    "required": false
+   },
+   {
+    "name": "clinical_xls",
+    "type": "File?",
+    "format": "XLS",
+    "required": false
    },
    {
     "name": "sample_csv",
@@ -909,6 +3488,12 @@
    },
    {
     "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "clinical_csv",
     "type": "File?",
     "format": "CSV",
     "required": false
@@ -929,52 +3514,320 @@
     "name": "run_summary",
     "type": "File",
     "format": "TXT"
+   }
+  ],
+  "docker_image_tag": "task383_umap",
+  "require_any": [
+   [
+    "meta_xlsx",
+    "sample_csv"
+   ],
+   [
+    "individual_csv",
+    "meta_xlsx"
+   ]
+  ]
+ },
+ "wes_somatic_maf_landscape": {
+  "graph_tool_id": "wes_somatic_maf_landscape",
+  "name_cn": "WES 体细胞突变 MAF 景观分析流程",
+  "category": "突变景观分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "maf_file",
+    "type": "File",
+    "format": "MAF",
+    "required": true
+   },
+   {
+    "name": "output_prefix",
+    "type": "String",
+    "format": null,
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "cleaned_maf",
+    "type": "File",
+    "format": "MAF"
+   },
+   {
+    "name": "preprocess_summary",
+    "type": "File",
+    "format": "MAF"
+   },
+   {
+    "name": "preprocess_variant_class_counts",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "oncoplot_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "oncoplot_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "gene_frequency_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "gene_frequency_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "mutation_type_distribution_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "mutation_type_distribution_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "top_gene_frequency_table",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "mutation_type_long_table",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "mutation_type_wide_table",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "sample_summary_table",
+    "type": "File",
+    "format": "TSV"
    }
   ]
  },
- "wgcna_module_trait": {
-  "graph_tool_id": "wgcna_module_trait",
-  "name_cn": "WGCNA模块-性状关联分析",
-  "category": "共表达网络分析",
-  "reusable_for": [
-   "bulk-RNA-seq"
-  ],
-  "docker_image_tag": "task294_wgcna_module_trait",
+ "wes_somatic_pair": {
+  "graph_tool_id": "wes_somatic_pair",
+  "name_cn": "体细胞 WES 配对样本变异检测流程",
+  "category": "体细胞变异检测",
+  "reusable_for": [],
   "inputs": [
    {
-    "name": "expr",
+    "name": "pair_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "tumor_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "tumor_r1",
+    "type": "File",
+    "format": "FASTQ.gz",
+    "required": true
+   },
+   {
+    "name": "tumor_r2",
+    "type": "File",
+    "format": "FASTQ.gz",
+    "required": true
+   },
+   {
+    "name": "normal_id",
+    "type": "String",
+    "format": null,
+    "required": true
+   },
+   {
+    "name": "normal_r1",
+    "type": "File",
+    "format": "FASTQ.gz",
+    "required": true
+   },
+   {
+    "name": "normal_r2",
+    "type": "File",
+    "format": "FASTQ.gz",
+    "required": true
+   },
+   {
+    "name": "interval_list",
+    "type": "File",
+    "format": "INTERVAL_LIST",
+    "required": true
+   }
+  ],
+  "outputs": [
+   {
+    "name": "tumor_bam",
+    "type": "File",
+    "format": "BAM"
+   },
+   {
+    "name": "normal_bam",
+    "type": "File",
+    "format": "BAM"
+   },
+   {
+    "name": "filtered_vcf",
+    "type": "File",
+    "format": "VCF"
+   },
+   {
+    "name": "pass_vcf",
+    "type": "File",
+    "format": "VCF"
+   },
+   {
+    "name": "normalized_vcf",
+    "type": "File",
+    "format": "VCF"
+   },
+   {
+    "name": "annotated_vcf",
+    "type": "File",
+    "format": "VCF"
+   },
+   {
+    "name": "snpeff_html",
+    "type": "File",
+    "format": "HTML"
+   },
+   {
+    "name": "snpeff_csv",
+    "type": "File",
+    "format": "CSV"
+   },
+   {
+    "name": "multiqc_html",
+    "type": "File",
+    "format": "BAM"
+   }
+  ]
+ },
+ "wgcna": {
+  "graph_tool_id": "wgcna",
+  "name_cn": "WGCNA 加权基因共表达网络分析",
+  "category": "共表达网络分析",
+  "reusable_for": [],
+  "inputs": [
+   {
+    "name": "counts_tsv",
     "type": "File",
     "format": "TSV",
     "required": true
    },
    {
-    "name": "sample_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
+    "name": "clinical_xls",
+    "type": "File",
+    "format": "XLS",
+    "required": true
    },
    {
-    "name": "individual_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
+    "name": "metainfo_xlsx",
+    "type": "File",
+    "format": "XLSX",
+    "required": true
    }
   ],
   "outputs": [
    {
-    "name": "results_tar_gz",
+    "name": "prepare_tar",
     "type": "File",
     "format": "TAR.GZ"
    },
    {
-    "name": "output_manifest",
+    "name": "analysis_tar",
     "type": "File",
-    "format": "TXT"
+    "format": "TAR.GZ"
    },
    {
-    "name": "run_summary",
+    "name": "qc_summary",
     "type": "File",
-    "format": "TXT"
+    "format": "TSV"
+   },
+   {
+    "name": "outlier_detection",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "trait_matrix",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "sample_annotations",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "module_trait_cor_fdr",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "target_modules",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "bootstrap_stability",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "stable_pairs",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "hub_genes_all",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "hub_genes_stable",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "analysis_summary",
+    "type": "File",
+    "format": "TSV"
+   },
+   {
+    "name": "prepare_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "prepare_pdf",
+    "type": "File",
+    "format": "PDF"
+   },
+   {
+    "name": "analysis_png",
+    "type": "File",
+    "format": "PNG"
+   },
+   {
+    "name": "analysis_pdf",
+    "type": "File",
+    "format": "PDF"
    }
   ]
  },
@@ -985,60 +3838,98 @@
   "reusable_for": [
    "bulk-RNA-seq"
   ],
+  "inputs": [
+   {
+    "name": "expr",
+    "type": "File",
+    "format": "TSV",
+    "required": true
+   },
+   {
+    "name": "sample_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "clinical_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "meta_xlsx",
+    "type": "File?",
+    "format": "XLSX",
+    "required": false
+   },
+   {
+    "name": "clinical_xls",
+    "type": "File?",
+    "format": "XLS",
+    "required": false
+   }
+  ],
+  "outputs": [
+   {
+    "name": "results_tar_gz",
+    "type": "File",
+    "format": "TAR.GZ"
+   },
+   {
+    "name": "output_manifest",
+    "type": "File",
+    "format": "TXT"
+   },
+   {
+    "name": "run_summary",
+    "type": "File",
+    "format": "TXT"
+   }
+  ],
   "docker_image_tag": "task313_wgcna_hub",
-  "inputs": [
-   {
-    "name": "expr",
-    "type": "File",
-    "format": "TSV",
-    "required": true
-   },
-   {
-    "name": "sample_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
-   },
-   {
-    "name": "individual_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
-   }
-  ],
-  "outputs": [
-   {
-    "name": "results_tar_gz",
-    "type": "File",
-    "format": "TAR.GZ"
-   },
-   {
-    "name": "output_manifest",
-    "type": "File",
-    "format": "TXT"
-   },
-   {
-    "name": "run_summary",
-    "type": "File",
-    "format": "TXT"
-   }
+  "require_any": [
+   [
+    "meta_xlsx",
+    "sample_csv"
+   ],
+   [
+    "individual_csv",
+    "meta_xlsx"
+   ]
   ]
  },
- "cox_model": {
-  "graph_tool_id": "cox_model",
-  "name_cn": "Cox 生存预后分析",
-  "category": "生存分析",
+ "wgcna_module_trait": {
+  "graph_tool_id": "wgcna_module_trait",
+  "name_cn": "WGCNA模块-性状关联分析",
+  "category": "共表达网络分析",
   "reusable_for": [
-   "bulk-RNA-seq",
-   "Clinical"
+   "bulk-RNA-seq"
   ],
-  "docker_image_tag": "task310_cox_model",
   "inputs": [
    {
     "name": "expr",
     "type": "File",
     "format": "TSV",
     "required": true
+   },
+   {
+    "name": "meta_xlsx",
+    "type": "File?",
+    "format": "XLSX",
+    "required": false
+   },
+   {
+    "name": "clinical_xls",
+    "type": "File?",
+    "format": "XLS",
+    "required": false
    },
    {
     "name": "sample_csv",
@@ -1048,6 +3939,12 @@
    },
    {
     "name": "individual_csv",
+    "type": "File?",
+    "format": "CSV",
+    "required": false
+   },
+   {
+    "name": "clinical_csv",
     "type": "File?",
     "format": "CSV",
     "required": false
@@ -1069,53 +3966,17 @@
     "type": "File",
     "format": "TXT"
    }
-  ]
- },
- "km_survival": {
-  "graph_tool_id": "km_survival",
-  "name_cn": "Kaplan-Meier生存分析",
-  "category": "生存分析",
-  "reusable_for": [
-   "bulk-RNA-seq",
-   "Clinical"
   ],
-  "docker_image_tag": "task438_km_survival",
-  "inputs": [
-   {
-    "name": "expr",
-    "type": "File",
-    "format": "TSV",
-    "required": true
-   },
-   {
-    "name": "sample_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
-   },
-   {
-    "name": "individual_csv",
-    "type": "File?",
-    "format": "CSV",
-    "required": false
-   }
-  ],
-  "outputs": [
-   {
-    "name": "results_tar_gz",
-    "type": "File",
-    "format": "TAR.GZ"
-   },
-   {
-    "name": "output_manifest",
-    "type": "File",
-    "format": "TXT"
-   },
-   {
-    "name": "run_summary",
-    "type": "File",
-    "format": "TXT"
-   }
+  "docker_image_tag": "task294_wgcna_module_trait",
+  "require_any": [
+   [
+    "meta_xlsx",
+    "sample_csv"
+   ],
+   [
+    "individual_csv",
+    "meta_xlsx"
+   ]
   ]
  }
 }
