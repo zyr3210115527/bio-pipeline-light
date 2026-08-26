@@ -1474,6 +1474,23 @@ def tool_health_check(args):
     except Exception as e:
         return {"status": "unavailable", "detail": str(e)[:300]}
 
+def tool_route_pipeline_request(args):
+    """一次调用拿完整方案：server 内部跑一整轮规划循环，返回顶层 tool-chain/v2 执行合同。
+
+    这是给「只会调一次工具」的客户端准备的兼容层（Cohort Agent 原来接重版
+    knowledge-graph-mcp 就是这么调的）。light 的正常用法是调用方模型自己驱动
+    read_cypher/validate_execution_chain/hydrate_plan——那条路少一次模型嵌套，
+    延迟低一半，能自己跑 agent 循环的客户端应该走那条。
+
+    实现放在 cohort_adapter 里惰性 import：这个工具要用 LLM，而 server 绝大多数
+    进程（web 层拉起来的那个子进程、benchmark、CI）根本不碰它，不该为它付
+    import web/server.py 的成本、更不该被它顶层的 config.local 注入改掉环境。
+    """
+    import cohort_adapter
+    return cohort_adapter.route(args.get("query"),
+                                args.get("top_k", 3),
+                                args.get("data_matcher_mode", "neo4j"))
+
 TOOLS = {
     "get_planning_guide": {
         "description": "返回生信链路规划 skill 全文（SKILL.md）。调用方模型应读取它后自行规划；本 server 不做推理。",
@@ -1537,6 +1554,15 @@ TOOLS = {
         "description": "检查 Neo4j 连通性、图谱规模与 atomic 闭集。",
         "inputSchema": {"type": "object", "properties": {}, "required": []},
         "handler": tool_health_check,
+    },
+    "route_pipeline_request": {
+        "description": "一次调用拿完整方案（给只会调一次工具的客户端，如 Cohort Agent）：server 内部跑完整规划循环（手册→模型→取数→接地校验→确定性补全），返回**顶层 tool-chain/v2 执行合同**，不再包一层信封。candidates[].tool_chain 每步是执行绑定（step_id/tool_id/inputs 的 asset_id|value|from 对象），assets 带 asset_id/path/artifact_type，recommendations[].tool.inputs[].builder_param 与 execution_params 的键逐字一致。模型或 Neo4j 不可用时返回 selection_status=no_candidate + unsupported_reason，不做规则降级。**已经自己在跑 agent 循环的客户端不要用它**——用 read_cypher + validate_execution_chain + hydrate_plan 那条路，延迟低一半。",
+        "inputSchema": {"type": "object",
+                        "properties": {"query": {"type": "string", "description": "用户原始问题"},
+                                       "top_k": {"type": "integer", "description": "候选数上限，默认 3；light 严格 top-1，实际最多返回 1 条推荐"},
+                                       "data_matcher_mode": {"type": "string", "description": "数据匹配后端，light 只有 neo4j"}},
+                        "required": ["query"]},
+        "handler": tool_route_pipeline_request,
     },
 }
 

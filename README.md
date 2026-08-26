@@ -54,7 +54,7 @@
 
 ## 给前端 agent 的 MCP 接口（stdio，同机/局域网）
 
-仓库自带 `mcp_light_server.py`（无第三方依赖的 stdio MCP server，v2.1），前端 agent 直接接。**推理只能来自调用方自己的模型**（规则规划接口已删除，无降级路径）：
+仓库自带 `mcp_light_server.py`（无第三方依赖的 stdio MCP server，v2.2），前端 agent 直接接。**服务端没有规则规划器，推理只能来自模型**——默认是调用方自己的模型；实在没有的，用最后那个兼容层借服务端配的那个，两条路都无词表降级：
 
 - `get_planning_guide()` —— 返回 SKILL.md 全文，调用方模型读后自行规划
 - `read_cypher(query)` —— 数据面：通用只读查询（三重守卫：拒写入；患者级临床属性 `01_`–`13_`（全部编号前缀，只放行 `00_*` 操作性标识）仅允许聚合统计或 IS NOT NULL，含整节点导出/properties()/动态下标防绕过；无 LIMIT 自动限流 500）
@@ -63,7 +63,10 @@
 - `resolve_sample_roles(study | records)` —— 确定性样本角色判定（tumor/normal，规则移植自重版 `_sample_role`）：`study` 模式返回队列角色分布 `sample_roles` 与 `role_resolved`，`records` 模式对给定样本记录逐条判角色。配对/分组分析选数据前必须调用
 - `validate_atomic_chain(chain)` —— 确定性闭集校验（11 个 atomic + 图内 next_tool 邻接；输出 Knowledge Card meta.id + 卡内 IO 名，图谱 id / meta.id 均可入参）
 - `validate_execution_chain(steps)` —— **提交前把关（场景1）**：五阶段探查（注册/卡契约必填输入/绑定结构/数据探查/链流转），输出 tool-chain-validation/v1.2 逐阶段报告 + `execution_params`（**键=Knowledge Card 参数名**→图内真实路径；`Array[File]` 参数的值是路径数组）+ `execution_params_by_step`（多步链以此为准，扁平视图遇同名参数跨步冲突会剔除并列进 `execution_params_ambiguous`；**其 `tool_id` 是 Knowledge Card 的 `meta.id` 而非入参的图谱 tool_id**，传 `star` 回来 `star_rrna_and_genome_alignment`，对步骤请按 `step` 下标取）+ `execution_params_missing`（对象 `{param,tool_id,step,reason}`）+ `submittable`；errors 清零且 submittable=true 才可提交。带卡片默认值的 5 个参考/索引资源（star 的两个索引、`rsem_index`、`gtf_file`、`interval_list`）既不映射也不报缺——注意 `bcftools.filtered_vcf_index` 名字带 index 但**不是**参考资源，是必须绑的 `.tbi` 伴随索引
+- `validate_plan(plan)` —— 接地校验：整份 Plan 的工具/文件/路径/队列号逐一到图与目录核验，`grounded=false` 即含编造内容
+- `hydrate_plan(plan)` —— 确定性补全：把模型给的文件名补成图内真实路径与资产字段，补不出的如实留空
 - `health_check()` —— Neo4j 连通、规模、atomic 闭集
+- `route_pipeline_request(query, top_k, data_matcher_mode)` —— **兼容层**：一次调用跑完整轮模型循环，返回顶层 `tool-chain/v2` 执行合同。只给「一个 query 换一个答案」的客户端用；已经自己在跑 agent 循环的别用（两个模型套娃）。详见 `docs/frontend-mcp-connection.md`
 
 ```json
 { "mcpServers": { "bio-pipeline-light": {
@@ -90,8 +93,8 @@
 
 | | 旧（重 MCP / light v2.0） | 现在（light v2.1） |
 |---|---|---|
-| Plan 从哪来 | 一次调用 `route_pipeline_request` 拿现成 Plan（重版 server 内嵌 LLM；v2.0 是词表规则，去名集仅 1.4%） | **接口已删除**。Plan 由前端自己的模型按手册产出，无静默降级路径 |
-| 前端形态 | 无模型的后端也能直连 | **必须有模型在环**；无模型后端请继续用重版或在自己侧加 LLM |
+| Plan 从哪来 | 一次调用 `route_pipeline_request` 拿现成 Plan（重版 server 内嵌 LLM；v2.0 是词表规则，去名集仅 1.4%） | Plan 由前端自己的模型按手册产出。v2.2 补回同名兼容层给只能调一次工具的客户端，但内部跑的是完整模型循环、无词表降级 |
+| 前端形态 | 无模型的后端也能直连 | **必须有模型在环**——要么前端自己的，要么用 `route_pipeline_request` 借服务端配的那个 |
 | 样本角色 | 重版内置推断 / v2.0 输出恒 null | `resolve_sample_roles` 确定性工具（study/records 两模式，规则与重版对齐并适配 0819 图谱） |
 | 提交判定 | 重版有 `execution_params`/`submittable` / v2.0 没有 | `validate_execution_chain` 补齐：`execution_params` + `execution_params_missing` + `submittable` |
 | 拒绝无关问题 | `rule_baseline_plan` 内置词表相关性门 | 拒绝纪律在 SKILL.md（`off_topic`/`privacy` 两类 reason），由调用方模型执行 |

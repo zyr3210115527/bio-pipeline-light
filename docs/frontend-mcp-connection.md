@@ -15,8 +15,11 @@
 | `validate_execution_chain(steps)` | 提交前把关：五阶段报告 + `execution_params` + `submittable` |
 | `validate_plan(plan)` | 接地校验：整份 Plan 的工具/文件/路径/队列号逐一到图与目录核验，`grounded=false` 即含编造内容 |
 | `health_check` | Neo4j 连通性、图谱规模、atomic 闭集 |
+| `route_pipeline_request(query, top_k, data_matcher_mode)` | **兼容层**：一次调用返回顶层 `tool-chain/v2` 执行合同。只给「一个 query 换一个答案」的客户端用，见下文专节 |
 
-**没有规则规划接口**（v2.1 起 `route_pipeline_request` / `rule_baseline_plan` 已删除）：Plan 只能由调用方模型产出——读 `get_planning_guide`、按手册查 `read_cypher`、产出 tool-chain/v2、提交前过 `validate_execution_chain`（`submittable=true` 才可提交）。**接入端必须有模型在环**；无模型的业务后端请勿直连本 server。非生信问题的拒绝由 SKILL.md 指导调用方模型执行（输出 `{"status":"rejected",...}` 单对象）。
+**server 端没有规则规划器。** 上表除 `route_pipeline_request` 外的工具都不做推理：Plan 由调用方模型产出——读 `get_planning_guide`、按手册查 `read_cypher`、产出 tool-chain/v2、提交前过 `validate_execution_chain`（`submittable=true` 才可提交）。非生信问题的拒绝由 SKILL.md 指导调用方模型执行（输出 `{"status":"rejected",...}` 单对象）。
+
+`route_pipeline_request` 是这条规则的**包装**而不是例外：它内部照样起一轮模型循环（用 server 自己配的 LLM）走完全同一套流程，只是把这轮循环关进了一次工具调用里。**已经自己在跑 agent 循环的客户端不要用它**——那等于两个模型套娃，慢一倍且丢失你自己的会话上下文。
 
 ## 调用方模型系统提示词（DeepSeek / 其他 OpenAI 兼容模型直接复制）
 
@@ -49,6 +52,88 @@ read_cypher / resolve_sample_roles / validate_* 的返回结果。你的内部�
 DeepSeek 实操建议：`temperature` 调低（≤0.3）；若客户端支持 `response_format: {"type":"json_object"}`，在最终输出轮开启；工具调用轮数按手册执行纪律控制在 ≤3 轮。前端侧再加三道断言兜底：Plan 必须带 `schema_version: "tool-chain/v2"`，且 `validate_plan.grounded=true`、提交前 `submittable=true`。
 
 **可运行参考实现**：`examples/deepseek_agent_loop.py`——含 MCP stdio 桥接（tools/list 自动转 function-calling 格式）、多轮工具循环、三道断言与 violations 喂回重试，系统提示词直接读取本文件的模板（单一事实源）。前端在此基础上替换为自己的会话管理即可。
+
+## 单次调用模式：`route_pipeline_request`（Cohort Agent 兼容层）
+
+给**只能调一次工具**的客户端用：上游 agent 把用户原话丢进来，拿回一份可直接提交给 PipelineBuilder 的执行合同，中间的手册、查图、校验、补全全在 server 内部走完。上游不需要认识 `get_planning_guide`，也不需要自己拼 Cypher。
+
+```json
+{"name": "route_pipeline_request",
+ "arguments": {"query": "我想对肝癌 bulk RNA-seq 数据做免疫浸润分析",
+               "top_k": 3, "data_matcher_mode": "neo4j"}}
+```
+
+`top_k` 默认 3；`data_matcher_mode` 只有 `neo4j` 一种实现（数据匹配本来就只走图），传别的值会照常执行并在返回里附 `data_matcher_note` 说明被忽略了。
+
+内部一轮完整循环：`query → get_planning_guide → 模型 → read_cypher / read_cypher_batch / get_study_overview → validate_atomic_chain → hydrate_plan → validate_plan → 合同转换 → tool-chain/v2`。它复用 `web/server.py` 的 `AgentRunner`（进程内直调，不再 spawn 一个 MCP 子进程），所以网页端积累的请求对冲、漏调用回收、轮数收敛这些长尾治理对它同样生效。
+
+需要的环境变量（和网页服务同一套，写在 `web/config.local` 或进程 env 里）：
+
+| 变量 | 说明 |
+|---|---|
+| `LLM_API_KEY` | 必填，没有就直接返回 `no_candidate` |
+| `LLM_BASE_URL` | OpenAI 兼容端点 |
+| `LLM_MODEL` | 模型名 |
+| `LLM_TIMEOUT` | 单次请求超时秒数 |
+
+### 返回：顶层就是 tool-chain/v2
+
+**没有 `{"status":"ok","plan":{...}}` 外层信封**，`schema_version` 在最顶层：
+
+```json
+{
+  "schema_version": "tool-chain/v2",
+  "selection_status": "ready",
+  "candidates": [{
+    "rank": 1, "match_id": "cand-1", "pipeline_id": "immune_infiltration_iobr",
+    "validation_ok": true, "feasibility_status": "ready", "study_accession": "HRA001272",
+    "assets": [{"asset_id": "asset-1", "file_name": "HRA001272-Genes-TPM-1.0.tsv",
+                "path": "/hpcdisk1/.../HRA001272-Genes-TPM-1.0.tsv",
+                "file_path": "/hpcdisk1/.../HRA001272-Genes-TPM-1.0.tsv",
+                "artifact_type": "tsv", "semantic_format": "TABULAR_BIO_DATA",
+                "study_accession": "HRA001272", "match_reason": "..."}],
+    "tool_chain": [{"step_id": "step-1", "tool_id": "immune_infiltration_iobr",
+                    "inputs": {"expression_tsv": {"asset_id": "asset-1"},
+                               "clinical_xls":   {"asset_id": "asset-2"},
+                               "metainfo_xlsx":  {"asset_id": "asset-3"}}}],
+    "execution_params": {"expression_tsv": "/hpcdisk1/...", "clinical_xls": "/hpcdisk1/..."},
+    "execution_params_missing": []
+  }],
+  "recommendations": [ ... ],
+  "planner_metadata": {"used": false, "reason": "no_server_side_planner",
+                       "planning_owner": "caller_model", "arch": "light"},
+  "mcp_timing_ms": 5842
+}
+```
+
+几处执行端会踩的细节：
+
+- `assets[].path` 和 `file_path` 同值双写。PipelineBuilder 读 `path`，图里存的字段叫 `file_path`，只给一个就有一端拿到空。
+- `tool_chain[].inputs` 是**执行合同**（`{asset_id}` / `{value}` / `{from:{step_id,output}}`），不是 `validate_atomic_chain` 返回的那种 IO 描述数组。描述数组原样提交必被拒。
+- `recommendations[].execution_params` 的键与 `recommendations[].tool.inputs[].builder_param` **逐字节相同**，`tool.catalog_status == "registered"`、`data.status == "available"`——Dingent 少一条就静默丢掉整条推荐，不报错。
+
+### `selection_status` 五种取值
+
+| 值 | 含义 | 上游该做什么 |
+|---|---|---|
+| `ready` | 至少一条候选参数绑全，可直接提交 | 取 `feasibility_status=="ready"` 的候选提交 |
+| `needs_input` | 找到了流程，但有参数只能由人给（典型是差异表达的 `group_a_samples`/`group_b_samples`） | 读 `execution_params_missing` 逐项问用户 |
+| `information` | 知识问答，答案在 `answer` 里 | 直接把 `answer` 给用户；**这种情况不带 `unsupported_reason`**，别当成规划失败 |
+| `unsupported` | 非生信问题或触碰隐私红线，被拒 | 把 `unsupported_reason` 给用户 |
+| `no_candidate` | 闭集里没有能干这件事的流程，或模型/Neo4j 不可用 | 看 `unsupported_reason` 与 `planner_metadata.reason` |
+
+**不存在降级路径。** 模型不可用、Neo4j 连不上、返回不可解析，都走 `no_candidate` + `unsupported_reason` + `planner_metadata.reason="upstream_unavailable"`，**不会退回词表规则拼一个看起来像样的 Plan**——那种「一路绿灯但内容是编的」比直接报错难查得多。同理，`ready` 的判定只认图里查得到的绝对路径：文件名匹配不到、`NOT_FOUND`、非绝对路径，一律不给 `ready`。非 File 的必填参数只在能确定性推导时才填（accession、矩阵口径 TPM/FPKM/counts 之类），推不出来的如实进 `execution_params_missing`，绝不拿交付包里别的队列跑过的分组值顶上。
+
+### 接 PipelineBuilder
+
+`candidates[i]` 转成 PipelineBuilder 的 `agent_input` 后喂给 `plan_tool_chain_submission`，应得到 `can_submit: true` 且 `plan_hash` 非空。本仓库不含 PipelineBuilder MCP，这一步只能在执行端验证。
+
+### 自测
+
+```bash
+python3 tests/test_cohort_compat.py --offline   # 只验合同形状，不调 LLM（需 Neo4j）
+python3 tests/test_cohort_compat.py             # 追加 3 例真实模型循环
+```
 
 ## 前置条件
 

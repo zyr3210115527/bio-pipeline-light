@@ -76,7 +76,7 @@
 
 **轻架构的主张：推理交给调用方的大模型，服务端只提供知识和确定性校验。**
 
-- 服务端不做推理，没有"一次调用出 Plan"的接口
+- 服务端不做推理，没有"一次调用出规则 Plan"的接口（v2.2 补的 `route_pipeline_request` 是把一整轮**模型**循环包进一次调用，不是把规则搬回服务端，见 `docs/frontend-mcp-connection.md`）
 - 推理写成手册（Skill）交给模型读，纯文本，改一行即生效
 - 凡能确定性算出的一律不让模型算：工具是否在闭集、文件是否在图里、路径是否真实
 
@@ -511,7 +511,7 @@ Skill 不是代码，不被执行，而是读进模型上下文作为行动指�
 
 ---
 
-## 8. 第三层：十个 MCP 工具
+## 8. 第三层：十一个 MCP 工具
 
 | 类别 | 工具 |
 |---|---|
@@ -743,6 +743,15 @@ errors: []   execution_params: {}   params_missing: []   submittable: True
 ```
 
 诊断用，不参与规划。
+
+### 8.11 `route_pipeline_request(query, top_k, data_matcher_mode)`
+
+**作用**：把上面 §5 那一整轮 agent 循环包进一次工具调用，直接返回顶层 `tool-chain/v2` 执行合同。
+**给谁用**：只能"一个 query 换一个答案"的客户端（典型是接了别家执行端、自己不方便再搭循环的 Cohort Agent）。**自己已经在跑循环的客户端不要用**——两个模型套娃，慢一倍且丢自己的上下文。
+**实现**：`cohort_adapter.py` 复用 `web/server.py` 的 `AgentRunner`，进程内直调本文件里的 `tool_*` 函数，不 spawn 嵌套 MCP 子进程；模型可见工具里屏蔽掉它自己，避免无底递归。
+**与轻架构的关系**：推理仍然在模型手里，只是模型换成了 server 自己配的那个（`LLM_*` 环境变量）。**没有词表规则兜底**：模型或 Neo4j 不可用时返回合法的 `no_candidate` + `unsupported_reason`，不拿规则拼一个看着像样的 Plan。
+
+接入细节、返回字段、`selection_status` 五种取值见 `docs/frontend-mcp-connection.md`。
 
 ---
 
@@ -1043,7 +1052,7 @@ FAIL 敏感前缀零误伤「04_platelet_count_109_l 聚合放行」
 | 体积 | 205 MB | ~110 KB | 约 1800 倍 |
 | 依赖 | 多个第三方包 | 零第三方依赖 | 部署从配环境变为拷文件 |
 | 推理位置 | 服务端硬编码（132 KB `workflow_composer.py`） | 调用方模型 + 手册 | 改规则从改代码变为改文本 |
-| Plan 来源 | 一次调用 `route_pipeline_request` | 接口已删除，模型产出 | 无静默降级路径 |
+| Plan 来源 | 一次调用 `route_pipeline_request`（服务端词表规则） | 调用方模型产出；单次调用客户端可用 `route_pipeline_request` 兼容层，内部仍是模型循环 | 无静默降级路径 |
 | 降级行为 | 模型不可用时退回内置词表 | 无降级，要么模型在环要么如实报错 | 不以词表输出冒充正常结果 |
 | 样本角色 | 内置推断 | `resolve_sample_roles` 双模式工具 | 规则抽成可复用工具 |
 | 提交判定 | 有 `execution_params`/`submittable` | 对齐到 v1.2 | 增 `by_step`/`ambiguous`/结构化 `missing` |

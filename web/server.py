@@ -1147,7 +1147,9 @@ def main():
     #    自己调它的一整轮（轨迹里它还常被连调 2-3 次，每次一轮模型延迟）
     #    validate_atomic_chain 保留：它会返回 Knowledge Card 的 meta_id/槽位名，是信息源
     #  · hydrate_plan：确定性补全，同样由服务端在终答后自动跑，模型无需感知
-    hidden = {"get_planning_guide", "validate_plan", "hydrate_plan"}
+    #  · route_pipeline_request：给「只会调一次工具」的外部客户端用的兼容层，它内部
+    #    会再起一整轮模型循环。网页会话本身就是那轮循环，暴露给模型等于允许无底嵌套
+    hidden = {"get_planning_guide", "validate_plan", "hydrate_plan", "route_pipeline_request"}
     model_tools = _slim_tools([t for t in tools if t["name"] not in hidden])
     server.fc_tools = (mcp_tools_to_gemini if LLM_PROVIDER == "gemini" else mcp_tools_to_openai)(model_tools)
     server.system_prompt = load_system_prompt()
