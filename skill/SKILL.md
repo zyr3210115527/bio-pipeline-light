@@ -630,7 +630,7 @@ consumes, not what you type. When delivering to a front-end / for integration, p
   "intent": {"query_text":"...","analysis_goal":"免疫浸润分析","disease":"肝癌",
              "omics_type":"bulk RNA-seq","input_hint":"tpm","quant_hint":null,
              "requested_outputs":[],"study_accessions":[],"source":"rule","ambiguous":false},
-  "planner_metadata": {"used":false,"status":"force_rule","calls":0,"stages":[]},
+  "planner_metadata": {"used":false,"reason":"no_server_side_planner","planning_owner":"caller_model","arch":"light"},
   "data_matcher_mode": "neo4j", "mcp_timing_ms": 1151.2
 }
 ```

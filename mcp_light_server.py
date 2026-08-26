@@ -1429,7 +1429,14 @@ def tool_hydrate_plan(args):
 
     # —— 服务端元数据：这些是本 server 的运行事实，调用方不该也无法自行填写 ——
     plan.setdefault("schema_version", "tool-chain/v2")
-    plan["planner_metadata"] = {"used": False, "status": "force_rule", "calls": 0, "stages": []}
+    # 这个字段是重版 MCP 的遗留：重版在 server 内嵌了 LLM planner，字段记录它跑了几轮。
+    # light 版把 route_pipeline_request/rule_baseline_plan 整个删了，规划归调用方模型，
+    # server 只出手册 + read_cypher + 确定性校验，所以「server 内 planner 没参与」恒真。
+    # 原值写的是 status="force_rule"，字面意思是「被迫降级到规则」——跟本架构
+    # 「生产路径不存在规则规划，也就不存在静默降级」的主张正好相反，而且它出现在每一份
+    # 返回给客户端的信封里、手册示例里也照抄了，实测会把人读岔。改成如实描述。
+    plan["planner_metadata"] = {"used": False, "reason": "no_server_side_planner",
+                                "planning_owner": "caller_model", "arch": "light"}
     plan["data_matcher_mode"] = "neo4j"
     plan["mcp_timing_ms"] = round((time.time() - t0) * 1000, 1)
     return {"status": "ok", "plan": plan, "filled": filled}
