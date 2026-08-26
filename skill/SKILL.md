@@ -489,22 +489,10 @@ decides anything — *every* question gets a rank-1):
   A/B/C, using A". Do not leave the original cohort in place, and do not tell the user to change cohorts
   to suit the tool.
 
-**"Always lead with a rank-1" does not reach questions whose premise is false.** For the two shapes
-below, test the premise first; if it fails, return `no_candidate` with empty `recommendations` and a
-top-level `answer` stating what is missing. **Do not force a rank-1.** Of the 9 negatives in the 0826
-sample, 5 failed and 4 of them failed right here:
+**"Always lead with a rank-1" has exactly one exception: what the user handed you is not any
+pipeline's primary input.** For the two shapes below, return empty `recommendations` with a
+top-level `answer` stating what is missing. **Do not force a rank-1.**
 
-- **The question names a project that is not in the graph.** The test is a **whole-string** match
-  against `study.title`, or an HRA accession given outright. A prefix match carrying a qualifier the
-  graph does not have, or a match reached only through the tumour-type word, counts as not found.
-  The two that failed: "Chinese Glioma Genome Altas (CGGA) **- WES dataset**" — the graph's title stops
-  at `(CGGA)` with no WES part, and the model dropped the qualifier and landed on HRA000073/74 (which
-  are bulk_RNA, not WES); and "Multi-center RNA sequencing analysis for acute myeloid leukemia" — no
-  such title exists, and the model reached HRA006117 through the cancer type alone. **Substituting
-  another cohort of the same cancer type is not a reasonable approximation — it answers a different
-  question**: the user asked whether *this project* is equipped, not whether the *cancer type* is.
-  (Contrast: "Aging and leukemia" shares no wording with any real title, and the model got it right.
-  The difference is lexical overlap, not difficulty.)
 - **The user holds only companion metadata, no primary analysis datum.** "I have the study metadata",
   "for level-1 file metadata" — clinical tables, sample-metainfo tables and level-1 file metadata are
   all companion files; without a primary datum (expression matrix / MAF / FASTQ) no pipeline in the
@@ -513,6 +501,89 @@ sample, 5 failed and 4 of them failed right here:
   "metadata is not the primary datum, an expression matrix is required". Put that conclusion in
   `answer`: name the companion file, say which kind of primary datum it needs, then return empty
   `recommendations`.
+- **The user holds a companion or intermediate artifact that no closed-set pipeline takes as its
+  primary input** — "BAM index data", "variant statistics report", "splice-junction table".
+  **Swapping the input for a different file from the same cohort and recommending anyway is just as
+  wrong** — in the measured run the model wrote in its own `answer` that
+  `rmats_alternative_splicing` "does not consume a splice-junction table, it needs an alignment BAM",
+  then recommended it anyway "using the same cohort's alignment BAM"; two others pushed a BAM index
+  to `gatk` (because its four slots include `tumor_bai`) and read "variant statistics report" as MAF
+  to push `wes_somatic_maf_landscape`. The test is **whether this file is itself some pipeline's
+  primary input**, not whether some other file in the same cohort could make a pipeline run.
+
+  Both return empty `recommendations` with **`selection_status: unsupported`**. **Do not use
+  `no_candidate`**: the server has a deterministic fallback for "`no_candidate` + empty
+  recommendations" that scans `answer` for the first closed-set tool id and promotes it to rank-1
+  (it exists to catch plans that claim nothing matches while naming a tool in the same breath — see
+  `mcp_light_server.py`). Both cases must name tools in `answer` to explain what would make the
+  analysis runnable, so `no_candidate` gets silently overturned and the rejection is lost — that is
+  exactly how 6 cases were lost in the measured run.
+
+  The test is **whether the file the user handed you is itself some pipeline's primary input**, not
+  whether some other file in the same cohort could make a pipeline run. These two cover that one
+  thing and nothing else — **do not extrapolate**. Any question that names a project, cohort or
+  cancer type, whose goal is achievable, and merely asks you to pick a tool or a dataset, **still
+  gets a rank-1**, however imperfect the data. In particular, **"the project name is not in the
+  graph" is not a reason to refuse** — see the next bullet; that misjudgement alone cost 10 ordinary
+  questions in one measured run.
+
+- **A named project is present until proven otherwise, and you look it up on `project.project_name`.**
+  Project names live on the `project` node's **`project_name`** property, **not on `study.title`** —
+  `study.title` is mostly a DAC or institution label ("DAC for AM data", "Shanghai Institute of
+  Hematology,", "CASPMI", "CBB"), and HRA000071's title is NULL outright, so matching a project name
+  against `study.title` returns 0 hits every time. The correct lookup:
+
+  ```cypher
+  MATCH (p:project) WHERE p.project_name CONTAINS '<distinctive fragment>'
+  RETURN p.project_name, p.study_accession, p.tumor_type
+  ```
+
+  `study_accession` is the cohort id; a few hold two joined by `;` (`HRA001748;HRA001749`,
+  `HRA007167;HRA007169`). `project.title` is NULL for all 18 — do not read it. If one fragment misses,
+  try a shorter one; **do not conclude the project is absent and refuse**.
+
+- **Giving a rank-1 does not mean `selection_status: ok`.** The status reports **whether the data side
+  is complete**, not whether you produced a recommendation. When the tool exists but the cohort the
+  user named lacks the primary datum that pipeline needs, **still give rank-1, and set
+  `missing_from_graph`** — and leave `assets` empty rather than attaching a file that does not satisfy
+  the pipeline. Eleven measured cases failed exactly here: the `answer` was right every time ("the CGGA
+  RNA-seq cohort has no VCF/MAF in the graph", "CASPMI is all Blood with no tumour samples"), but the
+  status said `ok`, and one attached an `HRR000001.vcf.gz` it had just declared nonexistent.
+  Write `ok` only when the graph **positively confirms** the data that pipeline consumes (§3).
+
+  The question shapes below are *asking for a completeness verdict*. When the verdict is "not
+  complete", the status is always `missing_from_graph` (rank-1 still given); writing `ok` is a wrong
+  answer:
+  - "Can project X provide **complete** data and tools for Y?" / "To do Y, are project X's data and
+    tools **all in place**?" — three steps, and **do not stop after the first hit**:
+    ① `project.project_name` → `study_accession` for the cohort id;
+    ② take **every** semantic format in Y's pipeline card input column (§8.1) — "every", most
+    pipelines declare more than one;
+    ③ look each one up in that cohort's `d.semantic_format`; **any one missing means not complete**,
+    and `answer` names each missing item.
+    All 8 measured failures stopped at step ② with a single format: asked whether
+    `cellranger_workflow` was in place, whose card reads `RAW_SINGLE_END_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM`
+    — **two** entries — the model found 160 FASTQ pairs in HRA001748, wrote "data complete / status ok",
+    and never checked `DNA_GENOMIC_ALIGNMENT_BAM`, of which that cohort holds none. Likewise HRA000021
+    for "variant filtering": it has 1016 `DNA_ALIGNMENT_BQSR_BAM`, but `bcftools` wants
+    `DNA_VARIANT_VCF_GENERAL` + `DNA_VARIANT_INDEX_TBI` and has neither. In short: **"has data" is
+    not "has the several things this pipeline needs".**
+    (This does not conflict with §4's "an empty query is not grounds for `no_candidate`": that rule
+    governs **picking a pipeline** — still give rank-1; this one governs **reporting status** — if
+    something is missing, write `missing_from_graph`. Two different things.)
+  - "Does project X meet the conditions for recommending data and tools for **survival analysis**?" —
+    survival analysis needs a registered cancer type, and the test is **`project.tumor_type` being
+    null** (7 of the 18 projects are: CGGA-WES, CGGA-RNA-seq(325), "Single-cell RNA analysis…",
+    "Multi-center RNA sequencing…", "Aging and leukemia", "Multi-omics research of AML",
+    "Multi-omics Landscape of CNS Tumors"). Null means the condition is not met. **Do not substitute
+    `study.tumor_type`** — 19 of 20 cohorts carry it (only HRA000001/CASPMI is null), so using it
+    always misjudges these as "met".
+  - "Which data can tool X process?" — put the attributes in `answer` and give X as rank-1, but when
+    the graph holds **no file at all** that X can consume (`multiqc`, `bootstrap_stability`,
+    `hvg_pca_gmm`), the status is `missing_from_graph`, not `ok`.
+
+  All of the above is also written into the output contract at the end of the system prompt
+  (`web/server.py`); the two must stay in sync.
 
 - **Two analyses at once** ("immune infiltration + WGCNA") → pick the primary leg for rank-1 and name
   the other in `match_note`. **When two analyses are named side by side, rank-1 is the one mentioned
@@ -590,6 +661,18 @@ write only each step's `tool_id`. What you must supply: `schema_version`, `selec
 the top-level `answer` whenever `recommendations` is empty,
 and per recommendation `pipeline_id`, `match_note`, `data.assets[].file_name` + `match_reason`, plus the
 tool_chain ordering.
+
+**Do not forget the chain.** When the question says "tool **chain**", "which **pipeline**", "what is the
+**workflow**", or when the goal inherently needs an upstream step (raw FASTQ before alignment needs QC /
+adapter trimming; expression quantification needs alignment first), **list every step's `tool_id` in
+execution order in `candidates[0].tool_chain`** — returning a lone rank-1 is an incomplete answer.
+rank-1 is the chain's **principal step** (for an alignment question that is `bwa`/`star`, not `fastp`),
+with the upstream steps in the tool_chain: `DNA alignment` → `fastp` → `bwa`; `RNA alignment` →
+`trim_galore` → `star`; `expression quantification` → `star` → `rsem`. The refusal and status rules in §7
+govern **whether to recommend and what status to write**; they say nothing about **whether to expand the
+chain — always expand it**. (Measured: after a long block of refusal rules was appended to the end of the
+output contract, subsequence hits on the 9 chain cases fell from 6/9 to 1/9 as the model collapsed every
+answer to a single rank-1. This paragraph is what pulls it back.)
 
 **Assets: supply the primary datum only.** The primary datum is the pipeline's core input — the
 expression matrix, the MAF, or the FASTQ pair. `hydrate_plan` completes the rest deterministically:

@@ -400,24 +400,80 @@ Tumor 7045 / Normal 2863 / Blood 557，不必再用 `IS NOT NULL` 兜——但 `
   正确做法是换成该流程支持的队列之一（`assets` 一起换掉），并在 `match_note` 里写明
   "该流程只在 A/B/C 上跑通过，已改用 A"——不是留着原队列硬推，也不是让用户去改队列迁就工具。
 
-**"必须给 rank1"管不到「前提本身不成立」的问句。** 下面两种形态先判前提，前提不成立就走
-`no_candidate` + 空 `recommendations` + 顶层 `answer` 说清缺什么，**不要硬凑 rank1**。
-0826 抽测里 9 道 negative 错了 5 道，4 道栽在这里：
+**"必须给 rank1"只有一个例外：用户交给你的东西不是任何流程的主输入。** 下面两种形态交空
+`recommendations` + 顶层 `answer` 说清缺什么，**不要硬凑 rank1**：
 
-- **问句点名的项目图内查无。** 判据是**整串命中** `study.title` 或直接给 HRA 号；
-  前缀命中但带了图内没有的限定词、或只靠癌种词兜到某个队列，一律算查无。
-  实测栽的两句：「Chinese Glioma Genome Altas (CGGA) **- WES dataset**」——图内 title 只到
-  `(CGGA)`，没有 WES 那一截，模型丢掉限定词兜到了 HRA000073/74（那是 bulk_RNA 不是 WES）；
-  「Multi-center RNA sequencing analysis for acute myeloid leukemia」——图内没有这个 title，
-  模型靠癌种词兜到了 HRA006117。**改用同癌种的另一个队列不是"合理近似"，是答非所问**——
-  用户问的是这个项目齐不齐备，不是这个癌种齐不齐备。（对照：「Aging and leukemia」因为
-  跟任何真 title 都不沾字面，模型答对了；差别只在有没有字面重叠，不在难度。）
 - **用户手上只有配套元数据，没有分析主数据。**「我拿到了研究元数据」「针对一级文件元数据」
   这类，临床表/样本元信息表/一级文件元数据本身都只是配套文件，配不出分析主数据
   （表达矩阵/MAF/FASTQ）就没有任何闭集流程跑得动。这时**不许挑一条"最通用的消费场景"当
   rank1**——实测两句分别硬推了 `immune_infiltration_iobr` 和 `fastqc`，而它们自己的
   `match_note` 里已经写明"元数据不是分析主数据、必须配表达矩阵"。结论写进 `answer`：
   说清这是配套文件、要配哪类主数据才能跑，然后交空 `recommendations`。
+- **用户手上是伴随文件或中间产物，没有任何闭集流程拿它当主输入。**「BAM 索引数据」
+  「变异统计报告数据」「剪接位点表格数据」这类。**把输入换成同队列的别的文件再荐一条，
+  等于答非所问，同样不许**——实测 `rmats_alternative_splicing` 那句，模型自己在 `answer` 里
+  写明"它不吃剪接位点表，而是需要比对 BAM"，然后就"可改用同队列的比对 BAM"照荐不误；
+  另两句把 BAM 索引推给 `gatk`（因为四槽里有 `tumor_bai`）、把"变异统计报告"当成 MAF 推给
+  `wes_somatic_maf_landscape`。判据是**这个文件本身是不是某条流程的主输入**，不是"同队列
+  能不能找到别的文件把流程凑起来"。
+
+  这两条一律交空 `recommendations` + **`selection_status: unsupported`**。**别写 `no_candidate`**：
+  服务端对「`no_candidate` + 空推荐」有确定性兜底，会把 `answer` 里第一个闭集工具名提成 rank1
+  （那条兜底是为「嘴上说没有、answer 里却点名了工具」的自相矛盾准备的，见 mcp_light_server.py）。
+  而这两种情形的 answer 必然要提工具名说明「补齐什么才跑得动」，写 `no_candidate` 会被兜底改回去，
+  拒绝白做——实测就是这么丢掉 6 例的。
+
+  判据是**用户交给你的这个文件本身是不是某条流程的主输入**，不是"同队列能不能找到别的文件把流程
+  凑起来"。这两条只认这一件事，**严禁外推**：凡是问句点名了项目/队列/癌种、目标做得成、只是要你
+  挑工具或挑数据的，哪怕数据不理想也**必须照给 rank1**。尤其**「项目名在图里查不到」不是拒绝的
+  理由**——见下条，实测这个误判一次废掉 10 道正常题。
+
+- **点名项目一律先当它存在，查 `project.project_name`。** 问句里的项目名存在 `project` 节点的
+  **`project_name`** 属性上，**不在 `study.title` 上**：`study.title` 大多是 DAC 名或单位名
+  （「DAC for AM data」「Shanghai Institute of Hematology,」「CASPMI」「CBB」），HRA000071 的
+  title 干脆是 NULL，拿项目名去比 `study.title` 必然 0 命中。正确查法：
+
+  ```cypher
+  MATCH (p:project) WHERE p.project_name CONTAINS '<关键片段>'
+  RETURN p.project_name, p.study_accession, p.tumor_type
+  ```
+
+  `study_accession` 就是队列号，少数是 `HRA001748;HRA001749` `HRA007167;HRA007169` 这样分号连写
+  的两个。`project.title` 18 个全是 NULL，别读它。一次没查到就换个更短的片段再查，**不要判
+  「项目查无」并拒绝**。
+
+- **给了 rank1 ≠ 状态写 `ok`。** `selection_status` 报的是**数据侧齐不齐**，不是「给没给推荐」。
+  工具有、但用户点名的队列在图内缺这条流程要的主数据 → **照给 rank1，状态写 `missing_from_graph`**，
+  `assets` 宁可留空也不许硬凑一个不满足该流程的文件。实测 11 例栽在这：`answer` 判断全对
+  （「CGGA RNA-seq 队列图内没有任何 VCF/MAF」「CASPMI 全 Blood 无肿瘤样本」），
+  状态却写了 `ok`，其中一例还顺手挂了个刚说过不存在的 `HRR000001.vcf.gz`。
+  只有图内**精确确认**到该流程要的数据才写 `ok`（§3 的可用性判据）。
+
+  下面几类问法本身就是在**要一个完备性结论**，答案是"不齐备"时状态一律 `missing_from_graph`
+  （rank1 照给），写 `ok` 就是答错：
+  - 「项目 X **能否**为 Y 提供**完整的**数据和工具？」「要完成 Y，项目 X 的数据和工具**是否都
+    齐备**？」——判法是三步，**别查到一个就收手**：
+    ① `project.project_name` → `study_accession` 拿到队列号；
+    ② 取 Y 那条流程在 §8.1 卡片 **input 列声明的全部语义格式**（是"全部"，多数流程不止一个）；
+    ③ 每一个都去队列里查 `d.semantic_format`，**缺任何一个就是不齐备**，`answer` 里逐个点名缺什么。
+    实测 8 例全栽在第②步只取了一项：问 `cellranger_workflow` 齐不齐备，卡片写的是
+    `RAW_SINGLE_END_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM` **两项**，模型查到 HRA001748 有 160 对
+    FASTQ 就写了"数据齐备 / status ok"，从没查过 `DNA_GENOMIC_ALIGNMENT_BAM`——而该队列一个
+    BAM 都没有。同理 HRA000021 问"变异过滤与处理"：它有 `DNA_ALIGNMENT_BQSR_BAM` 1016 个，
+    但 `bcftools` 要的是 `DNA_VARIANT_VCF_GENERAL` + `DNA_VARIANT_INDEX_TBI`，一个都没有。
+    一句话：**「有数据」不等于「有这条流程要的那几样数据」。**
+    （注意这跟 §4「查空别判 no_candidate」不冲突：那条管的是**挑流程**——查空照样给 rank1；
+    这条管的是**报状态**——缺了就写 `missing_from_graph`。两件事，别混。）
+  - 「项目 X 是否具备为**生存分析**推荐数据和工具的条件？」——生存分析要癌种登记，判据是
+    **`project.tumor_type` 为空**（18 个项目里 7 个为空：CGGA-WES、CGGA-RNA-seq(325)、
+    Single-cell RNA analysis…、Multi-center RNA sequencing…、Aging and leukemia、
+    Multi-omics research of AML、Multi-omics Landscape of CNS Tumors），为空就是不具备条件。
+    **别拿 `study.tumor_type` 顶替**——那个 20 个队列里 19 个都有值（只有 HRA000001/CASPMI 空），
+    用它判必然误判成"具备"。
+  - 「工具 X 可以处理哪些数据？」——属性照写进 answer、rank1 照给 X，但图内**没有任何**文件能喂
+    给 X 时（`multiqc`、`bootstrap_stability`、`hvg_pca_gmm` 就是），状态写 `missing_from_graph`。
+
+  以上各条同时写在系统提示词末尾的输出契约里（server.py），两处必须一致。
 
 - **同时要做两件分析**（"免疫浸润 + WGCNA"）→ 挑主环节那条给 rank1，另一条在 `match_note` 里点名。
   **并列时 rank1 取问句里先出现的那件**（"同时完成可变剪接分析和体细胞变异检测"→ rank1 是
@@ -477,6 +533,15 @@ RETURN collect(f.format)
 必须由你给出的只有：`schema_version`、`selection_status`、`intent`、空推荐时的顶层 `answer`、
 每条 recommendation 的
 `pipeline_id`/`match_note`/`data.assets[].file_name`+`match_reason`、candidates 的 tool_chain 顺序。
+
+**别忘了给链。** 问句里出现「工具**链**」「哪条工具**流程**」「**流程**是什么」，或者目标本身要走
+上游（原始 FASTQ 想比对必须先质控去接头；想做表达定量必须先比对），**必须在
+`candidates[0].tool_chain` 里按执行顺序列出每一步的 `tool_id`**，只交一条 rank1 就是漏答。
+rank1 填这条链的**主环节**（比对题填 `bwa`/`star` 而不是 `fastp`），上游步骤放进 tool_chain：
+`DNA 序列比对`→`fastp`→`bwa`；`RNA 序列比对`→`trim_galore`→`star`；`表达定量`→`star`→`rsem`。
+§7 那些拒绝/状态规则只管「给不给、状态写什么」，**管不到「链要不要展开」——照展**。
+（实测教训：契约末尾加了一大段拒绝规则之后，9 道链题的子序列命中从 6/9 掉到 1/9，
+模型全改成只给一条 rank1；这条就是把它拉回来的。）
 
 **assets 只需给"主数据"一条**：主数据 = 该流程的核心输入（表达矩阵 / MAF / FASTQ）。
 流程需要临床表时，服务端会自动把同队列的临床表与样本元信息表补齐，
