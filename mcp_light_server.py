@@ -900,11 +900,13 @@ def tool_validate_plan(args):
         v.append("schema_version 缺失或不是 tool-chain/v2")
     meta_to_graph = {c["meta_id"]: gid for gid, c in KC_MAP.items() if gid != c["meta_id"]}
     recs = plan.get("recommendations") or []
-    # 空 recommendations 只在「本来就没有推荐可给」的状态下合法：information（纯数据分布/
-    # 清单类回答）、unsupported（需求超出闭集）、no_candidate（图内查无）。此前一律判违规，
-    # 逼得模型为「HRA001272 角色分布如何」这类信息题硬凑一个 rank1 推荐——既是编造，又白烧
-    # 一轮修正（实测 q03/q06/q24 每次多花 20s）。
-    _NO_REC_OK = {"information", "unsupported", "no_candidate", "missing_from_graph"}
+    # 空 recommendations 只在「闭集里真的没有可给的流程」时合法：unsupported（需求超出闭集）、
+    # no_candidate / missing_from_graph（图内查无）。**information 已从白名单撤下**——它原本是
+    # 给「HRA001272 角色分布如何」这类纯信息题留的口子，实测却成了模型逃避出流程的通道：
+    # qa_final class3 450 例里 73 例（16.2%）判 information 交空 recommendations，其中 66 例
+    # answer 里工具名是对的，也就是模型答对了、执行端却拿不到任何可提交的东西。产品口径已改为
+    # 「任何问句都要出流程」，所以这里让它直接判违规、走修正轮补 rank1。
+    _NO_REC_OK = {"unsupported", "no_candidate", "missing_from_graph"}
     _sel = str(plan.get("selection_status") or "").lower()
     if _sel == "rejected":
         # 拒绝写成了 v2 信封里的 selection_status，而契约要的是**裸对象**。以前这条落到下面
@@ -916,8 +918,11 @@ def tool_validate_plan(args):
                  '{"status":"rejected","reason":"privacy: …"}，'
                  "不要 schema_version/candidates/recommendations 等任何其他字段")
     elif not recs and _sel not in _NO_REC_OK:
-        v.append("recommendations 为空（selection_status 不是 information/unsupported/"
-                 "no_candidate 时必须有 rank1 推荐，否则改用 rejected）")
+        v.append("recommendations 为空：任何问句都必须给 rank1 推荐——问工具属性的问句也一样"
+                 "（属性写进 answer，同时给出问句所指工具那条推荐）。只有 unsupported"
+                 "（需求超出闭集）/ no_candidate（图内查无）允许为空，"
+                 "非生信或隐私问题改用裸 rejected 对象。"
+                 "selection_status=information 已废弃，不再是空推荐的合法理由")
     # 空 recommendations 合法**不等于**可以不回答。165 例实测：99 例交了空 recommendations，
     # 其中 72 例整个 JSON 里一个自然语言字段都没有——「cellranger_workflow 和 breast_cellchat
     # 有哪些共同输入格式」这种题，模型查完图、判了 information，然后交了个空壳，用户什么也

@@ -230,8 +230,9 @@ def load_system_prompt():
     prompt += (
         "\n\n【最终输出契约——最高优先级，覆盖一切】你的最后一条消息必须且只能是一个"
         " tool-chain/v2 JSON 对象（或 rejected 单对象）：不要散文、不要 markdown 围栏、"
-        "不要任何前后解释文字，也不要包进数组 []。回答数据分布/清单类问题也用 JSON（selection_status 可为 "
-        "information），绝不用散文列表作答。\n"
+        "不要任何前后解释文字，也不要包进数组 []。**任何问句都必须带 rank1 推荐**——问工具"
+        "属性（支持哪些格式、A 能否接 B）的也一样，属性写进 answer，推荐照给；"
+        "`selection_status: information` 已废弃，别再用它交空 recommendations。\n"
         "【接地校验由服务端自动执行】本会话**不提供** validate_plan 工具，也不要等它："
         "你输出最终 JSON 后，服务端会自动对它跑接地校验；若 grounded=false，会把 violations "
         "回传给你修正。所以证据够了就**直接输出最终 JSON**，把校验交给服务端。\n"
@@ -575,9 +576,10 @@ def _repair_hint(violations):
     v = " ".join(str(x) for x in violations)
     hints = []
     if "recommendations 为空" in v:
-        hints.append("要么把 selection_status 改成 information/unsupported/no_candidate"
-                     "（信息型、需求超出闭集、图内查无——这三种状态允许 recommendations 为空），"
-                     "要么从手册 §8.1 闭集目录里选语义最贴近的 pipeline 补一条 rank1 推荐。")
+        hints.append("从手册 §8.1 闭集目录里选语义最贴近的 pipeline 补一条 rank1 推荐——"
+                     "问工具属性的问句也要补（属性留在 answer 里，推荐照给，rank1 就是问句"
+                     "点名的那个工具）。只有需求确实超出闭集（unsupported）或图内查无"
+                     "（no_candidate）才允许空，`information` 已不是合法理由。")
     if "不在闭集目录" in v or "非闭集 atomic" in v:
         hints.append("pipeline_id/tool_id 必须逐字取自手册 §8.1 的 55 个工具名（不能为 null、"
                      "不能自造），atomic 链只能用 §3 的 11 个可编排 atomic。")

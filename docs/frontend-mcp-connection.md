@@ -118,7 +118,7 @@ DeepSeek 实操建议：`temperature` 调低（≤0.3）；若客户端支持 `r
 |---|---|---|
 | `ready` | 至少一条候选参数绑全，可直接提交 | 取 `feasibility_status=="ready"` 的候选提交 |
 | `needs_input` | 找到了流程，但有参数只能由人给（典型是差异表达的 `group_a_samples`/`group_b_samples`） | 读 `execution_params_missing` 逐项问用户 |
-| `information` | 知识问答，答案在 `answer` 里 | 直接把 `answer` 给用户；**这种情况不带 `unsupported_reason`**，别当成规划失败 |
+| `information` | **已废弃**，不再产出 | 历史返回可能还带它；新版一律出 rank1 推荐，问工具属性的问句把属性放 `answer`、推荐照给 |
 | `unsupported` | 非生信问题或触碰隐私红线，被拒 | 把 `unsupported_reason` 给用户 |
 | `no_candidate` | 闭集里没有能干这件事的流程，或模型/Neo4j 不可用 | 看 `unsupported_reason` 与 `planner_metadata.reason` |
 

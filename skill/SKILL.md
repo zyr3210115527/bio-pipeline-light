@@ -437,9 +437,8 @@ and the execution end never consumes anything past index 0. `candidates[]` is fi
 chain is possible.
 
 **When there is no recommendation to give, the top-level `answer` field *is* the deliverable.**
-When `selection_status` is `information` / `unsupported` / `no_candidate`, `recommendations` may be
-empty — for pure data-distribution or inventory questions do not invent a pipeline just to fill the slot
-(that is fabrication); every other status requires a rank-1 entry. But **an empty `recommendations` does
+When `selection_status` is `unsupported` / `no_candidate` / `missing_from_graph`, `recommendations` may be
+empty; **every other status requires a rank-1 entry**. But **an empty `recommendations` does
 not license an empty answer**: in that case you must write a top-level `answer` — two to five sentences,
 in the user's language, naming every relevant `tool_id`, semantic format and study accession explicitly.
 `match_note` lives *inside* `recommendations[i]` and therefore has nowhere to live when the list is empty;
@@ -448,31 +447,37 @@ do not park the answer there, and do not invent `note` / `summary` / `explanatio
 nothing and is reported as a grounding violation. Human-readable fields (`answer`, `match_note`) may be
 written in the user's language.
 
-**Response patterns for knowledge queries** (questions *about the tools*, not requests for a plan). These
-are a large share of real traffic and have determinate answers: always `selection_status: "information"`
-with empty `recommendations` and a populated `answer`.
+**Every question ships a pipeline — `information` is retired.** Questions *about the tools* used to be
+answered with `selection_status: "information"` and an empty `recommendations`; that route is gone.
+Answer the property in `answer` **and give a rank-1 recommendation as well**. What it cost: across 450
+graded cases, 73 (16.2%) returned `information` with empty `recommendations`, and in 66 of those the
+tool named in `answer` was the correct one — the model got it right and the execution end still received
+nothing submittable. The server now rejects an empty `recommendations` unless the status is
+`unsupported` / `no_candidate` / `missing_from_graph`.
 
-**Draw the boundary first — getting it wrong is expensive in both directions.** The single test is
-**whether the question states an analysis goal**.
+**Where rank-1 comes from, by question shape** (the old "does it state an analysis goal" test no longer
+decides anything — *every* question gets a rank-1):
 
-- Goal stated ("I want to do X", "to do X", "I have `<data>` and want Y", "achieve X") → **this is a
-  planning request and must carry a rank-1 recommendation**, even when it goes on to ask "which tools
-  are there / which candidate tools / how do their inputs and outputs differ". "Which tools do I need"
-  asks *what to use in order to accomplish X*; it is not a metadata question. Put the comparison in
-  `match_note` (and optionally an additional `answer`) — **but never drop the recommendation**. Two
-  analyses at once ("immune infiltration + WGCNA") still gets a rank-1: pick the primary leg and name
-  the other in `match_note`. **When two analyses are named side by side, rank-1 is the one mentioned
-  first in the question** ("complete both alternative-splicing analysis and somatic variant calling" →
-  rank-1 is the splicing pipeline). This ordering is a hard rule; do not reorder by which leg feels more
-  upstream or more fundamental.
+- **The question names a tool** ("which input formats does fastp take", "can A's output feed B", "how do
+  A and B differ") → rank-1 is that tool; for comparisons take the one **mentioned first** and name the
+  other in `match_note`.
+- **The question gives only an analysis goal** ("I want to do X", "to do X", "what data and which tool
+  does X need", "…what are they respectively") → rank-1 is the closest pipeline in the closed set for X.
+  **A "what is it / what are they respectively" phrasing does not change this** — the question asks
+  *what to use in order to accomplish X*, not for tool metadata, and that is exactly where the 73 cases
+  above went wrong. A follow-on "which candidate tools are there / how do their inputs and outputs
+  differ" still gets rank-1, with the comparison in `match_note`.
   **When the goal is not achievable as stated, still lead with the nearest viable pipeline** and spell
   out the missing step in `match_note` / `answer` — "unsupervised clustering on BAM" recommends
   `rnaseq_unsupervised_cluster` while noting that quantification to counts must come first. Only when
   not even a nearest candidate exists may `recommendations` be empty with `unsupported`.
-- No goal, only tool properties (formats, position in a chain, whether two tools connect, how A and B
-  differ) → this is a genuine knowledge query; use the table below.
+- **Two analyses at once** ("immune infiltration + WGCNA") → pick the primary leg for rank-1 and name
+  the other in `match_note`. **When two analyses are named side by side, rank-1 is the one mentioned
+  first in the question** ("complete both alternative-splicing analysis and somatic variant calling" →
+  rank-1 is the splicing pipeline). This ordering is a hard rule; do not reorder by which leg feels more
+  upstream or more fundamental.
 
-Four knowledge-query shapes and where their answers come from:
+Where tool properties are looked up (they go into `answer`; **they do not excuse dropping rank-1**):
 
 | Question shape | Source of truth | `answer` must state |
 |---|---|---|
@@ -599,7 +604,7 @@ consumes, not what you type. When delivering to a front-end / for integration, p
 ```json
 {
   "schema_version": "tool-chain/v2",
-  "selection_status": "information | ok | no_candidate | unsupported | ...",
+  "selection_status": "ok | no_candidate | unsupported | ...",
   "candidate_count": 0,
   "candidates": [],
   "recommendation_count": 1,
@@ -637,11 +642,14 @@ consumes, not what you type. When delivering to a front-end / for integration, p
 }
 ```
 
-Knowledge-query shape (empty `recommendations` ⇒ `answer` is mandatory; this should normally settle in
-one round with zero or one query):
+Tool-property shape (the property goes in `answer`, **and rank-1 is still given** — the old
+`information` + empty-`recommendations` route is retired; this should normally settle in one round with
+zero or one query):
 
 ```json
-{"schema_version":"tool-chain/v2","selection_status":"information","candidates":[],"recommendations":[],
+{"schema_version":"tool-chain/v2","selection_status":"ok","candidates":[],
+ "recommendations":[{"rank":1,"pipeline_id":"gatk","tool":{"tool_id":"gatk"},
+   "match_note":"gatk is named first in the question, so it takes rank 1; tmb_survival_analysis sits further downstream — input-format difference is spelled out in answer."}],
  "answer":"gatk takes REFERENCE_GENOME_FASTA, DNA_GENOMIC_ALIGNMENT_BAM, DNA_ALIGNMENT_INDEX_BAI and TARGET_INTERVAL_LIST; tmb_survival_analysis takes MUTATION_ANNOTATION_FORMAT_MAF and CLINICAL_DATA_EXCEL. The two input sets are disjoint — there is no shared input format. They are consecutive rather than interchangeable: gatk's variant output must be converted to MAF before tmb_survival_analysis can consume it.",
  "intent":{"query_text":"...","analysis_goal":"tool input-format comparison","disease":null,
            "omics_type":null,"input_hint":null,"requested_outputs":[],"study_accessions":[],
