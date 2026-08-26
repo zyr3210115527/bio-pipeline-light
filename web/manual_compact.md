@@ -21,7 +21,7 @@ Neo4j 图谱（库 `neo4j`）是唯一事实源。只读：禁止 CREATE/MERGE/D
 
 ## 2. 图谱模型（0826 交付）
 
-- `tool`(55)：`tool_name`、`function`（**受控词**，见下）、`semantic_output`（`;` 分隔）、`catalog_id`(T001…T055)
+- `tool`(55)：`tool_name`、`function`（**受控词**，见下）、`semantic_output`（`;` 分隔）、**`tool_id`**——`T001`…`T055` 这个号就存在这个属性上（55/55 全形如 `T[0-9]+`）。**图节点上没有 `catalog_id` 属性**（0/55），`catalog_id` 是闭集对同一个值的叫法，所以闭集接图一律 `catalog_id` → `t.tool_id`；写 `t.catalog_id` 不报错、静默返回一整列 null
 - `function`(30)：**0826 起是受控词表，不再是自由文本**。55 个工具全部挂了 `has_function`（共 89 条边），
   所以「意图 → 工具集合」现在走 function 最可靠，**按整词等值匹配**，别再用子串猜：
   `测序质量评估` `接头与低质量序列修剪` `序列格式转换` `DNA序列比对` `RNA序列比对` `比对后处理与去重`
@@ -37,7 +37,7 @@ Neo4j 图谱（库 `neo4j`）是唯一事实源。只读：禁止 CREATE/MERGE/D
 - **datalevel 节点属性是 `level`/`name`/`description`，不是 data_level**（1 原始→4 知识）；文件侧的 `T1.data_level`/`T2.data_level` 才叫 data_level
 - `study`(20)/`project`(18)：`study_accession`、`tumor_type`（英文，toLower+CONTAINS 查）、`individual_count`、`sample_count`（**6 队列无值**：HRA000073/HRA000087/HRA002693/HRA006117/HRA007413/HRA016026——按它过滤会静默漏，要规模就数 sample 节点）
 - `individual`(7131)：**id 是 `00_individual_accession`，这个标签上没有裸的 `individual_accession`**（那个名字只在 T1/T2 上有；在 individual 上写它不报错，整列返回 null）。**只有 `00_*` 是操作性标识**（00_individual_accession/00_sample_accession/00_platform/00_strategy…）；**`01_`–`13_` 全是患者级敏感**：01_ 人口学、02_ 家族史、03_ 生活史、04_ 血液学、09_ 病理、10_ 侵犯、11_ 分子（`11_tmb`/`11_msi_score`）、12_ 治疗、**13_ 生存（`13_survival_days`/`13_survival_status`/`13_pfs_time`…生存分析用这里）**——只许聚合，个体取值被服务端拒
-- `sample`(10465)：`sample_accession`、`sample_name`、`tissue_type`（**不是干净二值**：0821 为 Tumor 6258 / Normal 2821 / null 829 / Blood 557，已无多值单元，但 null 和 `Blood` 仍会让等值匹配漏样本；判角色一律用 resolve_sample_roles）、`specimen_type`（仍有分号多值，486 个 `Organoid;Patient_Solid_Tissue`）、`gender`
+- `sample`(10465)：`sample_accession`、`sample_name`、`tissue_type`（**不是干净二值**：0826 为 Tumor 7045 / Normal 2863 / Blood 557，null 已在 0826 补齐、多值单元也没有了，但 `Blood` 仍会让等值匹配漏样本；判角色一律用 resolve_sample_roles）、`specimen_type`（仍有分号多值，486 个 `Organoid;Patient_Solid_Tissue`）、`gender`
 - `T1` 原始文件：`t1_id`/`file_name`/`file_format`/`semantic_format`/`data_level`/`study_accession`（全量有值）；`strategy`/`platform`/`sample_accession`/`sample_name` 28,184；`file_path` 26,879。**缺值的 45 个是 Clinical/`*_META` 聚合文件**（本就跨样本），别据此判「无样本信息」
 - `T2` 结果文件：`t2_id`/`file_name`/`format`/`strategy`/`data_level`/`study_accession`（全量）；`file_path` 35,566。**T2 无 platform/sample_accession**——样本归属走 `(T2)-[:generated_from]->(T1)-[:in_sample]->(sample)`
 
@@ -46,7 +46,7 @@ Neo4j 图谱（库 `neo4j`）是唯一事实源。只读：禁止 CREATE/MERGE/D
 `(T2)-[:generated_from]->(T1)`；`(sample)-[:in_individual]->(individual)`；`(individual)-[:in_study]->(study)`；
 `(format)-[:subclass_of]->(format)`（按语义格式找工具可沿边向上）。
 
-**看着像数字的字段在 0821 图里全是 STRING，比大小/排序前必须 `toInteger()`/`toFloat()`**（`valueType()`
+**看着像数字的字段全是 STRING（0826 重测未变），比大小/排序前必须 `toInteger()`/`toFloat()`**（`valueType()`
 实测）：`data_level`/`size`/`01_age`/`11_tmb`/`11_msi_score`/`13_*`。**只有 `study.sample_count` 和
 `study.individual_count` 是真 INTEGER**（且只有 14 个 study 有值）。写 `f.data_level = '1'`、
 `toInteger(i.\`13_survival_days\`) > 365`、`ORDER BY s.sample_count DESC`。
@@ -99,7 +99,7 @@ atomic 闭集：`bwa` `fastp` `fastqc` `featurecounts` `gatk` `bcftools` `snpeff
 
 ## 4. 查询配方
 
-15 条官方模板在 `references/query_templates/`（按名取用，0821 实跑 15/15 有行）。**属性名大小写照抄**——`t1_id` 写成 `T1_id` 不报错、静默 0 行：
+15 条官方模板在 `references/query_templates/`（按名取用，**0826 图上重跑 15/15 全部有行**；传参照抄模板里的属性名——`tool_id` 收的是 `T033` 这类号、不是 `bcftools` 这类名，传错了静默 0 行）。**属性名大小写照抄**——`t1_id` 写成 `T1_id` 不报错、静默 0 行：
 find_tools_by_function（**按 §2 的 30 个受控词整词等值**找工具；写半个词（'差异'）等值匹配静默 0 行）/ find_tools_by_input_format / find_tools_by_output_format（**注意 bootstrap_stability/hvg_pca_gmm/multiqc 无 input 边**，按输入格式永远找不到，需要时按 has_function/工具名查）/
 find_tool_input_output / find_tools_by_modal / trace_next_tool_chain / recommend_next_tools_via_output_match /
 trace_paths_from_input_format_to_output_format / find_t1_by_study_and_format / find_t1_by_modal /
@@ -114,7 +114,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
      去图里搜只可能搜出一个从没跑通过的队列，服务端会驳回。下面这些只对另外 41 个工具有效。
    - `tumor_type` 用英文 toLower+CONTAINS；**肝癌必须 `'liver' OR 'hepatocell'`**（只写 liver 漏 HRA001272=Hepatocellular Carcinoma）；肺癌写 `'lung'` 即可。拿不准就用 §8.2 队列表直接选
    - **现成表达矩阵在 T2**（文件名含 `Genes`，如 HRA001272-Genes-TPM-1.0.tsv），T1 是原始 FASTQ；`semantic_format`≠`format`/`file_format`
-   - T2 有现成 VCF/MAF/BAM 就标「复用」跳过上游；配对发现先聚合哪些 study 有同个体 Tumor+Normal（0821 的 `tissue_type` 已是干净二值，HRA016026 为 350 `Tumor` + 350 `Normal`；下面的写法同时兼容名称后缀兜底）：
+   - T2 有现成 VCF/MAF/BAM 就标「复用」跳过上游；配对发现先聚合哪些 study 有同个体 Tumor+Normal（HRA016026 0826 仍是 350 `Tumor` + 350 `Normal`，但**全图 `tissue_type` 并不是干净二值**——还有 `Blood` 557、`Organoid` 30，见 §8.4；下面的写法同时兼容名称后缀兜底）：
      ```cypher
      MATCH (sp:sample)-[:in_individual]->(i:individual)
      WITH sp.study_accession AS study, i,
@@ -124,8 +124,8 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
        AND (any(t IN tts WHERE t CONTAINS 'normal') OR any(n IN nms WHERE n ENDS WITH '_normal'))
      RETURN study, count(i) AS pairable_individuals ORDER BY pairable_individuals DESC
      ```
-   - **可配对队列（0821 实测个体数）**：HRA000873 1015、HRA000021 508、HRA016026 350、HRA001272 206、HRA003107 155、HRA001749 84、HRA007169 76、HRA006499 72。陷阱：**HRA000071 血液对照与肿瘤不属同一个体**——能分组不能同个体配对；要现成配对优先 HRA016026（350 个体各 2 样本）
-   - **判不出角色的队列（别浪费轮数）**：HRA000001（全 Blood）、HRA000074、HRA005191、HRA002693、HRA006117、HRA000122（大量缺 tissue_type）——如实告知或换队列。**这只卡「逐样本配对」这一件事**：这些队列的队列级矩阵/MAF 分析（差异、富集、聚类、免疫浸润、生存）照常可做，不要因为角色判不出就报 `no_candidate`
+   - **可配对队列（0826 实测个体数）**：HRA000873 1015、HRA000021 508、HRA016026 350、HRA001272 206、HRA003107 155、HRA007169 76、HRA006499 72、HRA001749 56、HRA000122 42、HRA001748 30。比 0821 两处变化：HRA001749 从 84 降到 56；**HRA000122 变成可配对**（0821 还在"判不出角色"那张表里，0826 是 245 Tumor / 42 Normal）——但它仍被 §3 固定数据白名单限制成只能走 `umap`，可配对不等于随便用。全部配对都是 Tumor+Normal，**没有任何队列靠 Blood 配对**。陷阱：**HRA000071 血液对照与肿瘤不属同一个体**——能分组不能同个体配对；要现成配对优先 HRA016026（350 个体各 2 样本）
+   - **判不出角色的队列（0826 重测，别浪费轮数）**：HRA000001（557 全 `Blood`）、HRA000074（693 全 `Tumor`）、HRA002693（655 全 `Tumor`）、HRA006117（835 全 `Tumor`）、HRA005191（243 全 `Tumor`）。**0821 写的理由「大量缺 tissue_type」现在是错的，已删**：0826 把全图空值补齐了，这些样本都有 `tissue_type`，只是整个队列只有一条臂、没有对照——事实变了，结论没变。HRA000122 **已从这张表移走**。别再拿"是不是空值没查到"重查一遍，就是只有一条臂。如实告知或换队列。**这只卡「逐样本配对」这一件事**：这些队列的队列级矩阵/MAF 分析（差异、富集、聚类、免疫浸润、生存）照常可做，不要因为角色判不出就报 `no_candidate`
    - **队列样本清单以 sample 节点为准**（`MATCH (sp:sample) WHERE sp.study_accession='HRA*'`）；别用 `(T1)-[:in_sample]->(sample)` 数样本（漏无文件样本）
    - 文件缺口判定只看 `resolve_sample_roles` 的 `file_coverage.t1_files_unlinked`（真无 in_sample 边的文件数，正常是聚合文件个位数）；`runs_without_sample_node` 是诊断字段不是缺口，拿它判队列会误杀。真缺口如实 `missing_from_graph`，绝不按文件名/顺序猜样本归属
 
@@ -284,14 +284,12 @@ HRA007413/HRA016026），另有 2 个数值是错的（HRA000074 写 572 实为 
 **全图带 MAF 的队列只有 7 个**：HRA000873、HRA016026、HRA001272、HRA006499、HRA001749、
 HRA007169、HRA000071（最后一个只有队列级汇总，其余还各带逐 run 的 `HRR*.maf`）。
 
-**单细胞队列直接认这三个，别用 `strategy` 去筛**：**HRA001748**（10x，肝癌，320 个配对
-FASTQ，形如 `HRR572934_f1.fq.gz`/`_r2.fq.gz`——10x/CellRanger 类问题的默认队列）、
-HRA000087（Smart-seq2，鼻咽癌，样本级标了 sc-RNA 但**没有 sc-RNA 文件**）、
-HRA005191（NSCLC，484 个文件是全图仅有的 `strategy='sc-RNA'`）。
-**0821 交付把 HRA001748 和 HRA000087 的 strategy 误标成了 `bulk_RNA`**（两者的 study
-title/description 里明写 `scRNA-seq`/`Single-cell`）。所以 `t.strategy='sc-RNA'` 只捞得到
-HRA005191，**拿它筛单细胞会漏掉真正的 10x 队列**；
-判单细胞看 study 的 title/description 里有没有 `scRNA`/`Single-cell`，或直接用上面这张表。
+**单细胞队列共三个**：**HRA001748**（10x，肝癌，320 个配对 FASTQ，形如
+`HRR572934_f1.fq.gz`/`_r2.fq.gz`——10x/CellRanger 类问题的默认队列）、
+**HRA005191**（NSCLC，T1 484 个文件）、**HRA000087**（Smart-seq2，鼻咽癌，T2 14 个文件、无 T1）。
+0821 把 HRA001748/HRA000087 误标成 `bulk_RNA` 的问题**0826 交付已修**，`strategy='sc-RNA'` 现在可信：
+T1 捞到 HRA005191 484 + HRA001748 320，T2 捞到 HRA005191 289 + HRA001748 236 + HRA000087 14，
+不会再漏掉 10x 队列。
 
 **`RAW_SINGLE_END_FASTQ` 全图 0 个文件**——`cellranger_workflow` 虽声明要它，10x 原始下机数据
 在图里一律存成 `RAW_PAIRED_END_R1_FASTQ`/`R2`。**按流程声明的输入格式去查会查空，不许据此判
@@ -334,13 +332,13 @@ Clinical/Meta 六种，0821 起 WXS 已并入 WES，Targeted-Capture/TCR-Seq/Unk
 **可变剪接**：rMATS 类分析要 RNA 比对 BAM，取 `RNA_TRANSCRIPTOME_ALIGNMENT_BAM`（上表第 5 行）；
 `RNA_SPLICEJUNCTION_TAB` 是 STAR 已算好的剪接位点，只有 HRA001272 有。
 
-### 8.4 sample 上这几个字段 0821 起不可信（**别拿它们做筛选条件**）
+### 8.4 sample 上这几个字段不可信（0826 实测，**别拿它们做筛选条件**）
 
-0821 交付把一批**研究级别的默认值覆盖到了样本级别的事实**上。坏值不是空、也不是乱码——每格都
+交付把一批**研究级别的默认值覆盖到了样本级别的事实**上（0821 引入，0826 仍在）。坏值不是空、也不是乱码——每格都
 填满了、单看都合理，所以查回来不会报错，只会静默选错样本。以下四条一律照办：
 
 1. **`tumor_descriptor` 不能用来分原发/转移/复发。** 全库只剩 `Primary` 8551、`Metastasis` 12、
-   空 1902——`Metastatic`(旧 210) 和 `Recurrent`(旧 407) 被整片压平成 `Primary`，另有 **1470 个
+   空 1902——`Metastatic`(旧 210) 和 `Recurrent`(旧 407) 被整片压平成 `Primary`，另有 **1512 个
    `tissue_type='Normal'` 的样本也被标了 `Primary`**（正常血样写"原发肿瘤"，自相矛盾）。
    要分原发/转移/复发**看 `sample_name` 后缀**，HRA001272 的编码是：`PT`原发 143、`NC`癌旁对照 85、
    `LM`肺转移 65、`PM`腹膜转移 31、`RT`复发 28、`BM`骨转移 20、`AGM`肾上腺转移 19、`LNM`淋巴结转移 19、
@@ -359,8 +357,9 @@ Clinical/Meta 六种，0821 起 WXS 已并入 WES，Targeted-Capture/TCR-Seq/Unk
    `CONTAINS` 不许用 `=`**。好消息：这 525 个的 `tissue_type` 仍是 `Normal`，**配对分析照常走
    `tissue_type`，不受影响**。
 
-`tissue_type` 本身也有 829 个样本为空（却带着 `tumor_descriptor`），判存在用 `IS NOT NULL`。
-反过来，**HRA000071 的 `tissue_type` 0821 修对了**：`Blood`/`Normal` 286 + `Patient_Solid_Tissue`/
+**`tissue_type` 已经没有空值了**：0821 那 829 个空样本在 0826 全部补齐，现在是
+Tumor 7045 / Normal 2863 / Blood 557，不必再用 `IS NOT NULL` 兜——但 `Blood` 的存在意味着
+它**仍不是**干净的肿瘤/正常二值。**HRA000071 的 `tissue_type` 0821 修对了**：`Blood`/`Normal` 286 + `Patient_Solid_Tissue`/
 `Tumor` 286，与样本名 `B_`/`T_` 前缀各 286 完全自洽（旧数据是错的），该队列可直接信任。
 
 ## 9. 输出契约（硬性规则，违反即任务失败）
@@ -400,6 +399,26 @@ Clinical/Meta 六种，0821 起 WXS 已并入 WES，Targeted-Capture/TCR-Seq/Unk
   **但"先给 rank1"不等于硬凑一条跑不动的**：流程有、用户点名的队列不在它的已验证名单里时，
   正确做法是换成该流程支持的队列之一（`assets` 一起换掉），并在 `match_note` 里写明
   "该流程只在 A/B/C 上跑通过，已改用 A"——不是留着原队列硬推，也不是让用户去改队列迁就工具。
+
+**"必须给 rank1"管不到「前提本身不成立」的问句。** 下面两种形态先判前提，前提不成立就走
+`no_candidate` + 空 `recommendations` + 顶层 `answer` 说清缺什么，**不要硬凑 rank1**。
+0826 抽测里 9 道 negative 错了 5 道，4 道栽在这里：
+
+- **问句点名的项目图内查无。** 判据是**整串命中** `study.title` 或直接给 HRA 号；
+  前缀命中但带了图内没有的限定词、或只靠癌种词兜到某个队列，一律算查无。
+  实测栽的两句：「Chinese Glioma Genome Altas (CGGA) **- WES dataset**」——图内 title 只到
+  `(CGGA)`，没有 WES 那一截，模型丢掉限定词兜到了 HRA000073/74（那是 bulk_RNA 不是 WES）；
+  「Multi-center RNA sequencing analysis for acute myeloid leukemia」——图内没有这个 title，
+  模型靠癌种词兜到了 HRA006117。**改用同癌种的另一个队列不是"合理近似"，是答非所问**——
+  用户问的是这个项目齐不齐备，不是这个癌种齐不齐备。（对照：「Aging and leukemia」因为
+  跟任何真 title 都不沾字面，模型答对了；差别只在有没有字面重叠，不在难度。）
+- **用户手上只有配套元数据，没有分析主数据。**「我拿到了研究元数据」「针对一级文件元数据」
+  这类，临床表/样本元信息表/一级文件元数据本身都只是配套文件，配不出分析主数据
+  （表达矩阵/MAF/FASTQ）就没有任何闭集流程跑得动。这时**不许挑一条"最通用的消费场景"当
+  rank1**——实测两句分别硬推了 `immune_infiltration_iobr` 和 `fastqc`，而它们自己的
+  `match_note` 里已经写明"元数据不是分析主数据、必须配表达矩阵"。结论写进 `answer`：
+  说清这是配套文件、要配哪类主数据才能跑，然后交空 `recommendations`。
+
 - **同时要做两件分析**（"免疫浸润 + WGCNA"）→ 挑主环节那条给 rank1，另一条在 `match_note` 里点名。
   **并列时 rank1 取问句里先出现的那件**（"同时完成可变剪接分析和体细胞变异检测"→ rank1 是
   可变剪接那条），这条定序是硬规则，不要按"哪个更基础/更上游"自行改序。

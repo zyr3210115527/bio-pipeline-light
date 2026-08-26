@@ -34,14 +34,14 @@ provides knowledge and deterministic checks — there is **no "one-call Plan" en
 
 | Node | Key properties (caveats) |
 |---|---|
-| `tool` (55) | `tool_name`, `function` (controlled term, see below), `semantic_output` (`;`-separated), `catalog_id` (T001…T055) |
+| `tool` (55) | `tool_name`, `function` (controlled term, see below), `semantic_output` (`;`-separated), **`tool_id`** — this is the `T001`…`T055` id (all 55 match `T[0-9]+`). **There is no `catalog_id` property on the graph node** (0/55 carry it); `catalog_id` is what the *closed-set catalog* calls this same value, so join catalog→graph as `catalog_id` → `t.tool_id`, and never write `t.catalog_id` (it returns an all-null column, not an error) |
 | `function` (30) | **A controlled vocabulary since the 0826 rebuild — 30 fixed Chinese terms, not free text.** Every one of the 55 tools carries at least one `has_function` edge (89 edges total), so function is now the most reliable way to go from an intent to a tool set. **Match by equality on the exact term**, not CONTAINS: `测序质量评估` `接头与低质量序列修剪` `序列格式转换` `DNA序列比对` `RNA序列比对` `比对后处理与去重` `变异质量校正` `体细胞变异检测` `胚系变异检测` `结构变异检测` `拷贝数变异分析` `基因融合检测` `可变剪接分析` `变异过滤与处理` `变异注释` `突变景观与可视化` `肿瘤演化与克隆推断` `表达定量` `表达矩阵预处理与归一化` `单细胞比对与定量` `单细胞下游分析` `细胞通讯分析` `轨迹推断` `差异表达分析` `功能富集分析` `共表达网络分析` `无监督聚类分析` `免疫浸润与微环境分析` `生存分析` `可视化与报告`. Note there is **no space** in `DNA序列比对` / `RNA序列比对`. `可视化与报告` is a co-tag on 18 tools and discriminates nothing — never select on it alone |
-| `format` (35) | e.g. `RAW_PAIRED_END_R1_FASTQ`, `DNA_VARIANT_VCF_GENERAL`, `MUTATION_ANNOTATION_FORMAT_MAF`, plus `CLINICAL` / `*_META` |
+| `format` (42) | e.g. `RAW_PAIRED_END_R1_FASTQ`, `DNA_VARIANT_VCF_GENERAL`, `MUTATION_ANNOTATION_FORMAT_MAF`, plus `CLINICAL` / `*_META` |
 | `modal` (6) | **Only** `WES` / `WGS` / `bulk_RNA` / `sc-RNA` / `Clinical` / `Meta` — never invent spellings like `RNA-seq`. **The node property is `modal`, not `name`** — `(:modal {name:'sc-RNA'})` matches nothing and returns a silent zero. To find a modality's files, filter `T1.strategy = 'sc-RNA'` directly rather than traversing `in_modal` |
 | `datalevel` (4) | Properties are `level` / `name` / `description`, **not** `data_level`; 1 raw → 4 knowledge. (File-side `T1.data_level` / `T2.data_level` ARE called data_level.) |
 | `study` (20) / `project` (18) | `study_accession`, `tumor_type` (Title Case English, e.g. `Liver Cancer`; query with toLower + CONTAINS — one cancer has multiple spellings, see §4 recipe 3), `title`, `study_description`, `individual_count`, `sample_count` (**only 14/20 studies have it**: HRA000073/HRA000087/HRA002693/HRA006117/HRA007413/HRA016026 are null — sorting/filtering by it silently drops those 6; to size a cohort count `sample` nodes) |
 | `individual` (7131) | **`00_individual_accession` is the id — there is NO bare `individual_accession` on this label** (that name exists only on `T1`/`T2`; using it here returns an all-null column, not an error). Other properties are prefix-grouped: **only `00_*` is operational** (`00_individual_accession` / `00_sample_accession` / `00_platform` / `00_strategy` …). **`01_`–`13_` are all patient-level sensitive**: 01_ demographics, 02_ family history, 03_ lifestyle, 04_ hematology, 09_ tumor pathology, 10_ invasion, 11_ molecular (`11_tmb` / `11_msi_score`), 12_ treatment, **13_ survival (`13_survival_days` / `13_survival_status` / `13_pfs_time` … — survival-analysis data lives here)**. Aggregates only (count / avg / IS NOT NULL); per-individual reads are refused by the server guard (§8) |
-| `sample` (10465) | `sample_accession`, `sample_name`, `tissue_type`, `specimen_type` (underscore style, e.g. `Patient_Solid_Tissue`), `gender`. **`tissue_type` is not a clean Tumor/Normal binary** (0821: Tumor 6258, Normal 2821, null 829, Blood 557 — no multi-value cells left, but null and `Blood` still break equality matching); `specimen_type` does still have `;`-separated multi-values (486 `Organoid;Patient_Solid_Tissue`). Always judge roles via `resolve_sample_roles`, never equality-matching |
+| `sample` (10465) | `sample_accession`, `sample_name`, `tissue_type`, `specimen_type` (underscore style, e.g. `Patient_Solid_Tissue`), `gender`. **`tissue_type` is not a clean Tumor/Normal binary** (0826: Tumor 7045, Normal 2863, Blood 557 — nulls are gone, but `Blood` still breaks equality matching); `specimen_type` does still have `;`-separated multi-values (486 `Organoid;Patient_Solid_Tissue`). Always judge roles via `resolve_sample_roles`, never equality-matching |
 | `T1` | Raw files (FASTQ etc.): `t1_id`, `file_name`, `file_format` (literal), `semantic_format`, `data_level`, `study_accession` (all 6 populated for 28,229); `strategy` 28,222; `platform` / `sample_accession` / `individual_accession` / `sample_name` 28,184; `run_accession` / `experiment_accession` 27,070; `file_path` 26,879; `size` 25,417. **The 45 files missing those values are Clinical / `*_META` aggregate files** (not per-sample by nature) — do not conclude "no platform/sample info in graph" from them |
 | `T2` | Result files (VCF/BAM/MAF…): `t2_id`, `file_name`, `format`, `strategy`, `data_level`, `size`, `study_accession` (all 35,572); `semantic_format` 35,570; `file_path` 35,566; `run_accession` 31,717. **T2 has no `platform` / `sample_accession`** — for sample ownership walk `(T2)-[:generated_from]->(T1)-[:in_sample]->(sample)` |
 
@@ -52,7 +52,7 @@ Key relationships: `(tool)-[:next_tool]->(tool)` chains; `(tool)-[:input|output]
 `(study)-[:in_project]->(project)`; `(format)-[:subclass_of]->(format)` (specific → generic; walk up
 when matching tools by semantic format).
 
-**Numeric-looking fields are STRING in the 0821 graph — wrap in `toInteger()`/`toFloat()` before any
+**Numeric-looking fields are STRING — re-verified unchanged on the 0826 graph. Wrap in `toInteger()`/`toFloat()` before any
 `<` `>` comparison or `ORDER BY`** (verified with `valueType()`): `data_level`, `size`, `01_age`,
 `11_tmb`, `11_msi_score`, `13_survival_days` / `13_dfs_time` / `13_efs_time` / `13_pfs_time`.
 **Only `study.sample_count` and `study.individual_count` are true INTEGER** (and only 14 studies carry
@@ -217,7 +217,7 @@ Standard recipes:
    cohort genuinely has to be discovered.
 
    - Cohort: `tumor_type` is **English Title Case** — match with `toLower(s.tumor_type) CONTAINS '<english>'`;
-     Chinese matches nothing. All values measured 0821 (20 studies): `Liver Cancer`,
+     Chinese matches nothing. All values re-measured on 0826 — unchanged from 0821 (20 studies): `Liver Cancer`,
      `Hepatocellular Carcinoma`, `Lung Cancer`, `Non-Small Cell Lung Carcinoma`, `Malignant Glioma`,
      `Melanoma`, `Esophageal Cancer`, `Colorectal Adenocarcinoma`, `Nasopharynx Carcinoma`,
      `Acute Myeloid Leukemia`, `Acute T Cell Leukemia`, plus one null.
@@ -234,8 +234,9 @@ Standard recipes:
      Sample constraints use `tissue_type` / `specimen_type` / `gender`; pairing needs use
      `find_paired_tumor_normal_samples`.
    - **Paired analysis: cohort discovery first** — never assume a cohort is pairable; aggregate which
-     studies have same-individual Tumor+Normal first. `tissue_type` is clean in 0821 (HRA016026 is
-     350 `Tumor` + 350 `Normal`), but tolerate name suffixes as a fallback:
+     studies have same-individual Tumor+Normal first. HRA016026 is exactly 350 `Tumor` + 350 `Normal`
+     on 0826, but `tissue_type` graph-wide is **not** a clean binary (`Blood` 557, `Organoid` 30 — §12.4),
+     so tolerate name suffixes as a fallback:
      ```cypher
      MATCH (sp:sample)-[:in_individual]->(i:individual)
      WITH sp.study_accession AS study, i,
@@ -245,8 +246,12 @@ Standard recipes:
        AND (any(t IN tts WHERE t CONTAINS 'normal') OR any(n IN nms WHERE n ENDS WITH '_normal'))
      RETURN study, count(i) AS pairable_individuals ORDER BY pairable_individuals DESC
      ```
-     Pairable cohorts measured 0821 (individuals): HRA000873 1015, HRA000021 508, **HRA016026 350**,
-     HRA001272 206, HRA003107 155, HRA001749 84, HRA007169 76, HRA006499 72. The naive form
+     Pairable cohorts measured on the 0826 delivery (individuals): HRA000873 1015, HRA000021 508,
+     **HRA016026 350**, HRA001272 206, HRA003107 155, HRA007169 76, HRA006499 72, HRA001749 56,
+     HRA000122 42, HRA001748 30. Two changes from 0821: HRA001749 dropped 84 → 56, and **HRA000122
+     became pairable** (0821 had it in the unresolvable list; 0826 gives it 245 Tumor / 42 Normal).
+     Note HRA000122 is still restricted to `umap` by the fixed-data whitelist in §3 — pairable does
+     not mean freely usable. Every pair here is Tumor+Normal; **no cohort pairs via Blood**. The naive form
      (`'Tumor' IN tts`) **misses HRA016026 entirely** — the third-largest pairable cohort.
      Known trap: **HRA000071's blood controls and tumor samples belong to different individuals**
      (572 samples 1:1 to 572 individuals) — usable for tumor/normal grouping (`resolve_sample_roles`
@@ -258,11 +263,15 @@ Standard recipes:
      grouped differential expression), call `study` mode and check `role_resolved`; cohorts with false
      cannot do pairing/grouping — report honestly. Per-file `sample_role` / `sample_role_label` use
      `records` mode.
-     **Cohorts whose roles cannot be resolved (0821 measured — do not burn rounds retrying)**:
-     HRA000001 (557 all Blood, no tumor/control signal), HRA000074 (543/693 no `tissue_type`),
-     HRA005191 (243 none), HRA002693 (213/655 none), HRA006117 (265/835 none), HRA000122 (6/287 none).
-     Upstream simply never provided values — no query rewrite will find them. Tell the user roles are
-     incomplete, or switch to a pairable cohort above.
+     **Cohorts whose roles cannot be resolved (re-measured on 0826 — do not burn rounds retrying)**:
+     HRA000001 (557, all `Blood`), HRA000074 (693, all `Tumor`), HRA002693 (655, all `Tumor`),
+     HRA006117 (835, all `Tumor`), HRA005191 (243, all `Tumor`).
+     **The 0821 reason for these is now wrong and the old wording has been removed**: it read
+     "543/693 no `tissue_type`", but 0826 filled every null graph-wide (see §12.4), so these samples
+     all *have* a `tissue_type` — they are single-valued cohorts with no counterpart arm, which is a
+     different fact with the same consequence. HRA000122 is **no longer on this list** (now 245 Tumor /
+     42 Normal → 42 pairable individuals). Do not re-query hoping the nulls were the problem; the
+     cohort simply has one arm. Tell the user there is no control arm, or switch to a pairable cohort above.
      **This blocks per-sample pairing only.** Cohort-level analyses on these same cohorts (differential
      expression, enrichment, clustering, immune deconvolution, survival) run off the aggregate matrix /
      MAF and do their own grouping internally — never downgrade one to `no_candidate` just because
@@ -274,10 +283,10 @@ Standard recipes:
      (HRA006117 has 835 samples; via files only 570 remain).
    - **Two kinds of `sample_accession = null` on files — do not conflate**: **aggregate files**
      (expression matrices / MAF / clinical tables / MetaInfo) are cross-sample by nature, null is normal;
-     **run-organized fastq** (`data_level=1`) should have samples, but post-0821 that class is basically
-     zero — `sample_accession` sits directly on T1 (no run hop), 28,184 of 28,229 T1 have `in_sample`
-     edges and the remaining 45 are all aggregates. **Do not reject cohorts on the pre-0821 conclusion
-     that runs orphan files.**
+     **run-organized fastq** (`data_level=1`) should have samples, but that class is basically
+     zero — `sample_accession` sits directly on T1 (no run hop). Re-measured on 0826 and unchanged
+     from 0821: 28,184 of 28,229 T1 have `in_sample` edges, the remaining 45 are all aggregates.
+     **Do not reject cohorts on the pre-0821 conclusion that runs orphan files.**
      Judge gaps **only** by `resolve_sample_roles(study=...)` → `file_coverage.t1_files_unlinked`
      (files truly lacking `in_sample` edges; e.g. HRA000087 2/3108, HRA001272 2/2362, all aggregates).
      Its sibling `runs_without_sample_node` stays large (1492/1553, 482/1180) and is a **diagnostic
@@ -479,6 +488,32 @@ decides anything — *every* question gets a rank-1):
   does support (swap the `assets` too) and say so in `match_note` — "this pipeline has only run on
   A/B/C, using A". Do not leave the original cohort in place, and do not tell the user to change cohorts
   to suit the tool.
+
+**"Always lead with a rank-1" does not reach questions whose premise is false.** For the two shapes
+below, test the premise first; if it fails, return `no_candidate` with empty `recommendations` and a
+top-level `answer` stating what is missing. **Do not force a rank-1.** Of the 9 negatives in the 0826
+sample, 5 failed and 4 of them failed right here:
+
+- **The question names a project that is not in the graph.** The test is a **whole-string** match
+  against `study.title`, or an HRA accession given outright. A prefix match carrying a qualifier the
+  graph does not have, or a match reached only through the tumour-type word, counts as not found.
+  The two that failed: "Chinese Glioma Genome Altas (CGGA) **- WES dataset**" — the graph's title stops
+  at `(CGGA)` with no WES part, and the model dropped the qualifier and landed on HRA000073/74 (which
+  are bulk_RNA, not WES); and "Multi-center RNA sequencing analysis for acute myeloid leukemia" — no
+  such title exists, and the model reached HRA006117 through the cancer type alone. **Substituting
+  another cohort of the same cancer type is not a reasonable approximation — it answers a different
+  question**: the user asked whether *this project* is equipped, not whether the *cancer type* is.
+  (Contrast: "Aging and leukemia" shares no wording with any real title, and the model got it right.
+  The difference is lexical overlap, not difficulty.)
+- **The user holds only companion metadata, no primary analysis datum.** "I have the study metadata",
+  "for level-1 file metadata" — clinical tables, sample-metainfo tables and level-1 file metadata are
+  all companion files; without a primary datum (expression matrix / MAF / FASTQ) no pipeline in the
+  closed set can run. **Do not pick a "most generic consumer" as rank-1** — the two failures forced
+  `immune_infiltration_iobr` and `fastqc` respectively, while their own `match_note` already said
+  "metadata is not the primary datum, an expression matrix is required". Put that conclusion in
+  `answer`: name the companion file, say which kind of primary datum it needs, then return empty
+  `recommendations`.
+
 - **Two analyses at once** ("immune infiltration + WGCNA") → pick the primary leg for rank-1 and name
   the other in `match_note`. **When two analyses are named side by side, rank-1 is the one mentioned
   first in the question** ("complete both alternative-splicing analysis and somatic variant calling" →
@@ -608,15 +643,13 @@ with the most samples, so the same question always resolves the same way:
 Graph-wide, only seven cohorts carry any MAF: HRA000873, HRA016026, HRA001272, HRA006499, HRA001749,
 HRA007169 and HRA000071 (the last cohort-level only; the others also carry per-run `HRR*.maf`).
 
-Three cohorts carry single-cell data, and you should **name them directly rather than filter on
-`strategy`**: **HRA001748** (10x, liver cancer, 320 paired FASTQ files named like
-`HRR572934_f1.fq.gz` / `HRR572934_r2.fq.gz` — the default cohort for any 10x / CellRanger request),
-HRA000087 (Smart-seq2, nasopharyngeal carcinoma; its *samples* are tagged sc-RNA but it holds **no
-sc-RNA files**), and HRA005191 (NSCLC, whose 484 files are the only `strategy = 'sc-RNA'` files in the
-graph). The 0821 delivery **mislabelled HRA001748 and HRA000087 as `bulk_RNA`** even though their study
-titles/descriptions say `scRNA-seq` / `Single-cell`, so `t.strategy = 'sc-RNA'` returns HRA005191 alone
-and **silently misses the real 10x cohort** — decide single-cell from the study title / description
-(`scRNA`, `Single-cell`), or just use the three names above.
+Three cohorts carry single-cell data: **HRA001748** (10x, liver cancer, 320 paired FASTQ files named
+like `HRR572934_f1.fq.gz` / `HRR572934_r2.fq.gz` — the default cohort for any 10x / CellRanger
+request), **HRA005191** (NSCLC, 484 T1 files) and **HRA000087** (Smart-seq2, nasopharyngeal carcinoma;
+14 T2 files, no T1). The 0821 mislabelling of HRA001748 / HRA000087 as `bulk_RNA` **was fixed in the
+0826 delivery**, so `strategy = 'sc-RNA'` is now trustworthy: it returns HRA005191 484 + HRA001748 320
+on T1, and HRA005191 289 + HRA001748 236 + HRA000087 14 on T2. Filtering on it no longer misses the
+10x cohort.
 
 **`RAW_SINGLE_END_FASTQ` matches zero files in the whole graph.** `cellranger_workflow` declares it
 as an input, but 10x raw reads are stored as ordinary paired-end FASTQ — `RAW_PAIRED_END_R1_FASTQ` /
@@ -949,15 +982,15 @@ upper-case semantic name.** So `WHERE t.format CONTAINS 'BAM'` can never match �
 `RNA_TRANSCRIPTOME_ALIGNMENT_BAM` (row 5). `RNA_SPLICEJUNCTION_TAB` is STAR's precomputed junction
 table and exists only for HRA001272.
 
-### 12.4 Untrustworthy sample fields as of the 0821 delivery (never filter on these)
+### 12.4 Untrustworthy sample fields (measured on the 0826 delivery; never filter on these)
 
-The 0821 delivery overwrote **sample-level facts with study-level defaults**. The bad values are
+The delivery overwrote **sample-level facts with study-level defaults**. The bad values are
 neither empty nor malformed — every cell is populated and every value looks plausible on its own — so
 a query against them returns rows happily and simply selects the wrong samples. Four rules:
 
 1. **`tumor_descriptor` can no longer separate primary / metastatic / recurrent.** The whole graph
    holds only `Primary` 8551, `Metastasis` 12, null 1902 — the former `Metastatic` (210) and
-   `Recurrent` (407) were flattened into `Primary`, and **1470 samples with `tissue_type = 'Normal'`
+   `Recurrent` (407) were flattened into `Primary`, and **1512 samples with `tissue_type = 'Normal'`
    are now tagged `Primary`** (a normal blood draw labelled "primary tumour" — self-contradictory).
    Read the site from **`sample_name` suffixes** instead. HRA001272 encodes them as: `PT` primary 143,
    `NC` adjacent-normal control 85, `LM` lung met 65, `PM` peritoneal met 31, `RT` recurrent 28,
@@ -977,9 +1010,12 @@ a query against them returns rows happily and simply selects the wrong samples. 
    HRA007169 / HRA001748 / HRA006499 were folded into `Patient_Solid_Tissue`. A new semicolon
    multi-value `Organoid;Patient_Solid_Tissue` (486) also appears — match with `CONTAINS`, never `=`.
    Reassuringly, all 525 folded samples retain `tissue_type = 'Normal'`, so **tumour/normal pairing,
-   which keys on `tissue_type`, is unaffected**.
+   which keys on `tissue_type`, is unaffected**. A standalone `Organoid` (30) also appears alongside
+   the multi-value.
 
-`tissue_type` itself is null for 829 samples (which nonetheless carry a `tumor_descriptor`), so test
-presence with `IS NOT NULL`. Conversely, **HRA000071's `tissue_type` was genuinely fixed in 0821**:
+**`tissue_type` no longer has nulls.** The 0821 delivery left 829 samples null; 0826 fills all of
+them — the graph now reads Tumor 7045 / Normal 2863 / Blood 557. An `IS NOT NULL` guard is no longer
+needed, but `Blood` still means this is **not** a clean Tumor/Normal binary.
+**HRA000071's `tissue_type` was genuinely fixed in 0821**:
 `Blood`/`Normal` 286 plus `Patient_Solid_Tissue`/`Tumor` 286, matching the 286 `B_` and 286 `T_`
 sample-name prefixes exactly (the old data was the wrong one). That cohort can be trusted directly.
