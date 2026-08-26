@@ -303,8 +303,15 @@ def _bind_step(srv, gid, card, assets, upstream, step_id):
         is_file = srv._is_file_type(typ)
         is_arr = srv._is_array_type(typ)
         required = bool(p.get("required"))
-        if is_file and srv._is_reference_resource(card, name):
-            continue                                   # 容器内默认值，不该出现在提交合同里
+        if srv._is_reference_resource(card, name):
+            # 容器内默认值，不该出现在提交合同里。这里**不能**再加 `is_file` 限定：
+            # reference_resource 标记的判据是「artifact_type 是参考资源」或「默认值是
+            # /opt/... 这样的容器内绝对路径」，跟 WDL 把它声明成 File 还是 String 无关。
+            # bwa/bcftools/manta 的 reference_fasta 正是 type=String、标记为真的那一类，
+            # 从前被 is_file 挡在门外，落到下面「非 File 参数」那条分支报
+            # literal_required——0826 抽测 100 例里凭空多报 17 条。
+            # 服务端两处同名检查（mcp_light_server.py:679/807）本来就没带这个限定。
+            continue
         if gid in srv._BULK10 and name in ("sample_csv", "individual_csv"):
             continue                                   # server 侧按队列号推导，见 _bulk10_params
         if is_file:

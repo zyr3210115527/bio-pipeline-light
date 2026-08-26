@@ -95,6 +95,19 @@ REFERENCE_RESOURCES: set = {
     ("rsem_quantification",            "rsem_index"),
     ("featurecounts_gene_counting",    "gtf_file"),
     ("gatk_wes_somatic",               "interval_list"),
+    # 下面四条是同一个索引在 pipeline 级卡片上的写法。原子卡片里它们都带
+    # reference_resource=True（star 的 rrna_star_index/genome_star_index、rsem 的
+    # rsem_index、featurecounts 的 gtf_file），但 rnaseq_singletask 这张 pipeline 卡
+    # 交付包既没给 artifact_type 也没给 /opt/... 默认值，生成器按「不许按名字猜」的
+    # 判据只能留空——于是每次推荐 rnaseq_singletask 都凭空多报四条 no_confirmed_path
+    # （0826 抽测 100 例里它被推荐 5 次，5 次全中）。证据是原子卡片上的那个标记，
+    # 不是名字，所以列在这张手工表里而不是去放宽生成器判据。
+    # 注意 pipeline 卡写的是 star_genome_index，原子卡是 genome_star_index，别对齐错。
+    ("rnaseq_singletask",              "rrna_star_index"),
+    ("rnaseq_singletask",              "star_genome_index"),
+    ("rnaseq_singletask",              "rsem_index"),
+    ("rnaseq_singletask",              "gtf_file"),
+    ("wes_somatic_pair",               "interval_list"),   # 原子卡 gatk_wes_somatic 里带标记
 }
 
 def _is_reference_resource(card, name) -> bool:

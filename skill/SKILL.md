@@ -752,10 +752,16 @@ Six things to get right when transcribing execution params:
 - **`Array[File]` params carry a list of paths**, not a string (`fastqc.fastqs`, `multiqc.qc_files`).
   Never transcribe one as a single path.
 - **Reference/index resources never appear in `execution_params` and are never reported missing.** Each
-  card marks them (`reference_resource: true`) — currently nine, e.g. `star.rrna_star_index`,
-  `star.genome_star_index`, `rsem.rsem_index`, `featurecounts.gtf_file`, `gatk.interval_list`,
-  `manta_structural_variants.reference_fasta`. They carry card defaults and are resolved inside the
-  execution container. Do not go hunting for their paths in the graph, and do not call a chain
+  card marks them (`reference_resource: true`; for the few pipeline-level cards whose delivery package
+  omits the field, a server-side fallback table supplies it) — currently 14 params across nine tools:
+  `star.rrna_star_index`, `star.genome_star_index`, `rsem.rsem_index`, `featurecounts.gtf_file`,
+  `gatk.interval_list`, `manta_structural_variants.reference_fasta`/`.reference_fai`,
+  `bwa.reference_fasta`, `bcftools.reference_fasta`, plus the pipeline-level
+  `rnaseq_singletask.rrna_star_index`/`.star_genome_index`/`.rsem_index`/`.gtf_file` and
+  `wes_somatic_pair.interval_list`. They carry card defaults and are resolved inside the
+  execution container. **The marker alone decides this — whether the param is declared `File` or
+  `String` is irrelevant**; `bwa`/`bcftools`/`manta`'s `reference_fasta` is a `String`-typed reference
+  resource. Do not go hunting for their paths in the graph, and do not call a chain
   unrunnable because they are "absent".
   Note `bcftools.filtered_vcf_index` is **not** one of them despite the name — it is the companion `.tbi`
   of a data file and must be bound.
