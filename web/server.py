@@ -592,6 +592,14 @@ def _repair_hint(violations):
         hints.append("查一条 Cypher 把该流程要的文件挑出来（按 semantic_format 过滤、"
                      "`ORDER BY n.file_name` 取最靠前的一份，配对测序取 f1/r2 一对），"
                      "填进 assets；临床表与元信息表不用你写，服务端会补。")
+    if "没有实跑记录" in v:
+        hints.append("bulk10 的「流程 × 队列」是固定的（手册 §8.2 那张表），图里有 "
+                     "Genes-counts 不代表这条流程在它上面跑过。两条修法二选一："
+                     "把 assets 换成白名单里某个队列的 {STUDY}-Genes-counts-1.0.tsv"
+                     "（用户没点名队列时选 HRA003107，十条流程唯一都跑过的那个），"
+                     "或者改荐一条支持该队列的流程。用户点名的组合确实不在表内，"
+                     "就在 match_note 里直说该流程只支持哪几个队列、改荐了哪一个，"
+                     "不要静默替换成别的队列。")
     return ("".join(hints) + " ") if hints else ""
 
 

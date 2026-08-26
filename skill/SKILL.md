@@ -158,7 +158,9 @@ Two further studies (`HRA001272`, `HRA007413`) do have a `Genes-counts` file in 
 like valid candidates — they are not: no bulk10 pipeline has ever run on either, HRA001272's path
 carries an extra `/RNAseq/` segment, and HRA007413's matrix is 1.2 MB. If the user asks for a
 pipeline×cohort pair outside the table, say which cohorts that pipeline does support and offer one of
-them rather than substituting silently.
+them rather than substituting silently. **`validate_plan` now checks this table on every
+recommendation**, not just at submission time: an unproven pipeline×cohort pair is a violation and
+sends the plan back for repair.
 
 **Quantification flavour: counts, always.** Not a methodological inference — every proven run of all ten
 pipelines used `{STUDY}-Genes-counts-1.0.tsv`. Normalisation happens inside the pipeline. Do not pick the
@@ -471,11 +473,38 @@ decides anything — *every* question gets a rank-1):
   out the missing step in `match_note` / `answer` — "unsupervised clustering on BAM" recommends
   `rnaseq_unsupervised_cluster` while noting that quantification to counts must come first. Only when
   not even a nearest candidate exists may `recommendations` be empty with `unsupported`.
+  **But "lead with a rank-1" never means forcing one that cannot run**: when the pipeline exists and it
+  is the user's *cohort* that falls outside its proven list, switch to one of the cohorts that pipeline
+  does support (swap the `assets` too) and say so in `match_note` — "this pipeline has only run on
+  A/B/C, using A". Do not leave the original cohort in place, and do not tell the user to change cohorts
+  to suit the tool.
 - **Two analyses at once** ("immune infiltration + WGCNA") → pick the primary leg for rank-1 and name
   the other in `match_note`. **When two analyses are named side by side, rank-1 is the one mentioned
   first in the question** ("complete both alternative-splicing analysis and somatic variant calling" →
   rank-1 is the splicing pipeline). This ordering is a hard rule; do not reorder by which leg feels more
   upstream or more fundamental.
+
+**Rank-1 ordering for broad controlled function words (hard rule — follow the table, do not pick your
+own).** A few controlled words carry a large slate of tools, and "closest match" cannot separate them:
+in testing, one identical question — "the goal is visualisation and reporting" — returned `umap`,
+`deg_trend` and `gene_boxplot` across three runs, and another returned `bcftools` while its own `answer`
+argued that only multiqc is report-centric. When you hit one of these words, take rank-1 from the table:
+
+| Controlled word | Default rank-1 | Deviate only when |
+|---|---|---|
+| **Visualisation & reporting** | `umap` | Cohort is `HRA003107` and the question asks for boxplots → `gene_boxplot`, or stage heatmaps → `stage_heatmap`. **`multiqc` is whole-pipeline QC aggregation and `bcftools` is VCF filtering — neither answers this word**, unless the question explicitly says "QC report aggregation", which gives `multiqc` |
+| **Functional enrichment** | `diff_expr_go` | Question names KEGG → `diff_expr_kegg`; names GSEA / pre-ranked / whole-gene ranking → `gsea_pathway_enrichment`; names cohort `HRA003107` → `deg_enrichment` |
+| **Differential expression** | `diff_expr_go` | **Data is single-cell (Seurat RDS / scRNA cohort) → `celltype_case_control_de`; never hand a single-cell cohort the bulk `diff_expr_go`**; T-cell pre/post intervention → `tcell_intervention`; cohort `HRA003107` with a trend request → `deg_trend` |
+| **Survival analysis** | `km_survival` | Multivariate / covariates / hazard ratios → `cox_model`; a MAF in hand or TMB in the question → `tmb_survival_analysis`. **`her2_pfs_survival` is only for questions naming HER2 or PFS, and `survival_analysis` only for "mutation status of gene X vs PFS"** — both are PFS-specific and must not stand in for a general OS survival analysis |
+| **Co-expression network** | `wgcna` | Cohort is `HRA003107` / `HRA007167`: hub genes → `wgcna_hub`, module-trait association → `wgcna_module_trait` |
+| **Expression quantification** | `rnaseq_singletask` | Question wants a single step and an alignment BAM already exists → `featurecounts` (genome-coordinate BAM) or `rsem` (transcriptome-coordinate BAM). These two are mutually exclusive; do not chain them |
+
+**The default cohort when none is named is a hard rule too**: all ten bulk10 pipelines default to
+`HRA003107`, the only cohort every one of them has run on. Do not re-pick by "largest sample count" —
+that is how runs landed on `HRA001272` (19 times) and `HRA006117`, and no bulk10 pipeline has ever run
+on `HRA001272`, so `validate_plan` rejects it outright. Non-bulk10 pipelines pick from the cohort table
+in §8.2; either way, note in `match_note` that the user named no cohort and X was chosen as the proven
+default.
 
 Where tool properties are looked up (they go into `answer`; **they do not excuse dropping rank-1**):
 

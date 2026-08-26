@@ -89,6 +89,7 @@ atomic 闭集：`bwa` `fastp` `fastqc` `featurecounts` `gatk` `bcftools` `snpeff
   这种组合从没跑过，服务端会拒。`HRA003107` 是十条唯一都跑过的队列，用户没点名时选它。
   `HRA000122` 只有 `umap` 能用。`HRA001272`/`HRA007413` 图里也有 Genes-counts 但一条都没跑过，一律不选。
   用户点名的组合不在表内，直说该流程支持哪几个队列、改荐其一，别静默替换。
+  **这张表 `validate_plan` 会逐条核**（不只是提交时核）：组合没跑过就判违规、退回修正轮。
 - `sample_csv`/`individual_csv`（CNCB 原生元数据）**不写进 inputs 也不查图**——服务端按队列号推，
   与临床表/样本元信息表同一处置。它们不在图内，写进 assets 会被判 `file_path 与图内记录不符`。
 - **`taskNNN_` 只是 docker 作业名前缀，不是 tool_id**：写 `cox_model`，不是 `task310_cox_model`。
@@ -395,9 +396,31 @@ Clinical/Meta 六种，0821 起 WXS 已并入 WES，Targeted-Capture/TCR-Seq/Unk
   **目标做不成也先给最接近的那条 rank1**，在 `match_note`/`answer` 里写清差在哪一步
   （"BAM 做无监督聚类"→ 推 `rnaseq_unsupervised_cluster` 并说明要先定量成 counts）；
   只有连最接近的一条都不存在，才允许空推荐 + `unsupported`。
+  **但"先给 rank1"不等于硬凑一条跑不动的**：流程有、用户点名的队列不在它的已验证名单里时，
+  正确做法是换成该流程支持的队列之一（`assets` 一起换掉），并在 `match_note` 里写明
+  "该流程只在 A/B/C 上跑通过，已改用 A"——不是留着原队列硬推，也不是让用户去改队列迁就工具。
 - **同时要做两件分析**（"免疫浸润 + WGCNA"）→ 挑主环节那条给 rank1，另一条在 `match_note` 里点名。
   **并列时 rank1 取问句里先出现的那件**（"同时完成可变剪接分析和体细胞变异检测"→ rank1 是
   可变剪接那条），这条定序是硬规则，不要按"哪个更基础/更上游"自行改序。
+
+**宽泛 function 受控词的 rank1 定序（硬规则，照抄不要自选）。** 有几个受控词底下挂着一大把
+工具，靠"最贴近"选不出来——实测同一句"目标是可视化与报告"三次跑出 `umap`/`deg_trend`/
+`gene_boxplot`，另一句跑出 `bcftools`（而它自己的 answer 里论证只有 multiqc 是报告导向）。
+遇到下面这些词，直接按表定 rank1：
+
+| 受控词 | 默认 rank1 | 改选条件（只在问句/队列明确命中时才偏离） |
+|---|---|---|
+| **可视化与报告** | `umap` | 队列是 `HRA003107` 且问句要箱线图→`gene_boxplot`、要分期热图→`stage_heatmap`。**`multiqc` 是全流程质控汇总、`bcftools` 是 VCF 过滤，两个都不是这个词的答案**，除非问句明说"质控报告汇总"才给 `multiqc` |
+| **功能富集分析** | `diff_expr_go` | 问句点名 KEGG→`diff_expr_kegg`；点名 GSEA/预排序/全基因排序→`gsea_pathway_enrichment`；点名队列 `HRA003107`→`deg_enrichment` |
+| **差异表达分析** | `diff_expr_go` | **数据是单细胞（Seurat RDS / scRNA 队列）→ `celltype_case_control_de`，不许给 bulk 的 `diff_expr_go`**；T 细胞干预前后比较→`tcell_intervention`；点名 `HRA003107` 要趋势图→`deg_trend` |
+| **生存分析** | `km_survival` | 要多因素/协变量/风险比→`cox_model`；手里是 MAF 或问句提 TMB→`tmb_survival_analysis`。**`her2_pfs_survival` 只在问句点名 HER2 或 PFS 时才选，`survival_analysis` 只在问句要"某基因突变状态 vs PFS"时才选**——这两条是 PFS 专用，不要拿去顶替通用 OS 生存分析 |
+| **共表达网络分析** | `wgcna` | 队列是 `HRA003107`/`HRA007167`：要 hub 基因→`wgcna_hub`、要模块-性状关联→`wgcna_module_trait` |
+| **表达定量** | `rnaseq_singletask` | 问句只要单步定量且已有比对 BAM→`featurecounts`（基因组坐标 BAM）或 `rsem`（转录组坐标 BAM）。这两个互斥，不要串成一条链 |
+
+**未点名队列时的默认队列也是硬规则**：bulk10 那十条一律默认 `HRA003107`（十条唯一都跑过的），
+不要按"样本数最多"另选——实测因此落到 `HRA001272`（19 次）和 `HRA006117`，而 `HRA001272`
+一条 bulk10 都没跑过，`validate_plan` 会直接拒。非 bulk10 的流程按 §8.2 队列表选，
+选完在 `match_note` 里说明"用户未点名队列，按已验证组合默认选 X"。
 
 工具属性怎么取数（答进 `answer`，**不改变必须给 rank1** 这件事）：
 

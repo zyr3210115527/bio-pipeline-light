@@ -879,6 +879,29 @@ def _step_tool_id(step):
     """
     return step.get("tool_id") if isinstance(step, dict) else str(step)
 
+_HRA = re.compile(r"HRA\d{6}")
+
+def _rec_studies(rec):
+    """一条推荐实际指向的队列号集合。
+
+    队列号在契约里有四个可能的落点，模型每次挑的不一样：`data.study_accessions`、
+    每个 asset 的 `study_accession`、文件名前缀（`HRA003107-Genes-counts-1.0.tsv`）、
+    路径里的 `/HRA003107/`。只认其中一处就会漏掉——bulk10 白名单是硬约束，漏判等于没判，
+    所以四处全扫取并集。
+    """
+    out = set()
+    data = rec.get("data") or {}
+    for st in data.get("study_accessions") or []:
+        out |= set(_HRA.findall(str(st)))
+    out |= set(_HRA.findall(str(rec.get("study_accession") or "")))
+    for a in data.get("assets") or []:
+        if isinstance(a, str):
+            out |= set(_HRA.findall(a))
+        elif isinstance(a, dict):
+            for k in ("study_accession", "file_name", "name", "file_path", "path"):
+                out |= set(_HRA.findall(str(a.get(k) or "")))
+    return out
+
 def tool_validate_plan(args):
     """接地校验：整份 tool-chain/v2 Plan 的名词必须图内/目录内可验证。
     模型输出前自检用——工具、文件、路径、队列号任一无法证实即 grounded=false，
@@ -995,6 +1018,23 @@ def tool_validate_plan(args):
             rows = neo4j_q([f"MATCH (s:study {{study_accession: '{st}'}}) RETURN count(s)"])
             if not (rows and rows[0] and rows[0][0][0] > 0):
                 v.append(f"study 图内不存在（疑似模型编造）: {st}")
+        # bulk10 的「流程 × 队列」白名单：图内存在 ≠ 这条流程在它上面跑过。
+        # 这份白名单本来只挂在 validate_execution_chain（提交路径）上，validate_plan
+        # 一路放行——网页 agent 循环走的正是 validate_plan，于是 450 例里出现
+        # km_survival × HRA001272（该流程只跑过 HRA003107/000073/000074/002693/006117）
+        # 7 次、功能富集默认落 HRA001272 19 次（图里有 Genes-counts，但十条流程一条都
+        # 没在它上面跑过）。手册 §8.2 白纸黑字写了这张表，模型照样违反——跟 information
+        # 一样，光靠劝没用，得在这儿判违规、走修正轮。
+        _proven = _BULK10_RUNS.get(gid)
+        if _proven:
+            for st in sorted(_rec_studies(rec)):
+                if st not in _proven:
+                    v.append(
+                        f"recommendations[{i}] {gid} × {st} 没有实跑记录：{gid} 只在 "
+                        f"{'/'.join(sorted(_proven))} 上跑通过。选数据只能从这几个队列里选，"
+                        f"不许按七队列并集选。要么换成这些队列之一的 "
+                        f"{{STUDY}}-Genes-counts-1.0.tsv，要么改荐一条支持 {st} 的流程；"
+                        f"用户点名的组合不在表内就直说该流程支持哪几个队列，别静默替换")
     for i, c in enumerate(plan.get("candidates") or []):
         if not isinstance(c, dict):
             v.append(f"candidates[{i}] 不是对象（应为 JSON 对象，不是字符串）")
