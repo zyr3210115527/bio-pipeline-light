@@ -658,10 +658,14 @@ def tool_validate_execution_chain(args):
             warnings.append(f"{given}: 无 Knowledge Card（pipeline 级或未收录），跳过契约校验")
             normalized.append({"tool_id": given, "card": None})
             continue
-        # 必填输入检查（参考资源有卡片默认值，缺了不算缺——见 REFERENCE_RESOURCES）
+        # 必填输入检查（参考资源有卡片默认值，缺了不算缺——见 REFERENCE_RESOURCES）。
+        # 临床表/样本元信息表同样不算调用方欠的：手册要求「一律不查、不写进 inputs」，
+        # 服务端按队列号补（见 _needs_clinical）。这里不豁免就变成「照手册做 = 报错」。
+        _clin_names = _needs_clinical(gid)
         missing = [i["name"] for i in card["inputs"]
                    if i.get("required", True) and i["name"] not in bindings
-                   and not _is_reference_resource(card, i["name"])]
+                   and not _is_reference_resource(card, i["name"])
+                   and i["name"] not in _clin_names]
         if missing:
             errors.append(f"{card['meta_id']} 缺必填输入: {missing}")
         # 二选一约束：卡片 interface.validators 里的 one_of，每组至少绑一个。
@@ -781,6 +785,7 @@ def tool_validate_execution_chain(args):
         card = KC_MAP.get(gid)
         bindings = s.get("inputs") or {}
         tool_key = card["meta_id"] if card else given
+        _clin = _needs_clinical(gid) if card else {}
         if card:
             # 判据是「必需的 **或** 用户绑了的」，不是「必需的」：可选的 File? 被用户明确绑上
             # 却丢掉，执行端 `is_paired = defined(read2)` 就变 false，**双端数据静默按单端跑完，
@@ -792,7 +797,10 @@ def tool_validate_execution_chain(args):
                       # bulk10 的两张 CNCB 原生元数据表由服务端从队列号推（见 _bulk10_params）。
                       # 图里只有 HRA000001 一份 sample.csv/individual.csv，走 _resolve 必然
                       # 解析失败并留下一条假的 no_confirmed_path，误导调用方去数据侧要文件。
-                      and not (gid in _BULK10 and i["name"] in ("sample_csv", "individual_csv"))]
+                      and not (gid in _BULK10 and i["name"] in ("sample_csv", "individual_csv"))
+                      # 非 bulk10 的临床表/样本元信息表同理由服务端按队列号补（见 _clin）：
+                      # 手册明写「一律不查」，调用方照办后这两个必填参数就永远解析不出来。
+                      and i["name"] not in _clin]
         else:   # pipeline 级无卡：有对象/对象数组 binding 的输入都当 File 处理
             wanted = [(k, isinstance(v, list)) for k, v in bindings.items()
                       if isinstance(v, (dict, list))]
@@ -806,6 +814,24 @@ def tool_validate_execution_chain(args):
                 # （数据侧补 file_path）。light 走 Knowledge Card 而非槽表，没有 slot_not_bound。
                 exec_missing.append({"param": name, "tool_id": tool_key, "step": idx,
                                      "reason": "no_confirmed_path"})
+        if _clin:
+            # 队列号从已绑资产反查（图内文件名与路径里都带 HRA######）。**恰好一个**才补：
+            # 零个说明队列还没定，多个说明这一步混了队列，补哪份临床表都是错的，如实报缺。
+            _accs = set()
+            for _b in list(bindings.values()) + list(params.values()):
+                _accs |= set(_HRA.findall(json.dumps(_b, ensure_ascii=False)))
+            _pair = _clinical_pair_files(next(iter(_accs))) if len(_accs) == 1 else {}
+            for _n, _fmt in _clin.items():
+                _hit = _pair.get(_fmt)
+                if _hit:
+                    params[_n] = _hit[1]
+                else:
+                    # 两种缺法要分开：队列没定是调用方还没选数据（补 assets 就能解），
+                    # 队列定了但图里没这张表是数据侧的事。混成一个 reason 会把前者
+                    # 误导成"去数据侧要文件"——师兄 0826 反馈的正是这一条。
+                    exec_missing.append({"param": _n, "tool_id": tool_key, "step": idx,
+                                         "reason": "no_confirmed_path" if len(_accs) == 1
+                                                   else "study_not_resolved"})
         if gid in _BULK10:
             params.update(_bulk10_params(gid, params.get("expr", ""), bindings, errors))
         by_step.append({"step": idx, "tool_id": tool_key, "params": params})
@@ -1228,9 +1254,77 @@ def _study_assets(acc):
 # 接不到表达矩阵/MAF 上。图内这两张表也确实每个队列各一份、总是成对交付。
 _CLINICAL_PAIR = ("CLINICAL_DATA_EXCEL", "METADATA_SAMPLE_INFO")
 
+# 六条非 bulk10 流程把这一对表写成必填输入，交付卡的参数名有两套写法（`_xls/_xlsx`
+# 与 `_file`）。手册说「临床表/样本元信息表一律不查，服务端按队列补」，但服务端此前
+# 只补 bulk10 的 sample_csv/individual_csv，这一对谁都没补——于是
+# driver_gene_gender_analysis / wgcna / her2_pfs_survival / immune_infiltration_iobr /
+# survival_analysis / tmb_survival_analysis 六条**必然**留下两条
+# `no_confirmed_path`，selection_status 永远退到 needs_input。补这里。
+_CLINICAL_PARAM_FMT = {"clinical_xls": "CLINICAL_DATA_EXCEL", "clinical_file": "CLINICAL_DATA_EXCEL",
+                       "metainfo_xlsx": "METADATA_SAMPLE_INFO", "metainfo_file": "METADATA_SAMPLE_INFO"}
+
+def _needs_clinical(gid):
+    """该流程按卡片声明需要哪几个「临床/元信息」参数：{参数名: 语义格式}。
+
+    bulk10 走 `_bulk10_params` 的 CNCB 原生 CSV 那条路，它自己的 clinical_xls 是可选的，
+    不在这里补——两条路混着补会把 CSV 和 XLSX 两套表同时塞进同一次提交。"""
+    if gid in _BULK10:
+        return {}
+    card = KC_MAP.get(gid) or {}
+    return {i["name"]: _CLINICAL_PARAM_FMT[i["name"]] for i in card.get("inputs") or []
+            if i.get("name") in _CLINICAL_PARAM_FMT}
+
+def _clinical_pair_files(acc):
+    """一个队列的临床表/样本元信息表：{语义格式: (file_name, file_path)}。
+
+    这两张表**在图内**（每个队列各一份、都带真实 file_path），与 bulk10 的
+    sample.csv/individual.csv 不同——后者才是图外、按路径模板推的。
+    同一队列偶有 .xls/.xlsx 两版（HRA001748/HRA005191），按文件名定序取首个，
+    保证同一个问题两次规划给同一份。"""
+    if not _SAFE_TOKEN.fullmatch(str(acc or "")):
+        return {}
+    rows = neo4j_q([f"MATCH (n) WHERE (n:T1 OR n:T2) AND n.study_accession = '{acc}' "
+                    f"AND n.semantic_format IN ['CLINICAL_DATA_EXCEL','METADATA_SAMPLE_INFO'] "
+                    f"AND n.file_path IS NOT NULL "
+                    f"RETURN n.semantic_format, n.file_name, n.file_path"])
+    best = {}
+    for r in (rows[0] if rows else []) or []:
+        if not (r and r[0] and r[2]):
+            continue
+        fmt, fn, fp = r[0], str(r[1] or ""), str(r[2] or "")
+        if not fp.startswith("/") or "NOT_FOUND" in fp:
+            continue
+        if fmt not in best or fn < best[fmt][0]:
+            best[fmt] = (fn, fp)
+    return best
+
 # 队列级交付文件：`HRA*-SomaticSNV-1.0.maf` 是全队列汇总，`HRR1725089.maf` 只有一个病人。
 # 突变景观/TMB 分组/生存这类队列级分析拿后者等于只分析了 1/77 的人。
 _STUDY_LEVEL = re.compile(r"^HRA\d+-", re.I)
+
+# 交付卡的 format（扩展名口径）→ 图内 semantic_format。用来给 `_complete_assets` 的
+# `req` 兜底：那六条 pipeline 级流程的图内 io 声明是错的（driver_gene_gender_analysis
+# 声明 scrna_object_rds/tabular_bio_data、wgcna 声明 scrna_object_rds/metadata_sample_info），
+# 光看图内声明，口径归一和队列级汇总替换这两条规则对它们一条都不生效——
+# 实测 wgcna 因此把 TPM 矩阵塞进名叫 `counts_tsv` 的参数。
+_CARD_FMT_SEM = {
+    "MAF": ("MUTATION_ANNOTATION_FORMAT_MAF",),
+    "TSV": ("TABULAR_BIO_DATA",),
+    "XLS": _CLINICAL_PAIR, "XLSX": _CLINICAL_PAIR,
+    "BAM": ("DNA_GENOMIC_ALIGNMENT_BAM",), "VCF": ("DNA_VARIANT_VCF_GENERAL",),
+    "RDS": ("SCRNA_OBJECT_RDS",),
+}
+
+def _card_req(gid):
+    """交付卡声明的输入语义格式集合（图内 io 声明不可信时的补充来源）。"""
+    card = KC_MAP.get(gid) or {}
+    out = set()
+    for i in card.get("inputs") or []:
+        if _is_reference_resource(card, i.get("name")):
+            continue
+        for sem in _CARD_FMT_SEM.get(str(i.get("format") or "").upper(), ()):
+            out.add(sem)
+    return out
 
 # 双端测序的 R1/R2 是同一次测序的两半，任何流程都必须成对拿。图内命名有 `_f1/_r2`、
 # `_R1/_R2`、`.R1./.R2.` 几种，统一按这张表找对家。
@@ -1249,8 +1343,12 @@ def _complete_assets(gid, assets, facts):
     """按流程在图内声明的输入槽位补全 assets——只在图里挑，不发明文件。
 
     三条规则，都对应 96 例标准答案对照表里暴露的系统性缺项：
-    ① 流程声明需要 CLINICAL_DATA_EXCEL 时，把该队列的临床表与样本元信息表补齐（见
-       `_CLINICAL_PAIR`）。实测调用方十次有八次只给表达矩阵/MAF 就交卷。
+    ① 流程需要临床表时，把该队列的临床表与样本元信息表补齐（见 `_CLINICAL_PAIR`）。
+       实测调用方十次有八次只给表达矩阵/MAF 就交卷。判据是「图内 io 声明了
+       CLINICAL_DATA_EXCEL **或**交付卡把这一对写成了参数」——只看图内声明会漏：
+       driver_gene_gender_analysis 的图内 io 是 scrna_object_rds/tabular_bio_data，
+       wgcna 是 scrna_object_rds/metadata_sample_info，两条都不含
+       CLINICAL_DATA_EXCEL，而它们的卡片明写 clinical_xls+metainfo_xlsx 必填。
     ② 表达矩阵口径按 `_pipeline_flavor` 归一：调用方选了同队列的其它口径就换成默认
        口径。换的是同一队列同一张表的另一个定量版本，不是换数据源。
     ③ 该语义格式在队列里**恰好**有一份队列级交付文件（见 `_STUDY_LEVEL`）时，把调用方
@@ -1258,8 +1356,11 @@ def _complete_assets(gid, assets, facts):
        （口径之争交给 ②），只有 MAF/CNV 这类「汇总一份 + 逐样本 N 份」才落到这条上。
     只在能从已选资产反查到唯一 study_accession 时生效；资产为空时不做任何事——
     队列没定，图里 576 个 FASTQ 挑哪个都是猜。"""
-    req = {s["name"].upper() for s in _graph_tool_io(gid)[0]}
-    if not req or not assets:
+    # 图内 io 声明与交付卡声明取并集：前者对原子工具准，对那六条 pipeline 级流程是错的
+    # （见 `_CARD_FMT_SEM`），后者反过来只在有卡片时有。少一边就有规则整条失效。
+    req = {s["name"].upper() for s in _graph_tool_io(gid)[0]} | _card_req(gid)
+    need_clin = bool(_needs_clinical(gid))
+    if (not req and not need_clin) or not assets:
         return assets, []
     acc = next((f.get("study_accession") for a in assets
                 if (f := facts.get(a.get("file_name")) or {}).get("study_accession")), None)
@@ -1302,8 +1403,11 @@ def _complete_assets(gid, assets, facts):
                 for k in _ASSET_FIELDS:
                     a.pop(k, None)
 
-    # ① 临床/元信息成对补全
-    if "CLINICAL_DATA_EXCEL" in req:
+    # ① 临床/元信息成对补全。bulk10 一律不补：它走 CNCB 原生 CSV 那条路（`_bulk10_params`
+    # 按队列号推 sample.csv/individual.csv），再塞图内的 Clinical/MetaInfo xlsx 就是两套
+    # 元数据同时喂进去——卡片那组 require_any 本来就是二选一，喂两套跑起来不报错，
+    # 读错哪一套只有结果不对时才看得出来。§3.1 的契约是「只有 expr 一个必填输入」。
+    if gid not in _BULK10 and ("CLINICAL_DATA_EXCEL" in req or need_clin):
         have = {str(a.get("file_name") or "").lower() for a in assets}
         for fmt in _CLINICAL_PAIR:
             files = sorted(pool.get(fmt) or [])   # 定序：同一问题两次规划给同一份

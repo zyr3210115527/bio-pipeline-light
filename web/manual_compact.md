@@ -91,7 +91,8 @@ atomic 闭集：`bwa` `fastp` `fastqc` `featurecounts` `gatk` `bcftools` `snpeff
   用户点名的组合不在表内，直说该流程支持哪几个队列、改荐其一，别静默替换。
   **这张表 `validate_plan` 会逐条核**（不只是提交时核）：组合没跑过就判违规、退回修正轮。
 - `sample_csv`/`individual_csv`（CNCB 原生元数据）**不写进 inputs 也不查图**——服务端按队列号推，
-  与临床表/样本元信息表同一处置。它们不在图内，写进 assets 会被判 `file_path 与图内记录不符`。
+  与临床表/样本元信息表同一处置（都不用你管）。但这两张 CSV 与临床表不同——**它们不在图内**，
+  写进 assets 会被判 `file_path 与图内记录不符`；临床表/样本元信息表在图内，只是不用你去找（见 §9）。
 - **`taskNNN_` 只是 docker 作业名前缀，不是 tool_id**：写 `cox_model`，不是 `task310_cox_model`。
 
 其余（镜像标签、产出三件套、按队列的 `native_status_source_col`）是执行端契约，服务端补，规划时不用管。
@@ -459,9 +460,13 @@ RETURN collect(f.format)
 `pipeline_id`/`match_note`/`data.assets[].file_name`+`match_reason`、candidates 的 tool_chain 顺序。
 
 **assets 只需给"主数据"一条**：主数据 = 该流程的核心输入（表达矩阵 / MAF / FASTQ）。
-流程声明需要 `CLINICAL_DATA_EXCEL` 时，服务端会自动把同队列的临床表与样本元信息表补齐，
+流程需要临床表时，服务端会自动把同队列的临床表与样本元信息表补齐，
 **不用写，也不用查**——这两张表每队列各一份、服务端按队列号直接取，你连它们叫什么、
-在 T1 还是 T2 都不需要知道。**为找它们再开一轮取数是本项目最大的时间浪费**（先在 T2 按 format 猜、
+在 T1 还是 T2 都不需要知道。判据是「图内 io 声明了 `CLINICAL_DATA_EXCEL` **或**交付卡把
+`clinical_xls`+`metainfo_xlsx`（另一套写法 `clinical_file`+`metainfo_file`）写成了必填参数」，
+覆盖 `driver_gene_gender_analysis` `wgcna` `her2_pfs_survival` `immune_infiltration_iobr`
+`survival_analysis` `tmb_survival_analysis` 六条，**这六条只给主数据一条 asset 即可，
+两张表和它们的 `execution_params` 由服务端填**。**为找它们再开一轮取数是本项目最大的时间浪费**（先在 T2 按 format 猜、
 查空了再去 T1 按 strategy 猜，一轮几十秒）；**bulk10 族的 `sample_csv`/`individual_csv` 同理**
 （见 §3.1，它们根本不在图内，写进 assets 会直接判违规）；
 表达矩阵选错定量口径（FPKM/TPM/counts）也会被按该流程的默认口径自动换成正确的那份（bulk10 十条一律 counts，见 §3.1），
@@ -522,7 +527,7 @@ schema 示例（**这就是你该输出的完整长度**）：
 - **`Array[File]` 参数的值是路径数组**（fastqc 的 `fastqs`、multiqc 的 `qc_files`），不是字符串，别当成单个路径转录。
 - **参考/索引资源不会出现在 execution_params 里,也不会报缺**：由卡片自带 `reference_resource` 标记，现有 9 个（`star` 的 `rrna_star_index`/`genome_star_index`、`rsem` 的 `rsem_index`、`featurecounts` 的 `gtf_file`、`gatk` 的 `interval_list`、`manta_structural_variants` 的 `reference_fasta`/`reference_fai` 等），走执行端容器内默认值，**不要替用户去图里找路径、也不要因为它们"缺"就说链跑不了**。注意 `bcftools` 的 `filtered_vcf_index` 名字里带 index 但**不是**参考资源，它是 `.tbi` 伴随索引，必须绑。
 - **有的卡是「二选一」输入（`require_any`）**：组内参数各自 required=false，但整组必须至少绑一个，只查必填查不出「一个都没给」。`scrna_cell_communication` 要 `seurat_rds` 或 `combined_counts`，`paired_fastq_to_unmapped_bam` 要 `sample_name` 或 `sample_accession`。都不给是契约错误，报告会点名哪一组。bulk10 的样本表虽然也是这个形状，但那两张表服务端按队列号推（§3.1），**不用你绑、也不会报缺**。
-- `execution_params_missing` 的元素是对象 `{param, tool_id, step, reason}`，`reason=no_confirmed_path` 表示绑定没问题、是图里没有该资产的确认路径（要数据侧补 `file_path`），转述时别说成"用户没绑"。
+- `execution_params_missing` 的元素是对象 `{param, tool_id, step, reason}`，`reason=no_confirmed_path` 表示绑定没问题、是图里没有该资产的确认路径（要数据侧补 `file_path`），转述时别说成"用户没绑"；`reason=study_not_resolved` 是另一回事——队列号还没定死（assets 为空或混了多个队列），服务端无从按队列补临床表，**这条要回到数据选择上解决，不是去数据侧要文件**。
 
 ## 11. 边界与原则
 

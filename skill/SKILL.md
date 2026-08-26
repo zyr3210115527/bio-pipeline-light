@@ -131,8 +131,9 @@ has a working default. Bind `expr` and stop.
   `/hpcdisk1/cbb_group/data/analysis/{STUDY}/{STUDY}-Genes-counts-1.0.tsv`.
 - `sample_csv`, `individual_csv` — CNCB-native metadata at `/cbb-data/gsa/agent/{STUDY}/sample.csv`
   and `individual.csv`. **Do not write them into `inputs`, and do not query the graph for them.**
-  The server derives both from the study accession in `expr`, exactly as it does for the clinical
-  table + sample-metainfo pair. These two files are **not in the graph** for any bulk10 study (only
+  The server derives both from the study accession in `expr`, the same way it derives the clinical
+  table + sample-metainfo pair — but unlike that pair, these two CSVs are **not in the graph** at all
+  (the clinical pair is; you just never have to look it up). No bulk10 study has them (only
   HRA000001 has nodes with those names) — binding them makes `validate_plan` match HRA000001's node
   by `file_name` and reject the plan with `asset file_path 与图内记录不符`.
 - `case_label` / `control_label` — the four label-taking pipelines above. The server supplies the
@@ -558,10 +559,17 @@ tool_chain ordering.
 **Assets: supply the primary datum only.** The primary datum is the pipeline's core input — the
 expression matrix, the MAF, or the FASTQ pair. `hydrate_plan` completes the rest deterministically:
 
-- When the pipeline declares a `CLINICAL_DATA_EXCEL` input slot, the study's clinical table **and** its
+- When the pipeline needs a clinical table, the study's clinical table **and** its
   sample-metadata table are appended (`METADATA_SAMPLE_INFO` is the sample↔patient join table — without
   it the clinical fields cannot be attached to the matrix/MAF, and the graph always delivers the two
-  together, one of each per study). **So do not write them — and do not query for them either.** The
+  together, one of each per study). The trigger is "the graph's io declaration lists
+  `CLINICAL_DATA_EXCEL` **or** the delivery card declares `clinical_xls`+`metainfo_xlsx` (the other
+  spelling is `clinical_file`+`metainfo_file`) as required params" — that covers
+  `driver_gene_gender_analysis`, `wgcna`, `her2_pfs_survival`, `immune_infiltration_iobr`,
+  `survival_analysis` and `tmb_survival_analysis`, whose graph-side io declarations do *not* mention
+  `CLINICAL_DATA_EXCEL` at all. For those six, give the primary datum as the only asset; both tables
+  and their `execution_params` entries are filled server-side. **So do not write them — and do not
+  query for them either.** The
   server fetches both from the study accession alone; you never need to know their file names or whether
   they live on `T1` or `T2`. **Hunting for them is the single largest waste of wall-clock in this
   project** — probing `T2` by `format`, coming back empty, then re-probing `T1` by `strategy`, at tens of
@@ -760,6 +768,9 @@ Six things to get right when transcribing execution params:
 - `execution_params_missing` elements are objects `{param, tool_id, step, reason}`. `reason =
   no_confirmed_path` means the binding was fine but the graph has no confirmed path for that asset (the
   data side needs to fill in `file_path`) — do not restate it as "the user did not bind it".
+  `reason = study_not_resolved` is a different thing: the study accession was never pinned down (empty
+  `assets`, or assets spanning several studies), so the server had no cohort to derive the clinical
+  pair from. **That one is fixed by choosing the data, not by asking the data side for a file.**
 
 ## 11. Boundaries and principles
 

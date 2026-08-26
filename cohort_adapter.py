@@ -250,6 +250,39 @@ def _derive_literal(name, assets, study):
     return f"{study}_{name.rsplit('_', 1)[0]}" if study and name == "pair_id" else (study or None)
 
 
+def _add_clinical(srv, assets, study, sem_fmt):
+    """把该队列的临床表/样本元信息表补进资产清单，返回新加的那一份（补不出返回 []）。
+
+    这两张表在图内、每个队列各一份、都带真实 file_path，但手册要求调用方**不要**把它们
+    写进 assets（写了会被接地校验判"与图内记录不符"），所以到这里 assets 里必然没有。
+    六条非 bulk10 流程（driver_gene_gender_analysis / wgcna / her2_pfs_survival /
+    immune_infiltration_iobr / survival_analysis / tmb_survival_analysis）把这一对写成
+    必填输入——不补就必然两条 no_confirmed_path，整条推荐永远 needs_input。
+    """
+    if not study:
+        return []
+    try:
+        pair = srv._clinical_pair_files(study)
+    except Exception:
+        return []                    # 图不通不该让整条翻译失败，如实走报缺那条路
+    hit = pair.get(sem_fmt)
+    if not hit:
+        return []
+    fn, fp = hit
+    if any(str(a.get("file_name") or "").lower() == fn.lower() for a in assets):
+        return []
+    n = 1 + max([int(m.group(1)) for a in assets
+                 if (m := re.match(r"asset-(\d+)$", str(a.get("asset_id") or "")))] or [len(assets)])
+    item = {"asset_id": f"asset-{n}", "file_name": fn, "path": fp, "file_path": fp,
+            "artifact_type": _asset_artifact({"file_name": fn}),
+            "semantic_format": sem_fmt, "study_accession": study,
+            "sample_accession": None, "run_accession": None,
+            "match_reason": f"流程声明需要 {sem_fmt}，按队列 {study} 由服务端补齐",
+            "_fmt": _asset_artifact({"file_name": fn})}
+    assets.append(item)
+    return [item]
+
+
 def _bind_step(srv, gid, card, assets, upstream, step_id):
     """把资产/上游产物绑到卡片参数上，返回 (inputs 绑定对象, missing[])。
 
@@ -259,6 +292,11 @@ def _bind_step(srv, gid, card, assets, upstream, step_id):
     """
     inputs, missing, used = {}, [], set()
     study = next((a.get("study_accession") for a in assets if a.get("study_accession")), None)
+    if not study:
+        # hydrate_plan 没跑成（图不通/模型直出）时字段是空的，但图内文件名本身就带队列号，
+        # 从文件名兜一层——临床表补全全靠这个队列号，兜不到就只能如实报缺。
+        study = next((m.group(0) for a in assets
+                      if (m := srv._HRA.search(str(a.get("file_name") or "")))), None)
     for p in (card or {}).get("inputs") or []:
         name = p.get("name")
         typ = p.get("type") or "File"
@@ -271,6 +309,8 @@ def _bind_step(srv, gid, card, assets, upstream, step_id):
             continue                                   # server 侧按队列号推导，见 _bulk10_params
         if is_file:
             cand = _pick_assets(assets, used, p, is_arr)
+            if not cand and gid not in srv._BULK10 and name in srv._CLINICAL_PARAM_FMT:
+                cand = _add_clinical(srv, assets, study, srv._CLINICAL_PARAM_FMT[name])
             if not cand:
                 up = next((u for u in upstream
                            if _family(u["format"]) == _family(p.get("format"))), None)
@@ -284,8 +324,14 @@ def _bind_step(srv, gid, card, assets, upstream, step_id):
                                 else {"asset_id": cand[0]["asset_id"]})
                 continue
             if required:
+                # 临床表补不出来的原因分两种：队列还没定（调用方补 assets 就能解）vs
+                # 队列定了但图里没这张表（数据侧的事）。混成一个 reason 会把前者误导成
+                # "去数据侧要文件"——师兄 0826 反馈的正是这一条。
                 missing.append({"param": name, "tool_id": (card or {}).get("meta_id") or gid,
-                                "step_id": step_id, "reason": "no_confirmed_path"})
+                                "step_id": step_id,
+                                "reason": "study_not_resolved"
+                                          if (name in srv._CLINICAL_PARAM_FMT and not study)
+                                          else "no_confirmed_path"})
             continue
         # 非 File 参数
         lit = _derive_literal(name, assets, study)
