@@ -491,7 +491,13 @@ Tumor 7045 / Normal 2863 / Blood 557，不必再用 `IS NOT NULL` 兜——但 `
 | **差异表达分析** | `diff_expr_go` | **数据是单细胞（Seurat RDS / scRNA 队列）→ `celltype_case_control_de`，不许给 bulk 的 `diff_expr_go`**；T 细胞干预前后比较→`tcell_intervention`；点名 `HRA003107` 要趋势图→`deg_trend` |
 | **生存分析** | `km_survival` | 要多因素/协变量/风险比→`cox_model`；手里是 MAF 或问句提 TMB→`tmb_survival_analysis`。**`her2_pfs_survival` 只在问句点名 HER2 或 PFS 时才选，`survival_analysis` 只在问句要"某基因突变状态 vs PFS"时才选**——这两条是 PFS 专用，不要拿去顶替通用 OS 生存分析 |
 | **共表达网络分析** | `wgcna` | 队列是 `HRA003107`/`HRA007167`：要 hub 基因→`wgcna_hub`、要模块-性状关联→`wgcna_module_trait` |
-| **表达定量** | `rnaseq_singletask` | 问句只要单步定量且已有比对 BAM→`featurecounts`（基因组坐标 BAM）或 `rsem`（转录组坐标 BAM）。这两个互斥，不要串成一条链 |
+| **表达定量** | `featurecounts` | **链里上一步是 `star` 时一律接 `rsem`**（star 出的是转录组坐标 BAM，featurecounts 只吃基因组坐标 BAM），即 `表达定量` 的链固定写 `star`→`rsem`；问句要 TPM/FPKM 或等位基因级定量也用 `rsem`。这两个互斥，不要串成一条链。**只有问句明确要"从原始 FASTQ 一路到表达矩阵的整条流程"时才给 `rnaseq_singletask`**——"目标是表达定量"这种单环节问法一律给原子工具 |
+| **体细胞变异检测** | `gatk` | 无改选条件。**`wes_somatic_pair` 是整条 WES 配对流程（FASTQ→比对→Mutect2），只有问句明说"整条流程/工具链/从原始数据开始"时才给**；"要完成体细胞变异检测，用什么工具"一律 `gatk` |
+
+**原子环节 ≠ 整条流程（上面两行的通则）。** 受控词本身是**流水线上的一个环节**（表达定量、
+体细胞变异检测、比对后处理与去重……）时，rank1 给**做这一步的原子工具**；`rnaseq_singletask`、
+`wes_somatic_pair` 这类一站式 pipeline 覆盖的是**整条链**，只有用户明确要整条链（"从 FASTQ 开始"
+"整套流程"）才占 rank1。想提示还有一站式选项，写进 `match_note` 一句话，别抢 rank1。
 
 **未点名队列时的默认队列也是硬规则**：bulk10 那十条一律默认 `HRA003107`（十条唯一都跑过的），
 不要按"样本数最多"另选——实测因此落到 `HRA001272`（19 次）和 `HRA006117`，而 `HRA001272`

@@ -604,7 +604,16 @@ argued that only multiqc is report-centric. When you hit one of these words, tak
 | **Differential expression** | `diff_expr_go` | **Data is single-cell (Seurat RDS / scRNA cohort) → `celltype_case_control_de`; never hand a single-cell cohort the bulk `diff_expr_go`**; T-cell pre/post intervention → `tcell_intervention`; cohort `HRA003107` with a trend request → `deg_trend` |
 | **Survival analysis** | `km_survival` | Multivariate / covariates / hazard ratios → `cox_model`; a MAF in hand or TMB in the question → `tmb_survival_analysis`. **`her2_pfs_survival` is only for questions naming HER2 or PFS, and `survival_analysis` only for "mutation status of gene X vs PFS"** — both are PFS-specific and must not stand in for a general OS survival analysis |
 | **Co-expression network** | `wgcna` | Cohort is `HRA003107` / `HRA007167`: hub genes → `wgcna_hub`, module-trait association → `wgcna_module_trait` |
-| **Expression quantification** | `rnaseq_singletask` | Question wants a single step and an alignment BAM already exists → `featurecounts` (genome-coordinate BAM) or `rsem` (transcriptome-coordinate BAM). These two are mutually exclusive; do not chain them |
+| **Expression quantification** | `featurecounts` | **When the preceding chain step is `star`, always use `rsem`** (STAR emits a transcriptome-coordinate BAM; featureCounts only accepts a genome-coordinate BAM), i.e. the `表达定量` chain is fixed as `star`→`rsem`; also use `rsem` when the question asks for TPM/FPKM or allele-level quantification. The two are mutually exclusive — do not chain them. **Give `rnaseq_singletask` only when the question explicitly asks for the whole raw-FASTQ-to-matrix pipeline** — a single-step phrasing like "my goal is expression quantification" always gets the atomic tool |
+| **Somatic variant calling** | `gatk` | No alternatives. **`wes_somatic_pair` is the full paired-WES pipeline (FASTQ → alignment → Mutect2) and is only correct when the question explicitly says "whole pipeline / tool chain / starting from raw data"**; "which tool completes somatic variant calling" is always `gatk` |
+
+**Single step ≠ whole pipeline (the general rule behind those two rows).** When the controlled term
+names **one stage of a pipeline** (expression quantification, somatic variant calling, post-alignment
+processing and deduplication, …), rank1 is the **atomic tool that performs that stage**. One-stop
+pipelines like `rnaseq_singletask` and `wes_somatic_pair` cover an **entire chain** and may take rank1
+only when the user explicitly wants the entire chain ("starting from FASTQ", "the whole workflow").
+To point out that a one-stop option exists, say so in one sentence in `match_note` — do not let it
+displace rank1.
 
 **The default cohort when none is named is a hard rule too**: all ten bulk10 pipelines default to
 `HRA003107`, the only cohort every one of them has run on. Do not re-pick by "largest sample count" —
