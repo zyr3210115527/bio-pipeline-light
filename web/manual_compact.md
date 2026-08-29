@@ -327,7 +327,26 @@ Clinical/Meta 六种，0821 起 WXS 已并入 WES，Targeted-Capture/TCR-Seq/Unk
 | `RNA_SPLICEJUNCTION_TAB` | 430 | **只有 HRA001272**（`HRR1402797SJ.out.tab`，STAR 剪接位点） |
 | `SCRNA_MATRIX_H5` | 403 | HRA005191(243)、HRA001748(160) —— 单细胞现成矩阵 |
 | `DNA_SOMATIC_SV_VCF` | 286 | 结构变异 |
+| `BIO_DATA_CONTAINER_OBJECT` | 18 | **Seurat RDS 对象**：HRA001748(10)、HRA005191(6)、HRA000087(2) |
 | `SOMATIC_CNV_TSV` | 4 | 拷贝数 |
+
+**§9 工具表"输入格式"列里有两个名字在图内一个节点都没有**——它们是交付卡自己写的声明，
+不是图内的语义名。照着它们查必然 0 行，别据此判 `no_candidate`：
+
+| 卡片里写的 | 图内实际要查的 |
+|---|---|
+| `SCRNA_OBJECT_RDS`（0 个） | `BIO_DATA_CONTAINER_OBJECT`（18 个，就是 Seurat RDS） |
+| `DNA_GENOMIC_ALIGNMENT_BAM`（0 个） | `DNA_ALIGNMENT_BQSR_BAM`（DNA，6177）或 `RNA_TRANSCRIPTOME_ALIGNMENT_BAM`（RNA，3288） |
+
+**索引是随文件，不是另一份数据。** BAM 必配 BAI、`vcf.gz` 必配 `gz.tbi`，卡片把
+`tumor_bai`/`filtered_vcf_index` 写成必填槽位，assets 里少一个就跑不起来。图内两种命名都有：
+`HRR1402616.BQSR.bam` → `HRR1402616.BQSR.bai`（换扩展名），`X.bam` → `X.bam.bai`（追加）；
+`HRS1029945.snv.vcf.gz` → `….vcf.gz.tbi`。同目录，服务端会补，你照给主数据文件即可。
+
+**单细胞 RDS 只有一份能跑**：`HRA000087-merge.rds`
+（`/hpcdisk1/cbb_group/data/analysis/HRA000087/HRA000087-Seurat-RDS-files/`）。其余 16 份对象结构
+对不上，吃 RDS 的九条流程（`breast_cellchat`/`scrna_cell_communication`/`lung_tme_annotation_cnv`…）
+一律用它。
 
 **可变剪接**：rMATS 类分析要 RNA 比对 BAM，取 `RNA_TRANSCRIPTOME_ALIGNMENT_BAM`（上表第 5 行）；
 `RNA_SPLICEJUNCTION_TAB` 是 STAR 已算好的剪接位点，只有 HRA001272 有。

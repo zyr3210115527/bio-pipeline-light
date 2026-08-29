@@ -1320,12 +1320,21 @@ _STUDY_LEVEL = re.compile(r"^HRA\d+-", re.I)
 # 声明 scrna_object_rds/tabular_bio_data、wgcna 声明 scrna_object_rds/metadata_sample_info），
 # 光看图内声明，口径归一和队列级汇总替换这两条规则对它们一条都不生效——
 # 实测 wgcna 因此把 TPM 矩阵塞进名叫 `counts_tsv` 的参数。
+#
+# 这张表的取值必须对着**当前图**核，不能照着扩展名想当然写。0826 图实测：
+# `DNA_GENOMIC_ALIGNMENT_BAM` 一个节点都没有（真正的 BAM 是 BQSR 与转录组两种），
+# `SCRNA_OBJECT_RDS` 也是 0（rds 全在 `BIO_DATA_CONTAINER_OBJECT` 下）。
+# 写错的后果不是报错而是静默失配：req 里那个语义格式在 pool 里永远查不到，
+# 下面每一条补全规则对该格式整条失效——问题二 tumor_bai、问题三 input_rds 都是这么丢的。
 _CARD_FMT_SEM = {
     "MAF": ("MUTATION_ANNOTATION_FORMAT_MAF",),
     "TSV": ("TABULAR_BIO_DATA",),
     "XLS": _CLINICAL_PAIR, "XLSX": _CLINICAL_PAIR,
-    "BAM": ("DNA_GENOMIC_ALIGNMENT_BAM",), "VCF": ("DNA_VARIANT_VCF_GENERAL",),
-    "RDS": ("SCRNA_OBJECT_RDS",),
+    "BAM": ("DNA_ALIGNMENT_BQSR_BAM", "RNA_TRANSCRIPTOME_ALIGNMENT_BAM"),
+    "BAI": ("DNA_ALIGNMENT_INDEX_BAI",),
+    "VCF": ("DNA_VARIANT_VCF_GENERAL",),
+    "TBI": ("DNA_VARIANT_INDEX_TBI",),
+    "RDS": ("BIO_DATA_CONTAINER_OBJECT",),
 }
 
 def _card_req(gid):
@@ -1339,6 +1348,16 @@ def _card_req(gid):
             out.add(sem)
     return out
 
+# 已验证样例输入：某个语义格式在图内有多份候选，但实测只有一份能真正跑通，其余的
+# 对象结构对不上。与 `_BULK10_RUNS` 同一性质——是既成事实的白名单，不是启发式。
+# `BIO_DATA_CONTAINER_OBJECT` 图内 18 份 rds（HRA001748 十份、HRA005191 六份、
+# HRA000087 两份），用户实测只有 HRA000087-merge.rds 这一份是能跑的样例输入，
+# 九个吃 rds 的流程（breast_cellchat / scrna_cell_communication / lung_tme_annotation_cnv …）
+# 一律锁到它：**没绑就补上，绑了别的就换成它**。绑一份跑不动的 rds 不比不绑强。
+_PROVEN_FMT = {
+    "BIO_DATA_CONTAINER_OBJECT": "HRA000087-merge.rds",
+}
+
 # 双端测序的 R1/R2 是同一次测序的两半，任何流程都必须成对拿。图内命名有 `_f1/_r2`、
 # `_R1/_R2`、`.R1./.R2.` 几种，统一按这张表找对家。
 _MATE = ((("_f1", "_r2"), ("_r1", "_r2"), ("_R1", "_R2"), (".R1.", ".R2.")))
@@ -1351,6 +1370,23 @@ def _mate_name(fn):
         if b in fn:
             return fn.replace(b, a)
     return None
+
+# 索引文件的语义格式 → （被索引的语义格式们, 索引扩展名）。索引不是"另一份数据"，
+# 是同一份数据的随文件，samtools/GATK 一族没有它直接拒跑。
+_INDEX_SEM = {
+    "DNA_ALIGNMENT_INDEX_BAI": (("DNA_ALIGNMENT_BQSR_BAM", "RNA_TRANSCRIPTOME_ALIGNMENT_BAM"), ".bai"),
+    "DNA_VARIANT_INDEX_TBI": (("DNA_VARIANT_VCF_GENERAL",), ".tbi"),
+}
+
+def _index_names(fn, ext):
+    """`fn` 的索引文件候选名。图内两种写法都有：0826 实测 4318 个 bai 是
+    `X.bam.bai`（追加），1859 个是 `X.BQSR.bai`（换掉最后一段扩展名）。两个都试，
+    最终以图内 pool 里存不存在为准，所以多试一个不会凭空造出文件。"""
+    out = [fn + ext]
+    base = fn.rsplit(".", 1)[0]
+    if base != fn:
+        out.append(base + ext)
+    return out
 
 def _complete_assets(gid, assets, facts):
     """按流程在图内声明的输入槽位补全 assets——只在图里挑，不发明文件。
@@ -1367,22 +1403,53 @@ def _complete_assets(gid, assets, facts):
     ③ 该语义格式在队列里**恰好**有一份队列级交付文件（见 `_STUDY_LEVEL`）时，把调用方
        选的逐样本文件换成它。恰好一份是关键：FASTQ 一份都没有（不动），表达矩阵有三份
        （口径之争交给 ②），只有 MAF/CNV 这类「汇总一份 + 逐样本 N 份」才落到这条上。
-    只在能从已选资产反查到唯一 study_accession 时生效；资产为空时不做任何事——
-    队列没定，图里 576 个 FASTQ 挑哪个都是猜。"""
+    ④ 双端补对家（见 `_mate_name`）。
+    ⑤ 补随文件索引 BAM→BAI、VCF.GZ→TBI（见 `_INDEX_SEM`）：manta/GATK/bcftools 的卡片
+       把 `tumor_bai`/`filtered_vcf_index` 写成必填，少一个就是 execution_params_missing。
+    ②③④⑤ 只在能从已选资产反查到唯一 study_accession 时生效；资产为空时不做任何事——
+    队列没定，图里 576 个 FASTQ 挑哪个都是猜。唯一的例外是 ⓪ 已验证样例输入
+    （见 `_PROVEN_ASSET`），那是白名单里写死的一份，没有可猜的余地。"""
     # 图内 io 声明与交付卡声明取并集：前者对原子工具准，对那六条 pipeline 级流程是错的
     # （见 `_CARD_FMT_SEM`），后者反过来只在有卡片时有。少一边就有规则整条失效。
     req = {s["name"].upper() for s in _graph_tool_io(gid)[0]} | _card_req(gid)
     need_clin = bool(_needs_clinical(gid))
+
+    # ⓪ 已验证样例输入（见 `_PROVEN_FMT`）。必须排在下面"资产为空就整条早退"之前：
+    # 问题三的实况正是调用方一个 asset 都没给，早退之后就再没有第二次机会补。
+    # 这里不违反"资产为空时不做任何事"的初衷——那条防的是从几百个候选里瞎猜，
+    # 而这条填的是唯一已知能跑通的那一份，没有可猜的余地。
+    pre, pinned = [], []
+    assets = list(assets)
+    for sem, want in _PROVEN_FMT.items():
+        if sem not in req:
+            continue
+        got = [a for a in assets
+               if (facts.get(str(a.get("file_name") or "")) or {}).get("semantic_format") == sem]
+        if any(str(a.get("file_name") or "") == want for a in got):
+            continue
+        for a in got:                      # 绑了别的候选：换掉，不是叠加
+            pre.append(f"{a['file_name']}→{want}")
+            assets.remove(a)
+        if not got:
+            pre.append("+" + want)
+        assets.append({"file_name": want,
+                       "match_reason": f"{gid} 已验证可跑通的样例输入"})
+        pinned.append(want)
+
     if (not req and not need_clin) or not assets:
-        return assets, []
+        return assets, pre
     acc = next((f.get("study_accession") for a in assets
                 if (f := facts.get(a.get("file_name")) or {}).get("study_accession")), None)
+    if not acc and pinned:   # ⓪ 刚补进来的文件不在 facts 里（facts 建于调用方那批），补查一次
+        facts = {**facts, **_asset_facts(pinned)}
+        acc = next((f.get("study_accession") for n in pinned
+                    if (f := facts.get(n) or {}).get("study_accession")), None)
     if not acc:
-        return assets, []
+        return assets, pre
     pool = _study_assets(acc)
     if not pool:
-        return assets, []
-    notes = []
+        return assets, pre
+    notes = list(pre)
 
     # ② 先归一口径（在补全之前做，免得补进来的表被当成"已有 TABULAR_BIO_DATA"）
     flav = _pipeline_flavor(gid)
@@ -1441,6 +1508,23 @@ def _complete_assets(gid, assets, facts):
                            "match_reason": f"{fn} 的双端对家文件"})
             have.add(mate)
             notes.append("+" + mate)
+
+    # ⑤ 补随文件索引（BAM→BAI、VCF.GZ→TBI）：调用方只交数据文件，而 manta/GATK/bcftools
+    # 这些卡片把 `tumor_bai`/`filtered_vcf_index` 写成必填槽位——少一个索引就是
+    # execution_params_missing。只在卡片确实声明了该索引格式时补，且只补 pool 里真有的。
+    for idx_fmt, (data_fmts, ext) in _INDEX_SEM.items():
+        if idx_fmt not in req:
+            continue
+        idx_pool = set(pool.get(idx_fmt) or ())
+        if not idx_pool:
+            continue
+        data_pool = {f for df in data_fmts for f in (pool.get(df) or ())}
+        for fn in sorted(have & data_pool):
+            hit = next((c for c in _index_names(fn, ext) if c in idx_pool and c not in have), None)
+            if hit:
+                assets.append({"file_name": hit, "match_reason": f"{fn} 的索引文件"})
+                have.add(hit)
+                notes.append("+" + hit)
 
     seen, uniq = set(), []                # 口径归一后同一张表可能出现两遍
     for a in assets:
@@ -1515,6 +1599,10 @@ def tool_hydrate_plan(args):
                 "pipeline_id": _tid, "rank": 1,
                 "match_note": "闭集内最接近目标的流程；与本次请求的差距见 answer",
                 "tool": {"tool_id": _tid},
+                # 空 assets 而不是不给 data：下面 `_complete_assets` 的入口条件是
+                # `isinstance(data["assets"], list)`，少这一层这条 rank1 就永远拿不到
+                # 已验证样例输入/临床对这些补全——问题三的 breast_cellchat 正是这么空手交卷的。
+                "data": {"status": "missing_from_graph", "assets": []},
             }]
             # 状态改 `missing_from_graph` 而不是 `ok`：这类问题的缺口恰恰在数据侧
             # （WES 想要聚类分型 / 从 MAF 起步做体细胞检测），assets 本来就填不出来，
@@ -1563,6 +1651,21 @@ def tool_hydrate_plan(args):
     facts.update(_asset_facts(
         [a.get("file_name") for r in recs for a in ((r.get("data") or {}).get("assets") or [])
          if a.get("file_name") and a.get("file_name") not in facts]))
+
+    # `missing_from_graph` 但手里攥着图内查得到的文件 —— 这是自相矛盾的交卷：一边说
+    # "图里没有对得上的数据"，一边把真实路径列出来。调用方判这个状态往往是拿卡片声明的
+    # 格式名去查图查空了（`SCRNA_OBJECT_RDS` 图内 0 个，见 `_CARD_FMT_SEM`），不是真缺数据。
+    # 以图为准把状态改回来：facts 里查得到就是图内确实有。
+    for rec in recs:
+        data = rec.get("data")
+        if not isinstance(data, dict) or str(data.get("status") or "").lower() != "missing_from_graph":
+            continue
+        if any(facts.get(str(a.get("file_name") or "")) for a in (data.get("assets") or [])):
+            data["status"] = "available"
+            filled.append(f"{rec.get('pipeline_id')}.data.status←available(图内已确认)")
+            if str(plan.get("selection_status") or "").lower() == "missing_from_graph":
+                plan["selection_status"] = "ok"
+
     for i, rec in enumerate(recs):
         pid = rec.get("pipeline_id") or (rec.get("tool") or {}).get("tool_id")
         if not rec.get("match_id"):

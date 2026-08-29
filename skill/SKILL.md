@@ -1068,7 +1068,29 @@ upper-case semantic name.** So `WHERE t.format CONTAINS 'BAM'` can never match �
 | `RNA_SPLICEJUNCTION_TAB` | 430 | **HRA001272 only** (`HRR1402797SJ.out.tab`, STAR splice junctions) |
 | `SCRNA_MATRIX_H5` | 403 | HRA005191(243), HRA001748(160) — ready-made single-cell matrices |
 | `DNA_SOMATIC_SV_VCF` | 286 | structural variants |
+| `BIO_DATA_CONTAINER_OBJECT` | 18 | **Seurat RDS objects**: HRA001748(10), HRA005191(6), HRA000087(2) |
 | `SOMATIC_CNV_TSV` | 4 | copy number |
+
+**Two names in §13's "input formats" column have zero nodes in the graph.** They are what the
+delivery card declares, not graph semantic names. Querying them returns 0 rows every time — do not
+conclude `no_candidate` from that:
+
+| what the card says | what to actually query |
+|---|---|
+| `SCRNA_OBJECT_RDS` (0 nodes) | `BIO_DATA_CONTAINER_OBJECT` (18 — these *are* the Seurat RDS files) |
+| `DNA_GENOMIC_ALIGNMENT_BAM` (0 nodes) | `DNA_ALIGNMENT_BQSR_BAM` (DNA, 6177) or `RNA_TRANSCRIPTOME_ALIGNMENT_BAM` (RNA, 3288) |
+
+**An index is a companion file, not a second dataset.** Every BAM has a BAI and every `vcf.gz` has a
+`gz.tbi`; the cards declare `tumor_bai` / `filtered_vcf_index` as required slots, so one missing index
+means the run will not start. Both naming shapes occur in the graph:
+`HRR1402616.BQSR.bam` → `HRR1402616.BQSR.bai` (extension swapped) and `X.bam` → `X.bam.bai`
+(suffix appended); `HRS1029945.snv.vcf.gz` → `….vcf.gz.tbi`. Same directory. The server fills these
+in — just give the primary data file.
+
+**Only one single-cell RDS actually runs**: `HRA000087-merge.rds`
+(`/hpcdisk1/cbb_group/data/analysis/HRA000087/HRA000087-Seurat-RDS-files/`). The other 16 have
+incompatible object structures, so all nine RDS-consuming pipelines
+(`breast_cellchat` / `scrna_cell_communication` / `lung_tme_annotation_cnv` …) use that one.
 
 **Alternative splicing**: rMATS-style analysis consumes RNA alignment BAMs — take
 `RNA_TRANSCRIPTOME_ALIGNMENT_BAM` (row 5). `RNA_SPLICEJUNCTION_TAB` is STAR's precomputed junction
