@@ -833,7 +833,7 @@ def tool_validate_execution_chain(args):
             _accs = set()
             for _b in list(bindings.values()) + list(params.values()):
                 _accs |= set(_HRA.findall(json.dumps(_b, ensure_ascii=False)))
-            _pair = _clinical_pair_files(next(iter(_accs))) if len(_accs) == 1 else {}
+            _pair = _clinical_pair_files(next(iter(_accs)), gid) if len(_accs) == 1 else {}
             for _n, _fmt in _clin.items():
                 _hit = _pair.get(_fmt)
                 if _hit:
@@ -941,6 +941,26 @@ def _rec_studies(rec):
                 out |= set(_HRA.findall(str(a.get(k) or "")))
     return out
 
+def _alias_recs(plan):
+    """把 `recommendations` 的拼写变体收编回正名，改了返回 True。
+
+    100 例回归实测：模型偶发把这个键写成 `recommenditions`（同一批 id 上一轮 0 次、
+    下一轮 3 次，纯采样抖动）。后果是整条推荐凭空消失——`recommendation_count` 归零、
+    前端与评分都读不到，而模型其实已经把该给的内容完整生成了。与下面「顶层 answer 归一」
+    同一处置：已经生成的内容不因一个键名拼错而作废，也不必为此多烧一轮修正。
+    判据卡得很紧——只认 `recommend` 开头**且值是对象数组**的键，`recommendation_count`
+    是整数，不会被误收。"""
+    if plan.get("recommendations"):
+        return False
+    for k in list(plan):
+        if k == "recommendations" or not str(k).startswith("recommend"):
+            continue
+        val = plan[k]
+        if isinstance(val, list) and val and all(isinstance(x, dict) for x in val):
+            plan["recommendations"] = plan.pop(k)
+            return True
+    return False
+
 def tool_validate_plan(args):
     """接地校验：整份 tool-chain/v2 Plan 的名词必须图内/目录内可验证。
     模型输出前自检用——工具、文件、路径、队列号任一无法证实即 grounded=false，
@@ -958,6 +978,7 @@ def tool_validate_plan(args):
         return {"status": "ok", "grounded": ok, "kind": "rejected",
                 "violations": [] if ok else ["rejected 对象缺 reason"]}
     v = []
+    _alias_recs(plan)
     if plan.get("schema_version") != "tool-chain/v2":
         v.append("schema_version 缺失或不是 tool-chain/v2")
     meta_to_graph = {c["meta_id"]: gid for gid, c in KC_MAP.items() if gid != c["meta_id"]}
@@ -1042,6 +1063,11 @@ def tool_validate_plan(args):
             if not _SAFE_FILE.fullmatch(str(fn)):
                 v.append(f"asset 文件名含非法字符: {fn}")
                 continue
+            # 旧版临床表整族不在图内（见 `_LEGACY5_PATHS`），照常校验就是把服务端自己
+            # 按实跑记录补的路径判成"模型编造"。豁免绑死在「文件名 + 那条 analysis 路径」
+            # 这一对上：换个路径照样进下面的图内校验。
+            if a.get("file_path") and a["file_path"] == _LEGACY5_PATHS.get(str(fn)):
+                continue
             rows = neo4j_q([f"MATCH (n) WHERE (n:T1 OR n:T2) AND n.file_name = '{fn}' RETURN n.file_path LIMIT 1"])
             if not (rows and rows[0]):
                 v.append(f"asset 图内不存在（疑似模型编造）: {fn}")
@@ -1074,6 +1100,18 @@ def tool_validate_plan(args):
                         f"不许按七队列并集选。要么换成这些队列之一的 "
                         f"{{STUDY}}-Genes-counts-1.0.tsv，要么改荐一条支持 {st} 的流程；"
                         f"用户点名的组合不在表内就直说该流程支持哪几个队列，别静默替换")
+        # 五个旧工具同理，白名单来自 legacy5_proven_runs.tsv（22 条 Succeeded 实跑）。
+        # 这五条比 bulk10 更严：它们吃的是 analysis 目录下的旧版 Clinical/MetaInfo，
+        # 白名单外的队列连那张表都不存在，选了必然 execution_params_missing。
+        _lg = _LEGACY5_RUNS.get(gid)
+        if _lg:
+            for st in sorted(_rec_studies(rec)):
+                if st not in _lg:
+                    v.append(
+                        f"recommendations[{i}] {gid} × {st} 没有实跑记录：{gid} 只在 "
+                        f"{'/'.join(sorted(_lg))} 上跑通过。这条流程用的是 "
+                        f"/hpcdisk1/cbb_group/data/analysis/ 下的旧版 Clinical/MetaInfo，"
+                        f"{st} 没有那份表。换成这几个队列之一，或改荐一条支持 {st} 的流程")
     for i, c in enumerate(plan.get("candidates") or []):
         if not isinstance(c, dict):
             v.append(f"candidates[{i}] 不是对象（应为 JSON 对象，不是字符串）")
@@ -1287,13 +1325,84 @@ def _needs_clinical(gid):
     return {i["name"]: _CLINICAL_PARAM_FMT[i["name"]] for i in card.get("inputs") or []
             if i.get("name") in _CLINICAL_PARAM_FMT}
 
-def _clinical_pair_files(acc):
+# 五个旧版工具：它们吃的临床表/样本元信息表是 `/hpcdisk1/cbb_group/data/analysis/<ACC>/`
+# 下的**旧版**表，而 0826 图内 18 份 Clinical/MetaInfo 全在扁平 `/hpcdisk1/cbb_group/data/<ACC>/`
+# 下、一律 .xlsx。两套表结构不同，喂新版进去跑不动——旧版这一族图里一个节点都没有，
+# 只能按实跑记录覆盖（同 sample.csv/individual.csv 的处置）。真值表在
+# skill/references/legacy5_proven_runs.tsv（22 条 Succeeded 的 Cromwell 记录）。
+# Clinical 扩展名逐队列不同（HRA000873/HRA000071 是 .xlsx，其余 .xls），不能按队列号硬拼。
+# MAF 与表达矩阵两栏与图内路径完全一致（含 HRA001272 多一层 `/RNAseq/`），不在覆盖范围。
+_LEGACY5_DIR = "/hpcdisk1/cbb_group/data/analysis/{acc}/{name}"
+_LEGACY5_RUNS: dict = {}     # tool_id -> {study: (clinical_name, metainfo_name)}
+# 旧版表文件名 → analysis 目录下的绝对路径。接地校验与路径回填都拿它当豁免凭据：
+# **只认「这个文件名配这条路径」这一对**，写别的路径照样报错。
+# 不能只按文件名放行：HRA000873/HRA000071 那两份 Clinical 是 .xlsx，图内扁平目录下
+# 同名也有一份，按名放行就等于对这两个队列彻底关掉了路径校验。
+_LEGACY5_PATHS: dict = {}
+# 队列级回退：{study: (clinical_name, metainfo_name)}，**只在该队列所有实跑行都写同一个名字时
+# 才有值**。表里 wgcna×HRA007167/HRA003107/HRA001272 三行的临床列是空的（那三次实跑只交了
+# 表达矩阵），但同一队列另有别的流程跑过、文件名是确定的——文件名是队列的属性，不是流程的。
+# 反过来 HRA000873/HRA000071 的 Clinical 逐流程不同（driver 用 .xls，survival/tmb 用 .xlsx），
+# 这两个队列证据冲突，就不回退、如实报缺——猜一个扩展名等于赌执行端读不读得开。
+_LEGACY5_COHORT: dict = {}
+
+def load_legacy5_runs() -> None:
+    """加载五个旧版工具的实跑组合与旧版表文件名。文件缺失则留空 = 一条都不覆盖。"""
+    path = os.path.join(SKILL_REF, "legacy5_proven_runs.tsv")
+    if not os.path.exists(path):
+        return
+    try:
+        seen: dict = {}     # study -> [{clinical 名}, {metainfo 名}]，用来判队列级是否唯一
+        with open(path, newline="") as f:
+            lines = [ln for ln in f if not ln.startswith("#")]
+        for row in csv.DictReader(lines, delimiter="\t"):
+            t, s = (row.get("tool_id") or "").strip(), (row.get("study") or "").strip()
+            if not (t and s):
+                continue
+            clin = (row.get("clinical_name") or "").strip()
+            meta = (row.get("metainfo_name") or "").strip()
+            _LEGACY5_RUNS.setdefault(t, {})[s] = (clin, meta)
+            names = seen.setdefault(s, [set(), set()])
+            for j, n in enumerate((clin, meta)):
+                if n:
+                    names[j].add(n)
+                    _LEGACY5_PATHS[n] = _LEGACY5_DIR.format(acc=s, name=n)
+        for s, (cs, ms) in seen.items():
+            _LEGACY5_COHORT[s] = (next(iter(cs)) if len(cs) == 1 else "",
+                                  next(iter(ms)) if len(ms) == 1 else "")
+    except Exception:
+        _LEGACY5_RUNS.clear()
+        _LEGACY5_PATHS.clear()
+        _LEGACY5_COHORT.clear()
+
+load_legacy5_runs()
+
+def _legacy5_pair(gid, acc):
+    """五个旧版工具在该队列的旧版临床对：{语义格式: (file_name, file_path)}。不适用则空。"""
+    hit = (_LEGACY5_RUNS.get(gid) or {}).get(acc)
+    if not hit:
+        return {}
+    back = _LEGACY5_COHORT.get(acc) or ("", "")
+    out = {}
+    for i, fmt in enumerate(_CLINICAL_PAIR):
+        name = hit[i] or back[i]        # 本行没写就用队列级唯一名（见 `_LEGACY5_COHORT`）
+        if name:
+            out[fmt] = (name, _LEGACY5_DIR.format(acc=acc, name=name))
+    return out
+
+def _clinical_pair_files(acc, gid=None):
     """一个队列的临床表/样本元信息表：{语义格式: (file_name, file_path)}。
 
     这两张表**在图内**（每个队列各一份、都带真实 file_path），与 bulk10 的
     sample.csv/individual.csv 不同——后者才是图外、按路径模板推的。
     同一队列偶有 .xls/.xlsx 两版（HRA001748/HRA005191），按文件名定序取首个，
-    保证同一个问题两次规划给同一份。"""
+    保证同一个问题两次规划给同一份。
+    五个旧版工具例外：它们要 analysis 目录下的旧版表，图内没有，见 `_legacy5_pair`。"""
+    if gid in _LEGACY5_RUNS:
+        # 这五条一律不回落到图内新版表：回落等于把跑不动的表当答案交出去。
+        # 表里 wgcna×HRA007167/HRA003107/HRA001272 三行本就没有临床列（实跑只给了表达矩阵），
+        # 返回空 = 如实报缺，比补一份新版表强。
+        return _legacy5_pair(gid, acc)
     if not _SAFE_TOKEN.fullmatch(str(acc or "")):
         return {}
     rows = neo4j_q([f"MATCH (n) WHERE (n:T1 OR n:T2) AND n.study_accession = '{acc}' "
@@ -1488,14 +1597,37 @@ def _complete_assets(gid, assets, facts):
     # 元数据同时喂进去——卡片那组 require_any 本来就是二选一，喂两套跑起来不报错，
     # 读错哪一套只有结果不对时才看得出来。§3.1 的契约是「只有 expr 一个必填输入」。
     if gid not in _BULK10 and ("CLINICAL_DATA_EXCEL" in req or need_clin):
-        have = {str(a.get("file_name") or "").lower() for a in assets}
+        # 五个旧工具走 analysis 目录下的旧版表（见 `_LEGACY5_RUNS`）。这里必须**先把图内
+        # 新版表从 assets 里摘掉再补旧版**：只补不摘就是两套元数据一起交，而卡片只吃一份，
+        # 读到哪一份看执行端心情。PDF 问题四报的就是这条补出来的
+        # `HRA001272-Clinical-1.0.xlsx | /hpcdisk1/cbb_group/data/HRA001272/…`。
+        legacy = _legacy5_pair(gid, acc) if gid in _LEGACY5_RUNS else {}
         for fmt in _CLINICAL_PAIR:
             files = sorted(pool.get(fmt) or [])   # 定序：同一问题两次规划给同一份
-            if files and not (have & {f.lower() for f in files}):
-                assets.append({"file_name": files[0],
-                               "match_reason": f"{gid} 声明需要 {fmt} 输入槽位，"
-                                               f"按队列 {acc} 补全"})
-                notes.append("+" + files[0])
+            want = legacy.get(fmt)
+            if gid in _LEGACY5_RUNS:
+                wrong = [a for a in assets
+                         if str(a.get("file_name") or "") in files
+                         and str(a.get("file_name") or "") != (want or ("", ""))[0]]
+                for a in wrong:
+                    notes.append("-" + str(a.get("file_name")))
+                    assets.remove(a)
+                if not want:            # 实跑记录里这条流程在该队列本就不吃这张表
+                    continue
+            have = {str(a.get("file_name") or "").lower() for a in assets}
+            if want:
+                if want[0].lower() in have:
+                    continue
+                new = {"file_name": want[0], "file_path": want[1],
+                       "match_reason": f"{gid} 在 {acc} 上的实跑记录用的是 analysis 目录下的"
+                                       f"旧版 {fmt}（图内新版表结构不同，跑不通）"}
+            else:
+                if not files or (have & {f.lower() for f in files}):
+                    continue
+                new = {"file_name": files[0],
+                       "match_reason": f"{gid} 声明需要 {fmt} 输入槽位，按队列 {acc} 补全"}
+            assets.append(new)
+            notes.append("+" + new["file_name"])
 
     # ④ 双端补对家：调用方十次有九次只给 R1（实测 c01 只交 HRR572934_f1.fq.gz），
     # 而没有 R2 的双端流程根本跑不起来。只补图内确实存在的那一半。
@@ -1559,6 +1691,8 @@ def tool_hydrate_plan(args):
 
     meta_to_graph = {c["meta_id"]: gid for gid, c in KC_MAP.items() if gid != c["meta_id"]}
     filled = []
+    if _alias_recs(plan):
+        filled.append("recommendations←拼写变体")
 
     # —— 顶层 answer 归一 ——
     # 没有推荐可给时，答案本身就是交付物，但 v2 信封里 match_note 长在 recommendations[i]
@@ -1686,7 +1820,11 @@ def tool_hydrate_plan(args):
                 for k in _ASSET_FIELDS:
                     if f.get(k) is not None and not a.get(k):
                         a[k] = f[k]
-                if f.get("file_path"):        # 路径以图内记录为准，覆盖调用方给的值
+                # 路径以图内记录为准，覆盖调用方给的值。唯一的例外是旧版临床表：
+                # HRA000873/HRA000071 那两份 .xlsx 图内扁平目录下同名也有一份，
+                # 照图回填会把实跑用的 analysis 路径改掉（见 `_LEGACY5_PATHS`）。
+                if f.get("file_path") and a.get("file_path") != _LEGACY5_PATHS.get(
+                        str(a.get("file_name") or "")):
                     a["file_path"] = f["file_path"]
                 a.setdefault("read_pair", None)
                 filled.append("asset:" + str(a.get("file_name")))

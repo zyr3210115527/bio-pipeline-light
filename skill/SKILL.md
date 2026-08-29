@@ -701,6 +701,25 @@ expression matrix, the MAF, or the FASTQ pair. `hydrate_plan` completes the rest
   they live on `T1` or `T2`. **Hunting for them is the single largest waste of wall-clock in this
   project** — probing `T2` by `format`, coming back empty, then re-probing `T1` by `strategy`, at tens of
   seconds a round.
+- **Five of those six read the *legacy* clinical tables**: `driver_gene_gender_analysis`,
+  `her2_pfs_survival`, `survival_analysis`, `tmb_survival_analysis`, `wgcna`. Their
+  Clinical/MetaInfo files live under `/hpcdisk1/cbb_group/data/analysis/<ACC>/` and **have zero
+  nodes in the graph** — the graph's 18 Clinical/MetaInfo files all sit under the flat
+  `/hpcdisk1/cbb_group/data/<ACC>/` and are all `.xlsx`; those are the *new* tables, a different
+  schema, and feeding them to these five pipelines fails at runtime. The extension varies per
+  (pipeline, study) — mostly `.xls`, but `survival_analysis` / `tmb_survival_analysis` on
+  HRA000873 and HRA000071 use `.xlsx` — so it cannot be reconstructed from the accession. The
+  server overrides both the asset path and the `execution_params` value from 22 proven Cromwell
+  runs (`references/legacy5_proven_runs.tsv`); **you cannot find these in the graph, do not look,
+  and never put the new-version table into `assets`.** Their study whitelist is fixed too:
+
+  | pipeline | proven studies |
+  |---|---|
+  | `driver_gene_gender_analysis`, `survival_analysis`, `tmb_survival_analysis` | `HRA001272` `HRA007169` `HRA001749` `HRA000873` `HRA000071` |
+  | `her2_pfs_survival`, `wgcna` | `HRA001272` `HRA000074` `HRA007167` `HRA003107` |
+
+  The primary data — MAF and expression matrices — are unaffected: their graph paths match the
+  proven runs exactly (including HRA001272's extra `/RNAseq/` level), so query those normally.
 - The same applies to the bulk10 family's `sample_csv` / `individual_csv` (§3.1) — server-derived from
   the study accession, never written and never queried.
 - The expression matrix is normalised to the pipeline's default quantification flavour. A study's FPKM,

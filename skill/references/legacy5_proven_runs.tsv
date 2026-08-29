@@ -1,0 +1,31 @@
+# 五个旧版工具的 Cromwell 实跑记录（Succeeded），一行一次实跑。
+# 关键事实：这五条流程吃的 Clinical/MetaInfo 是 **/hpcdisk1/cbb_group/data/analysis/<ACC>/**
+# 下的旧版表，而 0826 图内 18 份 Clinical/MetaInfo 全在扁平 /hpcdisk1/cbb_group/data/<ACC>/
+# 下、且一律 .xlsx。两套表结构不同，喂新版进去跑不动 —— 图里查不到旧版这一族，
+# 只能由服务端按本表覆盖路径（同 sample.csv/individual.csv 的处置）。
+# Clinical 扩展名逐队列不同（HRA000873/HRA000071 是 .xlsx，其余 .xls），别按队列号硬拼。
+# MAF 与表达矩阵这两栏与图内路径完全一致（含 HRA001272 多一层 /RNAseq/），无需覆盖。
+tool_id	study	cromwell_id	clinical_name	metainfo_name
+driver_gene_gender_analysis	HRA001272	39376e78-e09f-4c85-8b85-7c69e99b3af2	HRA001272-Clinical-1.0.xls	HRA001272-MetaInfo-1.0.xlsx
+driver_gene_gender_analysis	HRA007169	37ac3cf6-194b-41ba-86a0-3988257df464	HRA007169-Clinical-1.0.xls	HRA007169-MetaInfo-1.0.xlsx
+driver_gene_gender_analysis	HRA001749	05207e98-1480-4d4e-bc00-56411d578888	HRA001749-Clinical-1.0.xls	HRA001749-MetaInfo-1.0.xlsx
+driver_gene_gender_analysis	HRA000873	bedd1843-6a73-406d-a72b-007c502523d3	HRA000873-Clinical-1.0.xls	HRA000873-MetaInfo-1.0.xlsx
+driver_gene_gender_analysis	HRA000071	9d6bad5a-ebbd-449e-9c25-2aec11425d0d	HRA000071-Clinical-1.0.xls	HRA000071-MetaInfo-1.0.xlsx
+her2_pfs_survival	HRA001272	92207117-66ed-4ea2-b272-ad13f4772184	HRA001272-Clinical-1.0.xls	HRA001272-MetaInfo-1.0.xlsx
+her2_pfs_survival	HRA000074	1349e730-ab5b-44d5-ad4e-2212815b5b51	HRA000074-Clinical-1.0.xls	HRA000074-MetaInfo-1.0.xlsx
+her2_pfs_survival	HRA007167	c51ea1a6-3d21-4341-984e-c32a8f7b8c40	HRA007167-Clinical-1.0.xls	HRA007167-MetaInfo-1.0.xlsx
+her2_pfs_survival	HRA003107	df9924c7-caca-43bc-9dbc-d78409e54e23	HRA003107-Clinical-1.0.xls	HRA003107-MetaInfo-1.0.xlsx
+survival_analysis	HRA001272	eafe273d-6203-4971-b280-20debce46234	HRA001272-Clinical-1.0.xls	HRA001272-MetaInfo-1.0.xlsx
+survival_analysis	HRA007169	2049cd95-8bdd-434e-802a-6fa87ce27237	HRA007169-Clinical-1.0.xls	HRA007169-MetaInfo-1.0.xlsx
+survival_analysis	HRA001749	165db6e2-747b-4714-a321-88c1c59e23d4	HRA001749-Clinical-1.0.xls	HRA001749-MetaInfo-1.0.xlsx
+survival_analysis	HRA000873	a926ac18-fee1-4e5f-91b7-e5b5a3502856	HRA000873-Clinical-1.0.xlsx	HRA000873-MetaInfo-1.0.xlsx
+survival_analysis	HRA000071	a58f1f3f-4e55-41d0-a28f-c19373a363dc	HRA000071-Clinical-1.0.xlsx	HRA000071-MetaInfo-1.0.xlsx
+tmb_survival_analysis	HRA007169	2a9a1d11-ac67-442b-83f1-5021fb20b0bc	HRA007169-Clinical-1.0.xls	HRA007169-MetaInfo-1.0.xlsx
+tmb_survival_analysis	HRA001749	17761e73-8308-4b7d-b209-51a7690bc176	HRA001749-Clinical-1.0.xls	HRA001749-MetaInfo-1.0.xlsx
+tmb_survival_analysis	HRA001272	1a679579-2f4b-4f46-ac69-a04c55564dc2	HRA001272-Clinical-1.0.xls	HRA001272-MetaInfo-1.0.xlsx
+tmb_survival_analysis	HRA000873	2b58e9ba-3e89-48c7-8461-c1ef182f4ba8	HRA000873-Clinical-1.0.xlsx	HRA000873-MetaInfo-1.0.xlsx
+tmb_survival_analysis	HRA000071	3e9225cf-0718-4617-9280-cef2a6ada1fe	HRA000071-Clinical-1.0.xlsx	HRA000071-MetaInfo-1.0.xlsx
+wgcna	HRA000074	ee94b4fd-97cd-48d1-8199-f2d37b9ae529	HRA000074-Clinical-1.0.xls	HRA000074-MetaInfo-1.0.xlsx
+wgcna	HRA007167	5e6fd1ed-7bd2-4059-ae75-1b2ba3a833a9
+wgcna	HRA003107	46ae01b8-28dc-4ec5-aa02-89ffee534cad
+wgcna	HRA001272	ee0c7296-75d4-459d-9abb-7389a30a00c0

@@ -575,7 +575,24 @@ rank1 填这条链的**主环节**（比对题填 `bwa`/`star` 而不是 `fastp`
 `clinical_xls`+`metainfo_xlsx`（另一套写法 `clinical_file`+`metainfo_file`）写成了必填参数」，
 覆盖 `driver_gene_gender_analysis` `wgcna` `her2_pfs_survival` `immune_infiltration_iobr`
 `survival_analysis` `tmb_survival_analysis` 六条，**这六条只给主数据一条 asset 即可，
-两张表和它们的 `execution_params` 由服务端填**。**为找它们再开一轮取数是本项目最大的时间浪费**（先在 T2 按 format 猜、
+两张表和它们的 `execution_params` 由服务端填**。
+
+**其中五条走的是旧版临床表**：`driver_gene_gender_analysis` `her2_pfs_survival`
+`survival_analysis` `tmb_survival_analysis` `wgcna`。它们吃的 Clinical/MetaInfo 在
+`/hpcdisk1/cbb_group/data/analysis/<ACC>/` 下，**图里一个节点都没有**（图内 18 份
+Clinical/MetaInfo 全在扁平 `/hpcdisk1/cbb_group/data/<ACC>/` 下、一律 `.xlsx`，
+是新版表、结构不同、喂进去跑不动）。扩展名逐队列逐流程不同（多数 `.xls`，
+`survival_analysis`/`tmb_survival_analysis` 在 HRA000873/HRA000071 上是 `.xlsx`），
+别按队列号硬拼。服务端按 22 条实跑记录覆盖，**你查不到也不用查、更不要把新版那份写进 assets**。
+这五条的队列白名单同样是固定的（`references/legacy5_proven_runs.tsv`）：
+
+| 流程 | 只在这些队列上跑通过 |
+|---|---|
+| `driver_gene_gender_analysis` `survival_analysis` `tmb_survival_analysis` | `HRA001272` `HRA007169` `HRA001749` `HRA000873` `HRA000071` |
+| `her2_pfs_survival` `wgcna` | `HRA001272` `HRA000074` `HRA007167` `HRA003107` |
+
+MAF 与表达矩阵这两类主数据不受影响——它们的图内路径与实跑记录完全一致（含 HRA001272
+多一层 `/RNAseq/`），照常从图里查。**为找它们再开一轮取数是本项目最大的时间浪费**（先在 T2 按 format 猜、
 查空了再去 T1 按 strategy 猜，一轮几十秒）；**bulk10 族的 `sample_csv`/`individual_csv` 同理**
 （见 §3.1，它们根本不在图内，写进 assets 会直接判违规）；
 表达矩阵选错定量口径（FPKM/TPM/counts）也会被按该流程的默认口径自动换成正确的那份（bulk10 十条一律 counts，见 §3.1），
