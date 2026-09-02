@@ -557,7 +557,8 @@ RETURN collect(f.format)
 
 必须由你给出的只有：`schema_version`、`selection_status`、`intent`、空推荐时的顶层 `answer`、
 每条 recommendation 的
-`pipeline_id`/`match_note`/`data.assets[].file_name`+`match_reason`、candidates 的 tool_chain 顺序。
+`pipeline_id`/`match_note`/`data.study_accessions`/`data.assets[].file_name`+`match_reason`、
+candidates 的 tool_chain 顺序。
 
 **别忘了给链。** 问句里出现「工具**链**」「哪条工具**流程**」「**流程**是什么」，或者目标本身要走
 上游（原始 FASTQ 想比对必须先质控去接头；想做表达定量必须先比对），**必须在
@@ -600,8 +601,14 @@ MAF 与表达矩阵这两类主数据不受影响——它们的图内路径与�
 但**主数据必须你来选，且必须是图内真实存在的文件**——`selection_status` 为 `ok` 时
 `assets` 不许为空；图里确实找不到可用数据就把状态改成 `no_candidate` 并在 `match_note` 说明。
 用户没点名队列时也照选：按癌种/组学定位队列，再按 `semantic_format` 过滤、
-**`ORDER BY n.file_name` 取最靠前的一份**作为代表样本（配对测序取 f1/r2 一对）——
+**`ORDER BY n.file_name, n.file_path` 取最靠前的一份**作为代表样本（配对测序取 f1/r2 一对）——
 定序是为了同一个问题两次规划给出同一份文件，别随手 LIMIT。
+**`file_name` 不是主键**，两个字段都要写进 ORDER BY：图里 396 个文件名对应多条不同
+`file_path`，其中 318 个还跨队列（最狠的是 HRA003107 与 HRA007167 各 310 个同名 BAM，
+另有 HRA007169 的 76 个 VCF 在 `analysis_bak/` 下各有一份备份）。只按 `file_name` 定序，
+这些名字之间分不出先后，取到哪条仍看行序——挑错不报错，是**静默串队列**。
+同理，`data.study_accessions` 一定要写上你选中的队列：就一个短字符串，
+服务端靠它把歧义文件名解析到你真正想要的那一份。
 
 schema 示例（**这就是你该输出的完整长度**）：
 

@@ -668,8 +668,8 @@ with the graph's own facts, so authoring them only costs generation time and inv
 `file_name` and `match_reason` (**never write `file_path` from memory**); inside `candidates[].tool_chain`
 write only each step's `tool_id`. What you must supply: `schema_version`, `selection_status`, `intent`,
 the top-level `answer` whenever `recommendations` is empty,
-and per recommendation `pipeline_id`, `match_note`, `data.assets[].file_name` + `match_reason`, plus the
-tool_chain ordering.
+and per recommendation `pipeline_id`, `match_note`, `data.study_accessions`,
+`data.assets[].file_name` + `match_reason`, plus the tool_chain ordering.
 
 **Do not forget the chain.** When the question says "tool **chain**", "which **pipeline**", "what is the
 **workflow**", or when the goal inherently needs an upstream step (raw FASTQ before alignment needs QC /
@@ -738,9 +738,16 @@ What is not completed for you: the primary datum itself. It must be a file that 
 graph, and `assets` must be non-empty whenever `selection_status` is `ok` — if the graph holds no usable
 data, say so with `no_candidate` plus a `match_note`, rather than shipping a recommendation with no data.
 This holds even when the request names no cohort: locate one by cancer type / omics, filter by
-`semantic_format`, and take the **first file under `ORDER BY n.file_name`** as the representative sample
-(an f1/r2 pair for paired-end). Order explicitly — a bare `LIMIT` resolves the same question to different
-files on different runs. When a cancer type spans several cohorts and the user named none, take the one
+`semantic_format`, and take the **first file under `ORDER BY n.file_name, n.file_path`** as the
+representative sample (an f1/r2 pair for paired-end). Order explicitly — a bare `LIMIT` resolves the same
+question to different files on different runs. **Order by both fields: `file_name` is not a key.** 396
+names in the graph map to more than one `file_path`, and 318 of those span cohorts — worst case,
+HRA003107 and HRA007167 each hold 310 identically-named BAMs, and HRA007169's 76 VCFs each have a copy
+under `analysis_bak/`. Ordering by `file_name` alone leaves those tied, so which one you get still falls
+back to row order — and picking wrong does not raise an error, it **silently crosses cohorts**. For the
+same reason, always fill `data.study_accessions` with the cohort you selected: it is one short string, and
+it is what lets the server resolve an ambiguous `file_name` to the copy you actually meant.
+When a cancer type spans several cohorts and the user named none, take the one
 with the most samples, so the same question always resolves the same way:
 
 | Cancer type | Expression / raw | Mutation (MAF) |

@@ -773,8 +773,10 @@ def tool_validate_execution_chain(args):
         fname = str(binding.get("file_name") or binding.get("file_id") or "").strip()
         if fname and _SAFE_FILE.fullmatch(fname):
             try:
-                rows = neo4j_q([f"MATCH (n) WHERE (n:T1 OR n:T2) AND n.file_name = '{fname}' RETURN n.file_path LIMIT 1"])
-                p = str(rows[0][0][0] or "") if rows and rows[0] else ""
+                # 同名多路径时按 `_node_rank` 择优，别随手取第一条：HRA007169 那 76 个 VCF
+                # 在 `analysis_bak/mutect2` 下各有一份备份，取到备份就是拿旧结果去跑。
+                f = _asset_facts([fname]).get(fname) or {}
+                p = str(f.get("file_path") or "")
                 if p.startswith("/") and "NOT_FOUND" not in p:
                     return p
             except Exception:
@@ -1068,13 +1070,15 @@ def tool_validate_plan(args):
             # 这一对上：换个路径照样进下面的图内校验。
             if a.get("file_path") and a["file_path"] == _LEGACY5_PATHS.get(str(fn)):
                 continue
-            rows = neo4j_q([f"MATCH (n) WHERE (n:T1 OR n:T2) AND n.file_name = '{fn}' RETURN n.file_path LIMIT 1"])
-            if not (rows and rows[0]):
+            # 「属于」而不是「等于」：同名多路径时（见 `_name_paths`）按某一条比对，
+            # 调用方给的另一条同样真实的路径会被误判成编造——HRA003107/HRA007167
+            # 那 310 个同名 BAM 会稳定踩中这条。
+            real = _name_paths([fn]).get(str(fn)) or set()
+            if not real:
                 v.append(f"asset 图内不存在（疑似模型编造）: {fn}")
             else:
                 fp = a.get("file_path")
-                real = rows[0][0][0]
-                if fp and real and fp != real:
+                if fp and fp not in real:
                     v.append(f"asset file_path 与图内记录不符: {fn}")
         for st in (rec.get("data") or {}).get("study_accessions") or []:
             if not _SAFE_FILE.fullmatch(str(st)):
@@ -1164,22 +1168,59 @@ def _graph_tool_io(gid):
 _ASSET_FIELDS = ("format", "file_format", "strategy", "data_level", "study_accession",
                  "sample_accession", "run_accession", "file_path", "specimen_type")
 
-def _asset_facts(names):
-    """按 file_name 批量取图内权威字段（T1/T2 通用），供 assets 补全。"""
+# **`file_name` 不是主键。** 0826 图里 396 个文件名对应多条不同 `file_path`，其中 318 个
+# 还跨队列。最狠的一组是 HRA003107 与 HRA007167 各 310 个同名 BAM（两个队列的 BAM 目录
+# 文件名完全撞车），其次是 HRA007169 那 76 个 VCF 在 `analysis_bak/mutect2` 下各有一份备份。
+# 所以「按文件名查一条」的写法是在同名兄弟里随机挑——Cypher 不带 ORDER BY 时行序无保证。
+# 挑错不报错，是**静默串队列**：asset 的 study_accession 被写成另一个队列，`_complete_assets`
+# 再顺着这个错队列去补临床表、MAF、索引，整条推荐跟着偏；同一个问题两次规划还可能给不同路径。
+# 统一在这里定序，三个从强到弱的判据：已知队列 > 非备份目录 > 字典序兜底。
+_BAK_DIR = re.compile(r"/(analysis_bak|bak|backup|old|deprecated|tmp)(/|$)", re.I)
+# 同名节点全取，不截断——截断就等于把择优退化回随机挑。上限只防病态数据（实测最多 17 条）。
+_NAME_FANOUT = 64
+
+def _node_rank(props, acc=None):
+    """同名多节点时的择优键，越小越优先。"""
+    fp = str((props or {}).get("file_path") or "")
+    same_acc = 0 if (acc and str((props or {}).get("study_accession") or "") == acc) else 1
+    return (same_acc, 1 if _BAK_DIR.search(fp) else 0, fp)
+
+def _asset_facts(names, acc=None):
+    """按 file_name 批量取图内权威字段（T1/T2 通用），供 assets 补全。
+
+    `acc` 是调用方已声明的队列，同名跨队列时用它消歧（见 `_node_rank`）。"""
     qs, keys = [], []
     for fn in dict.fromkeys(names):            # 去重但保序
         if _SAFE_FILE.fullmatch(str(fn)):
             qs.append(f"MATCH (n) WHERE (n:T1 OR n:T2) AND n.file_name = '{fn}' "
-                      f"RETURN properties(n) LIMIT 1")
+                      f"RETURN properties(n) LIMIT {_NAME_FANOUT}")
             keys.append(fn)
     if not qs:
         return {}
     rows = neo4j_q(qs)                         # 一次批量往返，别逐个查
     facts = {}
     for fn, r in zip(keys, rows):
-        if r and r[0]:
-            facts[fn] = r[0][0] or {}
+        cands = [(x[0] or {}) for x in (r or []) if x and x[0]]
+        if cands:
+            facts[fn] = min(cands, key=lambda p: _node_rank(p, acc))
     return facts
+
+def _name_paths(names):
+    """按 file_name 批量取图内**全部**同名路径：{file_name: {path, …}}。
+
+    接地校验用它做「属于」判断而不是「等于」某一条：同名多路径时按一条比对，
+    调用方给的另一条真实路径会被误判成"模型编造"。"""
+    qs, keys = [], []
+    for fn in dict.fromkeys(names):
+        if _SAFE_FILE.fullmatch(str(fn)):
+            qs.append(f"MATCH (n) WHERE (n:T1 OR n:T2) AND n.file_name = '{fn}' "
+                      f"RETURN n.file_path LIMIT {_NAME_FANOUT}")
+            keys.append(fn)
+    if not qs:
+        return {}
+    rows = neo4j_q(qs)
+    return {fn: {str(x[0]) for x in (r or []) if x and x[0]}
+            for fn, r in zip(keys, rows) if r}
 
 # 定量口径：同一队列的表达矩阵在图内有 FPKM/TPM/counts 三份，节点属性完全一致
 # （semantic_format 都是 TABULAR_BIO_DATA、data_level 都是 2），只有文件名能区分。
@@ -1395,8 +1436,16 @@ def _clinical_pair_files(acc, gid=None):
 
     这两张表**在图内**（每个队列各一份、都带真实 file_path），与 bulk10 的
     sample.csv/individual.csv 不同——后者才是图外、按路径模板推的。
-    同一队列偶有 .xls/.xlsx 两版（HRA001748/HRA005191），按文件名定序取首个，
-    保证同一个问题两次规划给同一份。
+
+    **按目录整体选，不逐个格式选。** HRA001748/HRA005191 这两个单细胞队列在扁平
+    `/data/<ACC>/`（`.xlsx` + `.xlsx`）与 `/data/scRNAseq/<ACC>/`（`.xls` + `.xlsx`）
+    下**各有一套完整的两张表**，且 MetaInfo 两边同名。逐个格式独立挑会挑出跨目录的
+    组合——Clinical 取 scRNAseq 那份（`.xls` 文件名排前），MetaInfo 取扁平那份
+    （同名时路径排前）——等于把两次不同导出的表配成一对喂进同一条流程。
+    这里先把候选按目录分组，选出「两张齐全 > 非备份 > 字典序」最优的那个目录，
+    再从中取两张，保证成对同源，也保证同一个问题两次规划给同一份。
+    扁平那套排在前，与手册记的口径一致（图内 18 份 Clinical/MetaInfo 都在扁平目录、
+    一律 `.xlsx`）。
     五个旧版工具例外：它们要 analysis 目录下的旧版表，图内没有，见 `_legacy5_pair`。"""
     if gid in _LEGACY5_RUNS:
         # 这五条一律不回落到图内新版表：回落等于把跑不动的表当答案交出去。
@@ -1409,16 +1458,20 @@ def _clinical_pair_files(acc, gid=None):
                     f"AND n.semantic_format IN ['CLINICAL_DATA_EXCEL','METADATA_SAMPLE_INFO'] "
                     f"AND n.file_path IS NOT NULL "
                     f"RETURN n.semantic_format, n.file_name, n.file_path"])
-    best = {}
+    by_dir = {}
     for r in (rows[0] if rows else []) or []:
         if not (r and r[0] and r[2]):
             continue
         fmt, fn, fp = r[0], str(r[1] or ""), str(r[2] or "")
         if not fp.startswith("/") or "NOT_FOUND" in fp:
             continue
-        if fmt not in best or fn < best[fmt][0]:
-            best[fmt] = (fn, fp)
-    return best
+        d = by_dir.setdefault(os.path.dirname(fp), {})
+        if fmt not in d or (fn, fp) < d[fmt]:      # 同目录同格式再有重名，字典序兜底
+            d[fmt] = (fn, fp)
+    if not by_dir:
+        return {}
+    return min(by_dir.items(),
+               key=lambda kv: (-len(kv[1]), 1 if _BAK_DIR.search(kv[0]) else 0, kv[0]))[1]
 
 # 队列级交付文件：`HRA*-SomaticSNV-1.0.maf` 是全队列汇总，`HRR1725089.maf` 只有一个病人。
 # 突变景观/TMB 分组/生存这类队列级分析拿后者等于只分析了 1/77 的人。
@@ -1770,7 +1823,15 @@ def tool_hydrate_plan(args):
     recs = plan.get("recommendations") or []
     want = [a.get("file_name") for r in recs for a in ((r.get("data") or {}).get("assets") or [])
             if a.get("file_name")]
-    facts = _asset_facts(want)
+    # 同名跨队列时的消歧锚点（见 `_node_rank`）：**恰好一个**队列才用。多个队列说明这批
+    # assets 本就混着队列，拿其中一个当锚点会把另一批的同名文件全体拽错边，不如不锚、
+    # 退回「避开备份目录 + 字典序」。锚点两个来源：声明的 study_accessions，以及调用方
+    # 已经写在 file_path 里的队列号。
+    _hint = {str(s) for r in recs for s in ((r.get("data") or {}).get("study_accessions") or [])}
+    _hint |= {m for r in recs for a in ((r.get("data") or {}).get("assets") or [])
+              for m in _HRA.findall(str(a.get("file_path") or ""))}
+    acc_hint = next(iter(_hint)) if len(_hint) == 1 else None
+    facts = _asset_facts(want, acc_hint)
     # 先按流程声明补齐/归一资产（会引入新文件名），再统一取图内字段
     for rec in recs:
         pid = rec.get("pipeline_id") or (rec.get("tool") or {}).get("tool_id")
@@ -1782,9 +1843,11 @@ def tool_hydrate_plan(args):
         if notes:
             filled.append(f"assets({pid}): " + ",".join(notes))
             data.pop("matched_count", None)      # 数量变了，别沿用调用方给的旧值
-    facts.update(_asset_facts(
-        [a.get("file_name") for r in recs for a in ((r.get("data") or {}).get("assets") or [])
-         if a.get("file_name") and a.get("file_name") not in facts]))
+    allnames = [a.get("file_name") for r in recs
+                for a in ((r.get("data") or {}).get("assets") or []) if a.get("file_name")]
+    facts.update(_asset_facts([n for n in allnames if n not in facts], acc_hint))
+    # 同名的全部合法路径，供下面判断「调用方给的路径要不要覆盖」（见 `_name_paths`）
+    allpaths = _name_paths(allnames)
 
     # `missing_from_graph` 但手里攥着图内查得到的文件 —— 这是自相矛盾的交卷：一边说
     # "图里没有对得上的数据"，一边把真实路径列出来。调用方判这个状态往往是拿卡片声明的
@@ -1820,11 +1883,15 @@ def tool_hydrate_plan(args):
                 for k in _ASSET_FIELDS:
                     if f.get(k) is not None and not a.get(k):
                         a[k] = f[k]
-                # 路径以图内记录为准，覆盖调用方给的值。唯一的例外是旧版临床表：
-                # HRA000873/HRA000071 那两份 .xlsx 图内扁平目录下同名也有一份，
-                # 照图回填会把实跑用的 analysis 路径改掉（见 `_LEGACY5_PATHS`）。
-                if f.get("file_path") and a.get("file_path") != _LEGACY5_PATHS.get(
-                        str(a.get("file_name") or "")):
+                # 路径以图内记录为准，覆盖调用方给的值。两个例外：
+                # ① 旧版临床表：HRA000873/HRA000071 那两份 .xlsx 图内扁平目录下同名也有
+                #    一份，照图回填会把实跑用的 analysis 路径改掉（见 `_LEGACY5_PATHS`）。
+                # ② 调用方给的路径本身就是这个文件名在图内的合法路径之一（见 `_name_paths`）：
+                #    同名多路径时 `f` 只是择优挑出的那一条，照它覆盖等于把调用方明确选中的
+                #    HRA007167 的 BAM 改写成 HRA003107 的同名 BAM——静默串队列。
+                fn_ = str(a.get("file_name") or "")
+                if f.get("file_path") and a.get("file_path") != _LEGACY5_PATHS.get(fn_) \
+                        and a.get("file_path") not in (allpaths.get(fn_) or set()):
                     a["file_path"] = f["file_path"]
                 a.setdefault("read_pair", None)
                 filled.append("asset:" + str(a.get("file_name")))
