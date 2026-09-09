@@ -192,8 +192,23 @@ def _fmt_alts(f):
     整串当一个格式比，就永远比不上任何资产——0826 的卡里有 5 个**必填**参数是这种写法
     （fastqc.fastqs、samtools.alignment、snpeff.input_vcf 及其两个别名 id），
     结果是这几个工具的第一步恒报 no_confirmed_path，原子链必挂在开头。
+
+    format 里还常带**修饰词**：`coordinate-sorted BAM`、`GATK interval_list`。整串比同样
+    比不上——gatk 的 tumor_bam/normal_bam 写的就是 `coordinate-sorted BAM`，而上游
+    samtools 的产出声明是干净的 `BAM`，于是 WES 工具链走到 GATK 那步必报
+    no_confirmed_path（实测每次都报）。所以再补一层：拆出空格分隔的词，认识的格式词
+    也算候选。只认 `_FMT_TOKENS` 里的已知格式词，不拿末尾词兜底——`RSEM index
+    directory` 的末尾词是 directory，兜进来会让任意目录型参数互相乱绑。
     """
-    raw = {_norm_fmt(x) for x in str(f or "").split("/") if x.strip()}
+    raw = set()
+    for x in str(f or "").split("/"):
+        x = x.strip()
+        if not x:
+            continue
+        raw.add(_norm_fmt(x))
+        if " " in x or "-" in x:
+            raw |= {t for t in (_norm_fmt(w) for w in re.split(r"[\s\-]+", x))
+                    if t in _FMT_TOKENS}
     return raw, {_FMT_FAMILY.get(x, x) for x in raw}
 
 
@@ -466,6 +481,57 @@ def _strip(assets):
     return [{k: v for k, v in a.items() if not k.startswith("_")} for a in assets]
 
 
+def _alt_gids(srv, assets, taken, n):
+    """补位候选：挑「同一批数据还喂得进去」的闭集流程，按能吃下的必填槽位数排序。
+
+    调用方（Cohort Agent）按固定三个候选位读结果，而原子链写不写、写几条完全由模型决定
+    ——同一个问句实测三次只出现 0~1 次，少一位那边就是空白。这里做的是**补位**：
+    排序质量不做要求，但形状必须是合同要求的那一套（真绑定、真路径、如实的
+    feasibility），不能塞占位符——调用方会拿它去提交执行。
+    纯格式比对不查图：补位不值得多一次往返。一个都比不上时按闭集固定顺序取，
+    保证「有 rank1 就有 rank3」这条对外承诺不因数据情况而破例。
+    """
+    fam = {_family(a.get("_fmt")) for a in assets if a.get("_fmt")}
+    scored, rest = [], []
+    for gid, card in sorted((srv.KC_MAP or {}).items()):
+        if gid in taken or (card or {}).get("meta_id") in taken or gid not in srv.CATALOG:
+            continue
+        req = [p for p in (card.get("inputs") or []) if p.get("required") and p.get("format")]
+        hit = sum(1 for p in req if fam & _fmt_alts(p["format"])[1])
+        (scored if hit else rest).append((-hit, gid))
+    scored.sort()
+    return [g for _, g in (scored + rest)[:max(0, n)]]
+
+
+def _mk_filler(srv, gid, assets, rank):
+    """把 `_alt_gids` 选出的流程建成一条候选，绑定与路径解析与 rank1 走同一套。"""
+    card = srv.KC_MAP.get(gid)
+    tool_id = (card or {}).get("meta_id") or gid
+    inputs, missing = _bind_step(srv, gid, card, assets, [], "step-1")
+    params, pmiss = _flat_params(srv, gid, inputs,
+                                 {a["asset_id"]: a for a in assets}, tool_id, "step-1")
+    missing = missing + pmiss
+    has_path = any(a["path"] for a in assets)
+    ready = has_path and not missing
+    return {
+        "rank": rank,
+        "match_id": f"candidate-{rank}",
+        "pipeline_id": tool_id,
+        "validation_ok": ready,
+        "feasibility_status": "ready" if ready else (
+            "missing_data" if not has_path else "missing_inputs"),
+        "study_accession": next((a["study_accession"] for a in assets
+                                 if a.get("study_accession")), None),
+        "assets": _strip(assets),
+        "tool_chain": [{"step_id": "step-1", "tool_id": tool_id, "inputs": inputs}],
+        "execution_params": params,
+        "execution_params_missing": missing,
+        # 如实标注来源：这条不是模型选的，是服务端为补足候选位挑的同数据可跑流程。
+        # 调用方要区分「模型认为可选」和「服务端凑数」时看这个字段。
+        "selection_source": "server_fill",
+    }
+
+
 def to_cohort_v2(plan, query, top_k=3):
     """light 的 tool-chain/v2 → Cohort/PipelineBuilder 执行合同。
 
@@ -480,6 +546,7 @@ def to_cohort_v2(plan, query, top_k=3):
     recs = (out.get("recommendations") or [])[:max(1, int(top_k or 1))]
     out["recommendations"] = recs
     candidates = []
+    rank1_assets = []
 
     for i, rec in enumerate(recs, 1):
         pid = rec.get("pipeline_id") or (rec.get("tool") or {}).get("tool_id") or ""
@@ -492,6 +559,8 @@ def to_cohort_v2(plan, query, top_k=3):
         accs = {str(s) for s in (data.get("study_accessions") or []) if s}
         assets = _mk_assets(srv, data.get("assets"),
                             next(iter(accs)) if len(accs) == 1 else None)
+        if i == 1:
+            rank1_assets = assets      # 补位候选复用这批已解析好的资产，见 `_alt_gids`
 
         # —— tool 块：Dingent 会按 catalog_status / builder_param 静默过滤 ——
         tool = dict(rec.get("tool") or {})
@@ -548,13 +617,26 @@ def to_cohort_v2(plan, query, top_k=3):
         if conv:
             candidates.append(conv)
 
+    # 候选位补足到 _CAND_CAP：有 rank1 就必须有 rank3（见 `_alt_gids`）。
+    # 只在已经有真候选时补——拒答题的 candidates 本就该是空的，凑数等于把「这题不该做」
+    # 变成「这题有三个方案」。
+    if candidates and len(candidates) < _CAND_CAP:
+        taken = {c.get("pipeline_id") for c in candidates}
+        taken |= {s.get("tool_id") for c in candidates for s in (c.get("tool_chain") or [])}
+        for gid in _alt_gids(srv, rank1_assets, taken, _CAND_CAP - len(candidates)):
+            candidates.append(_mk_filler(srv, gid, rank1_assets, len(candidates) + 1))
+
     # candidates 的上限**不跟 top_k 走**。top_k 限的是推荐条数（light 严格 top-1，
     # 实际就 1 条），而 candidates 是「同一个请求的另几种拆法」——一站式流程 + 原子链。
     # 两者共用一个上限时，调用方传 top_k=1 会把原子链整条截掉，rank2/rank3 凭空消失。
     out["candidates"] = candidates[:max(_CAND_CAP, int(top_k or 0))] if candidates else []
     out["candidate_count"] = len(out["candidates"])
     out["recommendation_count"] = len(recs)
-    ready_any = any(c["feasibility_status"] == "ready" for c in out["candidates"])
+    # 补位候选不参与 ready 判定：它是服务端凑数挑的，不代表模型认为这题有解。
+    # 算进来的话，rank1 明明缺数据、却因为某个同数据可跑的补位项 ready 而把整题标成
+    # ready，调用方会直接提交执行。
+    ready_any = any(c["feasibility_status"] == "ready" for c in out["candidates"]
+                    if c.get("selection_source") != "server_fill")
     if ready_any:
         out["selection_status"] = "ready"
     elif not out["candidates"]:

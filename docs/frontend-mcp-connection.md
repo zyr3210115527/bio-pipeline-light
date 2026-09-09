@@ -111,6 +111,13 @@ DeepSeek 实操建议：`temperature` 调低（≤0.3）；若客户端支持 `r
 - `assets[].path` 和 `file_path` 同值双写。PipelineBuilder 读 `path`，图里存的字段叫 `file_path`，只给一个就有一端拿到空。
 - `tool_chain[].inputs` 是**执行合同**（`{asset_id}` / `{value}` / `{from:{step_id,output}}`），不是 `validate_atomic_chain` 返回的那种 IO 描述数组。描述数组原样提交必被拒。
 - `recommendations[].execution_params` 的键与 `recommendations[].tool.inputs[].builder_param` **逐字节相同**，`tool.catalog_status == "registered"`、`data.status == "available"`——Dingent 少一条就静默丢掉整条推荐，不报错。
+- `candidates` 只要非空就一定有 3 条（`rank` 1/2/3）。`recommendations` 仍是严格 top-1，两者不是一回事：rank1 是模型选的一站式流程，rank2+ 可能是模型给的原子工具链拆分，也可能是**服务端补位**。补位的那几条带 `"selection_source": "server_fill"`，模型给的不带这个键。
+
+  补位是因为模型写不写原子链、写几条完全随机（同一问句实测三次只出现 0~1 次），而调用方按固定三个候选位读结果，少一位那边就是空白。补位项挑的是「rank1 那批数据还喂得进去」的闭集流程，**排序质量不做保证**，但形状和真候选完全一致——真绑定、真路径、如实的 `feasibility_status` 和 `execution_params_missing`，可以直接提交执行，不是占位符。
+
+  `selection_status == "ready"` 的判定**不看补位项**：补位是服务端凑数挑的，不代表模型认为这题有解。rank1 缺数据时整题就是 `needs_input`，哪怕某条补位项自己是 `ready`。
+
+  拒答题（`unsupported` / `no_candidate`）的 `candidates` 就该是空的，不会被凑到 3 条。
 
 ### `selection_status` 五种取值
 
