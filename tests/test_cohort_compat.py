@@ -151,11 +151,20 @@ def test_live():
     check(bool(r.get("candidates")), "规划题：有候选")
     check(bool(r.get("mcp_timing_ms")), "带 mcp_timing_ms")
 
+    # 知识题：web 侧已取消知识问答分支（一律出流程），模型不再产 selection_status=information，
+    # 所以这里只能验「答得出、且没被当成规划失败」。适配器里的 information 分支仍然保留，
+    # 其他客户端直出知识 plan 时走得通——那条由 test_information_passthrough 单独覆盖。
     r = h({"query": "gatk 支持哪些输入格式？"})
-    check(r.get("selection_status") == "information", "知识题：information",
+    check(r.get("selection_status") != "no_candidate", "知识题：不当作规划失败",
           r.get("selection_status"))
     check(bool(r.get("answer")), "知识题：answer 非空")
-    check("unsupported_reason" not in r, "知识题不该带 unsupported_reason")
+
+    out = C.to_cohort_v2({"schema_version": "tool-chain/v2", "selection_status": "information",
+                          "answer": "占位", "recommendations": [], "candidates": []},
+                         "什么是 STAR", top_k=3)
+    check(out.get("selection_status") == "information", "知识 plan 直通：information",
+          out.get("selection_status"))
+    check("unsupported_reason" not in out, "知识 plan 直通：不带 unsupported_reason")
 
     r = h({"query": "今天天气怎么样"})
     check(r.get("selection_status") in ("unsupported", "no_candidate"),

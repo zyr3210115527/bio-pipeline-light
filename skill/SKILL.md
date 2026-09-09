@@ -615,6 +615,15 @@ only when the user explicitly wants the entire chain ("starting from FASTQ", "th
 To point out that a one-stop option exists, say so in one sentence in `match_note` — do not let it
 displace rank1.
 
+**The test is how many stages the question lists, not whether it names tools.** When the question walks
+through two or more stages in order ("first A then B", "run A, B and C in sequence"), it is asking for the
+whole chain even if every stage is written as an atomic tool's name: rank1 goes to the one-stop pipeline
+covering those stages, and the atomic chain goes into `candidates` in the question's own order. Observed
+counter-example — "starting from RNA-seq paired-end FASTQ, run FastQC, Trim Galore, rRNA removal, STAR
+alignment, RSEM quantification, FeatureCounts and MultiQC in sequence" was answered with `star`: the
+question does name STAR, but only as one of seven stages, and the sentence as a whole asks for
+`rnaseq_singletask`.
+
 **The default cohort when none is named is a hard rule too**: all ten bulk10 pipelines default to
 `HRA003107`, the only cohort every one of them has run on. Do not re-pick by "largest sample count" —
 that is how runs landed on `HRA001272` (19 times) and `HRA006117`, and no bulk10 pipeline has ever run

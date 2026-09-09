@@ -2029,7 +2029,7 @@ TOOLS = {
         "description": "一次调用拿完整方案（给只会调一次工具的客户端，如 Cohort Agent）：server 内部跑完整规划循环（手册→模型→取数→接地校验→确定性补全），返回**顶层 tool-chain/v2 执行合同**，不再包一层信封。candidates[].tool_chain 每步是执行绑定（step_id/tool_id/inputs 的 asset_id|value|from 对象），assets 带 asset_id/path/artifact_type，recommendations[].tool.inputs[].builder_param 与 execution_params 的键逐字一致。模型或 Neo4j 不可用时返回 selection_status=no_candidate + unsupported_reason，不做规则降级。**已经自己在跑 agent 循环的客户端不要用它**——用 read_cypher + validate_execution_chain + hydrate_plan 那条路，延迟低一半。",
         "inputSchema": {"type": "object",
                         "properties": {"query": {"type": "string", "description": "用户原始问题"},
-                                       "top_k": {"type": "integer", "description": "候选数上限，默认 3；light 严格 top-1，实际最多返回 1 条推荐"},
+                                       "top_k": {"type": "integer", "description": "推荐条数上限，默认 3；light 严格 top-1，实际只返回 1 条 recommendation。candidates 不受它限制，最少保留 3 条（一站式流程 + 原子链拆法）"},
                                        "data_matcher_mode": {"type": "string", "description": "数据匹配后端，light 只有 neo4j"}},
                         "required": ["query"]},
         "handler": tool_route_pipeline_request,

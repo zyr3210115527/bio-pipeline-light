@@ -518,6 +518,13 @@ Tumor 7045 / Normal 2863 / Blood 557，不必再用 `IS NOT NULL` 兜——但 `
 `wes_somatic_pair` 这类一站式 pipeline 覆盖的是**整条链**，只有用户明确要整条链（"从 FASTQ 开始"
 "整套流程"）才占 rank1。想提示还有一站式选项，写进 `match_note` 一句话，别抢 rank1。
 
+**判据是问句列了几个环节，不是提没提工具名。** 问句按顺序点了两个及以上环节（"先 A 再 B"
+"依次完成 A、B、C"），哪怕每个环节写的都是原子工具的名字，要的也是整条链：rank1 给覆盖这些
+环节的一站式 pipeline，原子链按问句顺序写进 `candidates`。实测反例——「从 RNA-seq paired-end
+FASTQ 出发，依次完成 FastQC、Trim Galore、rRNA 去除、STAR 比对、RSEM 定量、FeatureCounts
+计数和 MultiQC 汇总」曾被判成 `star`：问句确实点名了 STAR，但它只是这七个环节里的一个，
+整句要的是 `rnaseq_singletask`。
+
 **未点名队列时的默认队列也是硬规则**：bulk10 那十条一律默认 `HRA003107`（十条唯一都跑过的），
 不要按"样本数最多"另选——实测因此落到 `HRA001272`（19 次）和 `HRA006117`，而 `HRA001272`
 一条 bulk10 都没跑过，`validate_plan` 会直接拒。非 bulk10 的流程按 §8.2 队列表选，

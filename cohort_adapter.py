@@ -185,9 +185,58 @@ def _family(f):
     return _FMT_FAMILY.get(f, f)
 
 
+def _fmt_alts(f):
+    """卡片 format 的候选集，返回 (原格式集, 格式族集)。
+
+    卡片允许把多种可接受格式写成一串：`FASTQ/FASTQ.gz`、`SAM/BAM/CRAM`、`VCF/VCF.gz`。
+    整串当一个格式比，就永远比不上任何资产——0826 的卡里有 5 个**必填**参数是这种写法
+    （fastqc.fastqs、samtools.alignment、snpeff.input_vcf 及其两个别名 id），
+    结果是这几个工具的第一步恒报 no_confirmed_path，原子链必挂在开头。
+    """
+    raw = {_norm_fmt(x) for x in str(f or "").split("/") if x.strip()}
+    return raw, {_FMT_FAMILY.get(x, x) for x in raw}
+
+
 # 参数名里的格式尾巴不参与语义匹配（clinical_xls 的判别信息是 clinical，不是 xls）
 _FMT_TOKENS = {"file", "tsv", "csv", "xls", "xlsx", "txt", "bam", "bai", "vcf", "maf",
                "fastq", "fq", "gz", "rds", "h5ad", "path", "input", "matrix"}
+
+
+def _param_tokens(name):
+    """参数名里有判别力的词根（格式尾巴不算，见 `_FMT_TOKENS`）。"""
+    toks = [t for t in re.split(r"[_\W]+", str(name or "").lower())
+            if t and t not in _FMT_TOKENS]
+    # WDL 写 read1/read2，图内文件名是 `_f1`/`_r2`、语义格式是 `..._R1_FASTQ`/`..._R2_FASTQ`，
+    # 上游产物又叫 trimmed_r1/trimmed_r2。不折这一层，read1 和 read2 对一对 FASTQ
+    # 都没有判别力，绑到哪条只看列举顺序——正反了执行端照跑不报错。
+    return toks + [t.replace("read", "r") for t in toks if re.fullmatch(r"read\d", t)]
+
+
+def _pick_upstream(upstream, param, used, is_arr=False):
+    """给一个卡片参数挑上游产物（数组参数收全部同格式产物）。返回列表。
+
+    只比格式是不够的——同一步常同时产出多个同格式产物。
+
+    star 一步就产 genome_bam 和 transcriptome_bam 两个 BAM，只比格式的话
+    rsem 的 transcriptome_bam 会绑到 genome_bam；trim_galore 的 trimmed_r1/r2 同理会让
+    read2 也绑到 r1。两种都不报错，跑出来是错的结果。
+    判据：参数名词根命中 > 更近的上游步骤 > 该步产出声明顺序（genome_bam 声明在
+    transcriptome_bam 前，正是 featurecounts 这种只说要 "bam" 的默认取法）。
+    """
+    _, want = _fmt_alts(param.get("format"))
+    toks = _param_tokens(param.get("name"))
+    pool = []
+    for u in upstream:
+        if (u["step_id"], u["name"]) in used:
+            continue
+        if want and not (_fmt_alts(u["format"])[1] & want):
+            continue
+        pool.append(((0 if any(t in str(u["name"]).lower() for t in toks) else 1,
+                      -u.get("step_no", 0), u.get("pos", 0)), u))
+    pool.sort(key=lambda x: x[0])
+    # 数组参数收全部：multiqc 的 qc_files 就是要把前面每一步的质控产物汇总成一份报告，
+    # 只给一条等于报告里只剩最后一步。
+    return [u for _, u in pool] if is_arr else [pool[0][1]] if pool else []
 
 
 def _pick_assets(assets, used, param, is_arr):
@@ -198,19 +247,18 @@ def _pick_assets(assets, used, param, is_arr):
     只比格式的话两个参数会抢同一张表，另一个报缺，而执行端拿着临床表当元信息表跑
     是不会报错的（列名对不上才在流程内部炸，日志里看不出是绑错了）。
     """
-    want = _family(param.get("format"))
-    toks = [t for t in re.split(r"[_\W]+", str(param.get("name") or "").lower())
-            if t and t not in _FMT_TOKENS]
+    exact, want = _fmt_alts(param.get("format"))
+    toks = _param_tokens(param.get("name"))
     pool = []
     for i, a in enumerate(assets):
         if a["asset_id"] in used:
             continue
         f = _norm_fmt(a.get("_fmt"))
-        if want and _family(f) != want:
+        if want and _family(f) not in want:
             continue
         name_hit = any(t in str(a.get("file_name") or "").lower() for t in toks)
         sem_hit = any(t in str(a.get("semantic_format") or "").lower() for t in toks)
-        pool.append(((0 if (name_hit or sem_hit) else 1, 0 if f == _norm_fmt(param.get("format")) else 1, i), a))
+        pool.append(((0 if (name_hit or sem_hit) else 1, 0 if f in exact else 1, i), a))
     if not pool:
         return []
     pool.sort(key=lambda x: x[0])
@@ -228,6 +276,8 @@ def _real_path(a):
 _ID_PARAMS = {"sample_id", "sample_name", "pair_id", "dataset_id", "report_id",
               "sample_accession", "tumor_id", "normal_id", "output_prefix"}
 _FLAVOR = re.compile(r"(?<![A-Za-z])(logCPM|FPKM|TPM|counts?)(?![A-Za-z])", re.I)
+# candidates 保底条数：一站式流程 + 原子链拆法。见 to_cohort_v2 结尾。
+_CAND_CAP = 3
 
 
 def _derive_literal(name, assets, study):
@@ -290,7 +340,7 @@ def _bind_step(srv, gid, card, assets, upstream, step_id):
     参考资源（reference_resource）一律不绑——它走执行端容器内默认值，绑上去反而
     会覆盖掉正确的路径。bulk10 的两张 CNCB 元数据表由 server 按队列号推，同理不绑。
     """
-    inputs, missing, used = {}, [], set()
+    inputs, missing, used, used_up = {}, [], set(), set()
     study = next((a.get("study_accession") for a in assets if a.get("study_accession")), None)
     if not study:
         # hydrate_plan 没跑成（图不通/模型直出）时字段是空的，但图内文件名本身就带队列号，
@@ -315,15 +365,19 @@ def _bind_step(srv, gid, card, assets, upstream, step_id):
         if gid in srv._BULK10 and name in ("sample_csv", "individual_csv"):
             continue                                   # server 侧按队列号推导，见 _bulk10_params
         if is_file:
+            # 上游产物优先于原始资产（**顺序不能反**）：原子链里每一步都拿得到同一批
+            # 资产，先挑资产就会把 star 的 read1 绑回原始 FASTQ，把上一步 trim_galore
+            # 的产物丢掉——等于跳过了去接头，执行端照跑不报错。
+            ups = _pick_upstream(upstream, p, used_up, is_arr)
+            if ups:
+                for u in ups:
+                    used_up.add((u["step_id"], u["name"]))
+                ref = [{"from": {"step_id": u["step_id"], "output": u["name"]}} for u in ups]
+                inputs[name] = ref if is_arr else ref[0]
+                continue
             cand = _pick_assets(assets, used, p, is_arr)
             if not cand and gid not in srv._BULK10 and name in srv._CLINICAL_PARAM_FMT:
                 cand = _add_clinical(srv, assets, study, srv._CLINICAL_PARAM_FMT[name])
-            if not cand:
-                up = next((u for u in upstream
-                           if _family(u["format"]) == _family(p.get("format"))), None)
-                if up:
-                    inputs[name] = {"from": {"step_id": up["step_id"], "output": up["name"]}}
-                    continue
             if cand:
                 for a in cand:
                     used.add(a["asset_id"])
@@ -360,35 +414,48 @@ def _bind_step(srv, gid, card, assets, upstream, step_id):
     return inputs, missing
 
 
-def _mk_assets(srv, raw):
+def _mk_assets(srv, raw, acc=None):
     """plan 里的 assets → PipelineBuilder 资产。缺真实绝对路径的一律标出来。
 
+    **按 file_name 回图里补齐**，不只信调用方写了什么。手册明令模型「不要凭记忆写
+    file_path」，所以 plan 里的 assets 经常只有文件名——hydrate_plan 补上了就有路径，
+    没补上（图不通、或调用方直接拿模型原始 plan 过来）这里就是唯一一次补救机会。
+    不补的话整条链恒 no_confirmed_path，而文件明明在图里躺着。
+    同名跨队列时用 `acc` 消歧（见 mcp_light_server._node_rank）。
     顺手补 semantic_format：hydrate_plan 的 _ASSET_FIELDS 不含它（前端不用），但它是
     区分同扩展名不同用途的表（临床表 vs 样本元信息表）最硬的信号，绑定要靠它。
     一次批量往返，不逐个查。
+
+    **调用方给了的字段一律不覆盖**——它可能特意选了同名文件里的另一份。
     """
     raw = raw or []
     need = [a.get("file_name") for a in raw
-            if a.get("file_name") and not a.get("semantic_format")]
+            if a.get("file_name") and not (a.get("semantic_format") and _real_path(a)
+                                           and a.get("study_accession")
+                                           and a.get("sample_accession"))]
     facts = {}
     if need:
         try:
-            facts = srv._asset_facts(need)
+            facts = srv._asset_facts(need, acc)
         except Exception:
             facts = {}                       # 图不通不该让整条翻译失败，退回按文件名匹配
     out = []
     for i, a in enumerate(raw, 1):
-        path = _real_path(a)
-        sem = a.get("semantic_format") or (facts.get(a.get("file_name")) or {}).get("semantic_format")
+        fn = str(a.get("file_name") or "")
+        f = facts.get(a.get("file_name")) or {}
+        # 五个旧版工具的 Clinical/MetaInfo 走 analysis 目录那份，图内扁平目录下的同名
+        # 新版表不能拿来顶（见 mcp_light_server._LEGACY5_PATHS / _legacy5_pair）。
+        path = _real_path(a) or srv._LEGACY5_PATHS.get(fn) or _real_path(f)
+        sem = a.get("semantic_format") or f.get("semantic_format")
         item = {"asset_id": f"asset-{i}",
                 "file_name": a.get("file_name"),
                 "path": path or None,           # PipelineBuilder 认 path
                 "file_path": path or None,      # 兼容只读 file_path 的老代码
                 "artifact_type": _asset_artifact(a),
                 "semantic_format": sem,
-                "study_accession": a.get("study_accession"),
-                "sample_accession": a.get("sample_accession"),
-                "run_accession": a.get("run_accession"),
+                "study_accession": a.get("study_accession") or f.get("study_accession"),
+                "sample_accession": a.get("sample_accession") or f.get("sample_accession"),
+                "run_accession": a.get("run_accession") or f.get("run_accession"),
                 "match_reason": a.get("match_reason"),
                 "_fmt": _asset_artifact(a)}
         out.append(item)
@@ -420,7 +487,11 @@ def to_cohort_v2(plan, query, top_k=3):
         card = srv.KC_MAP.get(gid)
         cat = srv.CATALOG.get(gid)
         data = rec.get("data") if isinstance(rec.get("data"), dict) else {}
-        assets = _mk_assets(srv, data.get("assets"))
+        # 声明了**恰好一个**队列才拿来消歧：多个队列说明这批 assets 本就混着队列，
+        # 拿其中一个当锚点会把另一批的同名文件全体拽错边。
+        accs = {str(s) for s in (data.get("study_accessions") or []) if s}
+        assets = _mk_assets(srv, data.get("assets"),
+                            next(iter(accs)) if len(accs) == 1 else None)
 
         # —— tool 块：Dingent 会按 catalog_status / builder_param 静默过滤 ——
         tool = dict(rec.get("tool") or {})
@@ -436,28 +507,10 @@ def to_cohort_v2(plan, query, top_k=3):
 
         inputs, missing = _bind_step(srv, gid, card, assets, [], "step-1")
         # 路径解析：绑定对象里只有 asset_id，执行合同还要给出扁平的 execution_params
-        by_id = {a["asset_id"]: a for a in assets}
-        params = {}
-        for name, b in inputs.items():
-            if isinstance(b, dict) and "asset_id" in b:
-                p = by_id[b["asset_id"]]["path"]
-                if p:
-                    params[name] = p
-                else:
-                    missing.append({"param": name, "tool_id": tool["tool_id"],
-                                    "step_id": "step-1", "reason": "no_confirmed_path"})
-            elif isinstance(b, list):
-                ps = [by_id[x["asset_id"]]["path"] for x in b if by_id[x["asset_id"]]["path"]]
-                if len(ps) == len(b):
-                    params[name] = ps
-                else:
-                    missing.append({"param": name, "tool_id": tool["tool_id"],
-                                    "step_id": "step-1", "reason": "no_confirmed_path"})
-            elif isinstance(b, dict) and "value" in b:
-                params[name] = b["value"]
-        if gid in srv._BULK10:
-            # 十条 bulk10 的 sample_csv/individual_csv 由队列号推，路径不在图里
-            params.update(srv._bulk10_params(gid, params.get("expr", ""), {}, []))
+        params, pmiss = _flat_params(srv, gid, inputs,
+                                     {a["asset_id"]: a for a in assets},
+                                     tool["tool_id"], "step-1")
+        missing.extend(pmiss)
 
         has_path = any(a["path"] for a in assets)
         rec["data"] = dict(data, status=("available" if has_path else "missing"),
@@ -483,13 +536,22 @@ def to_cohort_v2(plan, query, top_k=3):
             "execution_params_missing": missing,
         })
 
-    # 模型给了原子链就用它的顺序，多步链按上游产物串起来
+    # 模型给了原子链就用它的顺序，多步链按上游产物串起来。
+    # 原子链是**同一个请求的另一种拆法**，数据仍是推荐里那一份，但模型极少在 candidates
+    # 里把 assets 再抄一遍（它已经写在 recommendations[0].data.assets）。不兜这一层，
+    # 原子链就恒是空壳：assets=[] → study 推不出 → 第一步文件槽 no_confirmed_path、
+    # sample_id/report_id 也跟着 literal_required（这两个字面量本就是从资产的
+    # sample_accession/study_accession 推的），整条 rank2 永远 missing_data。
+    fallback = _rec_assets(recs)
     for c in out.get("candidates") or []:
-        conv = _convert_atomic(srv, c, meta_to_graph, len(candidates) + 1)
+        conv = _convert_atomic(srv, c, meta_to_graph, len(candidates) + 1, fallback)
         if conv:
             candidates.append(conv)
 
-    out["candidates"] = candidates[:max(1, int(top_k or 1))] if candidates else []
+    # candidates 的上限**不跟 top_k 走**。top_k 限的是推荐条数（light 严格 top-1，
+    # 实际就 1 条），而 candidates 是「同一个请求的另几种拆法」——一站式流程 + 原子链。
+    # 两者共用一个上限时，调用方传 top_k=1 会把原子链整条截掉，rank2/rank3 凭空消失。
+    out["candidates"] = candidates[:max(_CAND_CAP, int(top_k or 0))] if candidates else []
     out["candidate_count"] = len(out["candidates"])
     out["recommendation_count"] = len(recs)
     ready_any = any(c["feasibility_status"] == "ready" for c in out["candidates"])
@@ -514,26 +576,93 @@ def to_cohort_v2(plan, query, top_k=3):
     return out
 
 
-def _convert_atomic(srv, cand, meta_to_graph, rank):
-    """模型给出的原子链 candidates → 执行合同（步骤间按格式串上游产物）。"""
+def _flat_params(srv, gid, inputs, by_id, tool_id, step_id):
+    """绑定对象（asset_id / value / from）→ 扁平 execution_params，返回 (params, missing)。
+
+    `from` 是上游步骤产物，执行端自己串，这里不出参数。资产绑上了但没有真实路径的，
+    如实报 no_confirmed_path——绑定成功不等于跑得动。
+    """
+    params, missing = {}, []
+    def _miss(name):
+        missing.append({"param": name, "tool_id": tool_id,
+                        "step_id": step_id, "reason": "no_confirmed_path"})
+    for name, b in (inputs or {}).items():
+        if isinstance(b, dict) and "asset_id" in b:
+            p = (by_id.get(b["asset_id"]) or {}).get("path")
+            if p:
+                params[name] = p
+            else:
+                _miss(name)
+        elif isinstance(b, list):
+            ids = [x for x in b if isinstance(x, dict) and "asset_id" in x]
+            if not ids:
+                continue                       # 整组都是上游产物，执行端自己串
+            ps = [(by_id.get(x["asset_id"]) or {}).get("path") for x in ids]
+            if all(ps) and len(ids) == len(b):
+                params[name] = ps
+            else:
+                _miss(name)
+        elif isinstance(b, dict) and "value" in b:
+            params[name] = b["value"]
+    if gid in srv._BULK10:
+        # 十条 bulk10 的 sample_csv/individual_csv 由队列号推，路径不在图里
+        params.update(srv._bulk10_params(gid, params.get("expr", ""), {}, []))
+    return params, missing
+
+
+def _rec_assets(recs):
+    """推荐里已解析好的原始 assets，供原子链在自己没写 assets 时兜底。
+
+    只在**队列唯一**时兜：多条推荐落在不同队列，说明拿哪一份给原子链是没依据的，
+    硬塞一份等于替调用方选队列——宁可如实报缺。这与 `_node_rank` 的锚点纪律一致。
+    """
+    pools = [((r.get("data") or {}).get("assets") or []) for r in recs]
+    pools = [p for p in pools if any(a.get("file_name") for a in p)]
+    if not pools:
+        return []
+    accs = {str(a.get("study_accession") or "") for p in pools for a in p
+            if a.get("study_accession")}
+    return pools[0] if len(accs) <= 1 else []
+
+
+def _convert_atomic(srv, cand, meta_to_graph, rank, fallback=None):
+    """模型给出的原子链 candidates → 执行合同（步骤间按格式串上游产物）。
+
+    `fallback` 是推荐里已解析好的 assets（见 `_rec_assets`）：原子链自己没写 assets 时
+    用它，不然整条 rank2 是空壳。第一步之外的槽位本来就靠上游产物串，多出来的资产
+    绑不上也不会乱绑——`_pick_assets` 按格式挑。
+    """
     chain = cand.get("tool_chain") or cand.get("chain") or []
     if not chain:
         return None
-    assets = _mk_assets(srv, ((cand.get("data") or {}).get("assets")) or cand.get("assets"))
+    raw = ((cand.get("data") or {}).get("assets")) or cand.get("assets") or fallback
+    accs = {str(s) for s in ((cand.get("data") or {}).get("study_accessions") or []) if s}
+    accs |= {str(a.get("study_accession")) for a in (raw or []) if a.get("study_accession")}
+    assets = _mk_assets(srv, raw, next(iter(accs)) if len(accs) == 1 else None)
+    by_id = {a["asset_id"]: a for a in assets}
     steps, missing, upstream = [], [], []
     for idx, s in enumerate(chain, 1):
         tid = srv._step_tool_id(s) if isinstance(s, dict) else str(s)
         gid = meta_to_graph.get(tid, tid)
         card = srv.KC_MAP.get(gid)
         sid = f"step-{idx}"
-        inputs, miss = _bind_step(srv, gid, card, assets if idx == 1 else [], upstream, sid)
-        missing.extend(miss)
-        steps.append({"step_id": sid,
-                      "tool_id": (card or {}).get("meta_id") or gid,
-                      "inputs": inputs})
-        for o in (card or {}).get("outputs") or []:
+        # 资产给每一步，不只给第一步。第一步之外靠上游串文件（上面那条优先级保证了
+        # 不会绑回原始输入），但 sample_id/report_id 这类字面量是从资产的
+        # sample_accession/study_accession 推的——不给资产就每步都 literal_required，
+        # 一条六步的链能凭空多报四五条缺失。
+        inputs, miss = _bind_step(srv, gid, card, assets, upstream, sid)
+        tool_id = (card or {}).get("meta_id") or gid
+        # 绑定对象里只有 asset_id，执行端要的是扁平路径——与 rank1 同一套解析。
+        # 顺带堵一个洞：没有这一步，path 为空的资产也能安静绑上槽位，
+        # 整条链照样报 ready（`has_path` 是 any，挡不住其中一份没路径）。
+        params, pmiss = _flat_params(srv, gid, inputs, by_id, tool_id, sid)
+        missing.extend(miss + pmiss)
+        steps.append({"step_id": sid, "tool_id": tool_id,
+                      "inputs": inputs, "execution_params": params})
+        for pos, o in enumerate((card or {}).get("outputs") or []):
             if o.get("format"):
-                upstream.append({"step_id": sid, "name": o["name"], "format": o["format"]})
+                upstream.append({"step_id": sid, "name": o["name"], "format": o["format"],
+                                 "step_no": idx, "pos": pos})
     has_path = any(a["path"] for a in assets)
     ready = has_path and not missing
     return {"rank": rank,
