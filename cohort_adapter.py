@@ -622,12 +622,87 @@ def to_cohort_v2(plan, query, top_k=3):
     # 里把 assets 再抄一遍（它已经写在 recommendations[0].data.assets）。不兜这一层，
     # 原子链就恒是空壳：assets=[] → study 推不出 → 第一步文件槽 no_confirmed_path、
     # sample_id/report_id 也跟着 literal_required（这两个字面量本就是从资产的
-    # sample_accession/study_accession 推的），整条 rank2 永远 missing_data。
+    # sample_accession/study_accession 推的），整条永远 missing_data。
+    #
+    # **原子链无条件前置成 rank1，模型自己写的那份重复条目删掉。** 原子链和一站式推荐
+    # 描述的是同一件事的两种粒度（`wgcna` 一条 vs `trim_galore → star → rsem`），并列成
+    # 两条候选会被读成「两个互相独立的选择」，而模型写原子链的本意就是「这条按这个顺序
+    # 执行」。分开的代价：一站式那条永远停在单步、串不起上游；原子链那条又因为脱离
+    # 一站式而丢了队列关联。前置后 pipeline_id 仍是流程名，tool_chain 是展开后的完整
+    # 步骤，调用方一次拿到「做什么 + 怎么做」。
     fallback = _rec_assets(recs)
+    rec_pool = [r for r in recs if (r.get("data") or {}).get("assets")]
+    atomic = None
     for c in out.get("candidates") or []:
-        conv = _convert_atomic(srv, c, meta_to_graph, len(candidates) + 1, fallback)
-        if conv:
-            candidates.append(conv)
+        if _is_atomic_chain(c):
+            atomic = c
+            break
+    if atomic:
+        # 原子链自己是**没有队列**的：模型写它时往往只写 tool_chain，把队列留在
+        # recommendations[0] 里。合并前先把那一条的 assets/study 借过来，否则前置之后
+        # rank1 从"队列在、链路是单步"变成"链路全了、队列没了"——数据反而比不改更差。
+        conv = _convert_atomic(srv, atomic, meta_to_graph, 0,
+                               _rec_assets(rec_pool) or fallback)
+        one_stop = [c for c in candidates if c.get("pipeline_id")]
+        # **能跑通的才前置。** 链和一站式流程描述同一件事的两种粒度，前置哪一条只看
+        # 谁真的跑得起来：链 ready 就一定前置（这是模型拆链的本意）；链跑不通、而模型
+        # 选的那条流程跑得通，就把流程留在 rank1——把一条缺数据/缺绑定的空壳顶上去，
+        # 只会把模型原来那个能执行的答案挤到 rank2 之外。
+        # 两边都跑不通时照样前置：这时候给的是"这条链要这么走、还差这些"，比一个单步
+        # 流程名更有信息量，顶层状态也仍是模型自己判的 missing_from_graph。
+        if conv and (conv.get("feasibility_status") == "ready"
+                     or not any(c["feasibility_status"] == "ready" for c in one_stop)):
+            steps = conv.get("tool_chain") or []
+            step_ids = {s.get("tool_id") for s in steps}
+            # 一站式候选若**被原子链覆盖**就并进原子链、不再单列。覆盖有两种写法：
+            # 链里直接含这个流程名（`… → wgcna`），或者链止于它的上游（`… → rsem`
+            # 而一站式是 wgcna）——后者是模型最常写的：它只展开"到 wgcna 得先做
+            # 什么"，终点留在一站式里。两种都是同一件事，留着就是重复。
+            def _covered(c):
+                if c["pipeline_id"] in step_ids:
+                    return True
+                # 上游覆盖：一站式流程的**文件**输入槽正好是这条链的产物。
+                # 这是模型最常写的形态——它只展开"到 wgcna 得先做什么"，终点留在一站式里，
+                # 于是 `… → rsem` 和 `wgcna` 是同一条流水线的两截，留着 rank2 就是重复。
+                gid = meta_to_graph.get(c["pipeline_id"], c["pipeline_id"])
+                card = srv.KC_MAP.get(gid)
+                slots = (srv._card_slots(card)[0] if card
+                         else srv._graph_tool_io(gid)[0])
+                need = [s for s in slots
+                        if s.get("is_file") and not s.get("optional")
+                        and not srv._is_reference_resource(card, s.get("name"))]
+                if not need:
+                    return False
+                for s in need:
+                    _, want = _fmt_alts(s.get("format"))
+                    if not want:
+                        continue        # 卡片没写格式，_pick_upstream 会放宽，这里同样放宽
+                    if not (produced_up & want):
+                        return False
+                return True
+            # 链上每一步产出过的格式族集合，供上面判上游覆盖。
+            produced_up = set()
+            for st in steps:
+                g = meta_to_graph.get(st.get("tool_id"), st.get("tool_id"))
+                for o in (srv.KC_MAP.get(g) or {}).get("outputs") or []:
+                    _, fam = _fmt_alts(o.get("format"))
+                    produced_up |= fam
+            rest = [c for c in one_stop if not _covered(c)]
+            conv["rank"] = 1
+            conv["match_id"] = "candidate-1"
+            # 一站式那条的 pipeline_id 是流程名，原子链没有——补上，调用方要靠它。
+            if one_stop:
+                conv["pipeline_id"] = conv.get("pipeline_id") or one_stop[0].get("pipeline_id")
+            if not conv.get("study_accession"):
+                conv["study_accession"] = next(
+                    (c.get("study_accession") for c in one_stop if c.get("study_accession")), None)
+            if not conv.get("assets"):
+                conv["assets"] = next(
+                    (c.get("assets") for c in one_stop if c.get("assets")), [])
+            candidates = [conv] + rest
+            for i, c in enumerate(candidates, 1):
+                c["rank"] = i
+                c.setdefault("match_id", f"candidate-{i}")
 
     # 候选位补足到 _CAND_CAP：有 rank1 就必须有 rank3（见 `_alt_gids`）。
     # 只在已经有真候选时补——拒答题的 candidates 本就该是空的，凑数等于把「这题不该做」
@@ -649,10 +724,15 @@ def to_cohort_v2(plan, query, top_k=3):
     # ready，调用方会直接提交执行。
     ready_any = any(c["feasibility_status"] == "ready" for c in out["candidates"]
                     if c.get("selection_source") != "server_fill")
+    # 模型自己判的 `missing_from_graph` **优先于**这里算出来的 needs_input。它表达的
+    # 不是"还差几个参数"，而是"这个队列在图里就没有这条流程要的主数据"——决定性判断，
+    # 不是待补的输入。覆盖成 needs_input，调用方会去补 assets 重试，而资产层上一次
+    # 已经"贴心"地跨队列递过别的 study 的文件（见 SKILL 里那条跨队列纪律）。
+    declared = str(out.get("selection_status") or "").lower()
     if ready_any:
         out["selection_status"] = "ready"
     elif not out["candidates"]:
-        st = str(out.get("selection_status") or "").lower()
+        st = declared
         if st not in ("information", "unsupported"):
             out["selection_status"] = "no_candidate"
         if out["selection_status"] != "information":
@@ -660,6 +740,12 @@ def to_cohort_v2(plan, query, top_k=3):
             # 给它安一个 unsupported_reason 会让调用方以为规划失败了。
             out.setdefault("unsupported_reason",
                            "闭集内没有可执行的候选：" + (out.get("answer") or "模型未给出推荐"))
+    elif declared == "missing_from_graph":
+        out["selection_status"] = "missing_from_graph"
+        out.setdefault("unsupported_reason", "图内没有这条流程要的主数据；" + "；".join(
+            f"{m['tool_id']}.{m['param']} ({m['reason']})"
+            for c in out["candidates"] if c.get("selection_source") != "server_fill"
+            for m in c["execution_params_missing"][:3]))
     else:
         out["selection_status"] = "needs_input"
         out.setdefault("unsupported_reason", "；".join(
@@ -717,6 +803,25 @@ def _rec_assets(recs):
     accs = {str(a.get("study_accession") or "") for p in pools for a in p
             if a.get("study_accession")}
     return pools[0] if len(accs) <= 1 else []
+
+
+def _is_atomic_chain(cand):
+    """`candidates[]` 里这一条是**模型自己拆的原子链**吗？
+
+    判据只有一条：它没有 `pipeline_id`——一站式推荐有（`wgcna`、`wes_somatic_pair` 这类
+    流程名），原子链没有（它只是一串步骤）。
+
+    注意**不能**靠「步骤带不带 `outputs`」区分。`validate_atomic_chain` 的返回也是
+    同样形状的 `{"tool_chain": [{"tool_id", "inputs", "outputs"}]}`，看着像 IO 回显，但它
+    正是模型拿到的**正确展开结果**（模型先传一版短名链，工具回一版补全后的完整链，
+    模型再把这一版写进终答）。按 `outputs` 去挡，会把肺癌 wgcna 那条
+    `trim_galore → star → rsem` 一起挡掉——rank1 从展开好的链退化回单步 `wgcna`，
+    正是这条规则要避免的事。回显与真链形状相同，**形状上分不开，也不该分**。
+
+    （真回显若混进来，它在 `_convert_atomic` 里会因为没有资产而算成 missing_data；
+    那是资产层的事，见 `to_cohort_v2` 里借 `recommendations` 资产的兜底。）
+    """
+    return bool(cand.get("tool_chain") or cand.get("chain")) and not cand.get("pipeline_id")
 
 
 def _convert_atomic(srv, cand, meta_to_graph, rank, fallback=None):
