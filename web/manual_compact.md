@@ -576,6 +576,18 @@ rank1 填这条链的**主环节**（比对题填 `bwa`/`star` 而不是 `fastp`
 （实测教训：契约末尾加了一大段拒绝规则之后，9 道链题的子序列命中从 6/9 掉到 1/9，
 模型全改成只给一条 rank1；这条就是把它拉回来的。）
 
+**队列没有表达矩阵 ≠ 做不了，那是一条要展开的链。** 某队列只有原始 bulk RNA FASTQ、
+没有 `TABULAR_BIO_DATA` 矩阵时，所有吃矩阵的流程（`immune_infiltration_iobr`、`wgcna`、
+`her2_pfs_survival`、bulk10 全族……）看着都不可行——**这时候只回一句「该队列没有表达矩阵，
+请换队列」就是漏答**。矩阵是能现造的：`trim_galore`→`star`→`rsem` 正好从这批 FASTQ 出矩阵。
+把这条定量链放进 `candidates[0].tool_chain` 里、排在消费流程前面，rank1 仍填那个消费流程，
+在 `answer` 里说明「该队列需先做定量」。换队列可以作为**第二**方案提，但不能是唯一方案。
+判据：strategy 里有 `bulk_RNA`，但这些 run 的语义格式只有
+`RAW_PAIRED_END_R1_FASTQ`/`RAW_PAIRED_END_R2_FASTQ`。
+`HRA016026`（肺癌，684 个 RNA run，零矩阵）就是这种情况，而且这是本图谱里**做肺癌表达类分析
+的唯一路子**——另一个肺癌队列 `HRA005191` 虽有 18 份 `TABULAR_BIO_DATA`，但那是 scRNA 的注释
+产物（`Cell_Type.tsv`、`FinalAnno_*.csv`），不是 bulk 矩阵，喂不进去。
+
 **assets 只需给"主数据"一条**：主数据 = 该流程的核心输入（表达矩阵 / MAF / FASTQ）。
 流程需要临床表时，服务端会自动把同队列的元信息表补齐，
 **不用写，也不用查**——这些表每队列各一份、服务端按队列号直接取，你连它们叫什么、

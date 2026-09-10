@@ -692,6 +692,20 @@ chain — always expand it**. (Measured: after a long block of refusal rules was
 output contract, subsequence hits on the 9 chain cases fell from 6/9 to 1/9 as the model collapsed every
 answer to a single rank-1. This paragraph is what pulls it back.)
 
+**A missing expression matrix is a chain to expand, not a dead end.** When a cohort has raw bulk-RNA
+FASTQ but no `TABULAR_BIO_DATA` matrix, every matrix-consuming pipeline (`immune_infiltration_iobr`,
+`wgcna`, `her2_pfs_survival`, the whole bulk10 family…) looks infeasible — and reporting only
+"this cohort has no expression matrix, use another cohort" is an **incomplete answer**. The matrix is
+*derivable*: `trim_galore` → `star` → `rsem` produces it from exactly those FASTQ pairs. Put that
+quantification chain in `candidates[0].tool_chain` ahead of the consuming pipeline, keep the consuming
+pipeline as rank-1, and say in `answer` that the cohort's matrix must be built first. Switching cohorts
+is a legitimate *second* option to mention, never the only one. This applies whenever the strategy
+breakdown shows `bulk_RNA` runs whose only semantic formats are `RAW_PAIRED_END_R1_FASTQ` /
+`RAW_PAIRED_END_R2_FASTQ` — `HRA016026` (Lung Cancer, 684 RNA runs, zero matrices) is the case that
+prompted this rule, and it is the *only* way to do a lung-cancer expression analysis in this graph:
+the other lung cohort, `HRA005191`, has 18 `TABULAR_BIO_DATA` files but they are scRNA annotation
+outputs (`Cell_Type.tsv`, `FinalAnno_*.csv`), not a bulk matrix.
+
 **Assets: supply the primary datum only.** The primary datum is the pipeline's core input — the
 expression matrix, the MAF, or the FASTQ pair. `hydrate_plan` completes the rest deterministically:
 
