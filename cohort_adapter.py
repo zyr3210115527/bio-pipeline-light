@@ -315,6 +315,15 @@ def _derive_literal(name, assets, study):
     return f"{study}_{name.rsplit('_', 1)[0]}" if study and name == "pair_id" else (study or None)
 
 
+def _meta_param_fmt(srv, name):
+    """卡片参数名 → 图内语义格式，覆盖「服务端按队列补」的两族元数据参数。
+
+    XLSX 那对（`clinical_xls`/`metainfo_xlsx`，见 `srv._CLINICAL_PARAM_FMT`）与
+    260902 起改吃 CSV 的那组（`individual_csv`/`sample_csv`/`t1_csv`，见
+    `srv._CSV_META_PARAM_FMT`）。两族在卡片里互斥，合并成一张表查不会有歧义。"""
+    return srv._CLINICAL_PARAM_FMT.get(name) or srv._CSV_META_PARAM_FMT.get(name)
+
+
 def _add_clinical(srv, assets, study, sem_fmt):
     """把该队列的临床表/样本元信息表补进资产清单，返回新加的那一份（补不出返回 []）。
 
@@ -323,11 +332,13 @@ def _add_clinical(srv, assets, study, sem_fmt):
     六条非 bulk10 流程（driver_gene_gender_analysis / wgcna / her2_pfs_survival /
     immune_infiltration_iobr / survival_analysis / tmb_survival_analysis）把这一对写成
     必填输入——不补就必然两条 no_confirmed_path，整条推荐永远 needs_input。
+    260902 起其中五条改吃三张 CSV（individual/sample/T1），同一套补全照用：
+    `sem_fmt` 决定查哪一族，`_clinical_pair_files` 按族分组选目录。
     """
     if not study:
         return []
     try:
-        pair = srv._clinical_pair_files(study)
+        pair = srv._clinical_pair_files(study, fmts={sem_fmt})
     except Exception:
         return []                    # 图不通不该让整条翻译失败，如实走报缺那条路
     hit = pair.get(sem_fmt)
@@ -391,8 +402,9 @@ def _bind_step(srv, gid, card, assets, upstream, step_id):
                 inputs[name] = ref if is_arr else ref[0]
                 continue
             cand = _pick_assets(assets, used, p, is_arr)
-            if not cand and gid not in srv._BULK10 and name in srv._CLINICAL_PARAM_FMT:
-                cand = _add_clinical(srv, assets, study, srv._CLINICAL_PARAM_FMT[name])
+            _meta_fmt = _meta_param_fmt(srv, name) if gid not in srv._BULK10 else None
+            if not cand and _meta_fmt:
+                cand = _add_clinical(srv, assets, study, _meta_fmt)
             if cand:
                 for a in cand:
                     used.add(a["asset_id"])
@@ -406,7 +418,7 @@ def _bind_step(srv, gid, card, assets, upstream, step_id):
                 missing.append({"param": name, "tool_id": (card or {}).get("meta_id") or gid,
                                 "step_id": step_id,
                                 "reason": "study_not_resolved"
-                                          if (name in srv._CLINICAL_PARAM_FMT and not study)
+                                          if (_meta_fmt and not study)
                                           else "no_confirmed_path"})
             continue
         # 非 File 参数

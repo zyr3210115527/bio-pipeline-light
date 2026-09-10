@@ -52,12 +52,12 @@ GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.7-flash")
 PORT = int(os.environ.get("PORT", "8017"))
 HOST = os.environ.get("HOST", "127.0.0.1")
 
-# LLM 提供方：gemini（generateContent）或 openai（chat/completions，如 deepseek-v4-flash / mimo）
+# LLM 提供方：gemini（generateContent）或 openai（chat/completions，如 deepseek-flash / mimo）
 # 自定义配置用 LLM_* 命名（避开用户全局 OPENAI_API_KEY 等环境变量的抢占），OPENAI_* 仅作兜底
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "gemini")
 OPENAI_API_KEY = os.environ.get("LLM_API_KEY") or os.environ.get("OPENAI_API_KEY") or GEMINI_API_KEY
 OPENAI_BASE_URL = os.environ.get("LLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL") or GEMINI_BASE_URL
-OPENAI_MODEL = os.environ.get("LLM_MODEL") or os.environ.get("OPENAI_MODEL") or "deepseek-v4-flash-0731"
+OPENAI_MODEL = os.environ.get("LLM_MODEL") or os.environ.get("OPENAI_MODEL") or "deepseek-flash"
 LLM_MODEL = GEMINI_MODEL if LLM_PROVIDER == "gemini" else OPENAI_MODEL
 
 MAX_ROUNDS = 15              # 工具调用轮数上限（手册纪律约 5-8 次）

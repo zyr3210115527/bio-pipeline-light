@@ -201,7 +201,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `deg_trend` | **bulk10**：差异表达**趋势**分析（火山/热图/箱线/趋势图全套）；**仅 HRA003107** | bulk_RNA,Clinical | TABULAR_BIO_DATA（counts，唯一必填）＋case/control 标签 |
 | `diff_expr_go` | limma 两组差异 + 上下调基因分别做 **GO 功能**富集；只吃表达矩阵，**无队列限制**——用户没点名队列的通用「差异表达/富集」请求默认选它（问句出现 GO 选这条） | bulk_RNA | TABULAR_BIO_DATA |
 | `diff_expr_kegg` | limma 两组差异 + 上下调基因分别做 **通路/Reactome** 富集；只吃表达矩阵，**无队列限制**（问句出现 KEGG/Reactome/通路选这条） | bulk_RNA | TABULAR_BIO_DATA |
-| `driver_gene_gender_analysis` | 该流程基于 WES MAF 文件、临床表和 Meta | Clinical,WES | CLINICAL_DATA_EXCEL,MUTATION_ANNOTATION_FORMAT_MAF |
+| `driver_gene_gender_analysis` | 该流程基于 WES MAF 文件、临床表和 Meta | Clinical,WES | INDIVIDUAL_META,SAMPLE_META,T1_META,MUTATION_ANNOTATION_FORMAT_MAF |
 | `fastp` | 对双端测序FASTQ文件进行质量过滤、接头修剪和质控 | WES | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
 | `fastqc` | 对输入的 FASTQ 文件进行质量评估，生成 HTM | bulk_RNA,sc-RNA,WES,WGS | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
 | `featurecounts` | 该流程使用 featureCounts 工具对 RN | bulk_RNA | DNA_GENOMIC_ALIGNMENT_BAM |
@@ -209,7 +209,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `gatk_germline_cohort` | **队列级胚系**变异检测（HaplotypeCaller→GenomicsDB→联合分型→VQSR）。与 `gatk`（原子、走 Mutect2 **体细胞**）分工不同：**要胚系、要队列联合分型**就用它；单病人配对体细胞走 `wes_somatic_pair`。 | WGS,WES,Clinical | DNA_GENOMIC_ALIGNMENT_BAM,TARGET_INTERVAL_LIST,REFERENCE_GENOME_FASTA |
 | `gene_boxplot` | **bulk10**：基因表达**箱线图**可视化；**仅 HRA003107** | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填）＋case/control 标签 |
 | `gsea_pathway_enrichment` | **不先筛差异基因**，全基因排序做预排序 GSEA（fgsea） | bulk_RNA | TABULAR_BIO_DATA |
-| `her2_pfs_survival` | 按**基因表达高低分组**做生存/PFS 的**默认流程**（基因不限 HER2/ERBB2，问句点名任何基因都算）；要 TPM+临床+元信息。问 **OS/多因素 Cox** 且队列在 §3.1 七队列内 → 改 km_survival / cox_model | Clinical,bulk_RNA | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA |
+| `her2_pfs_survival` | 按**基因表达高低分组**做生存/PFS 的**默认流程**（基因不限 HER2/ERBB2，问句点名任何基因都算）；要 TPM+临床+元信息。问 **OS/多因素 Cox** 且队列在 §3.1 七队列内 → 改 km_survival / cox_model | Clinical,bulk_RNA | INDIVIDUAL_META,SAMPLE_META,T1_META,TABULAR_BIO_DATA |
 | `hvg_pca_gmm` | 上面整链拆出的**单步**：logCPM→HVG→PCA→GMM | bulk_RNA,sc-RNA | - |
 | `immune_infiltration_iobr` | 基于 IOBR 包的 CIBERSORT 算法进行免 | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA |
 | `immunotherapy_cellchat` | 基于CellChat的免疫治疗细胞通讯分析流程 | sc-RNA | SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA |
@@ -230,15 +230,15 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `stage_heatmap` | **bulk10**：按**肿瘤分期**的表达热图；**仅 HRA003107** | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填） |
 | `star` | 该流程使用 STAR 比对工具对 RNA-seq 数 | bulk_RNA | REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ |
 | `star_fusion` | **基因融合**检测，闭集内唯一一条。**从双端 FASTQ 起步**，只有 counts 矩阵时做不了——那是缺数据不是缺工具，按 §7 照样给 rank1。与原子工具 `star` 不是一回事。 | RNA,Clinical | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ,METADATA_SAMPLE_INFO |
-| `survival_analysis` | 按**指定基因的突变状态**（MAF）分组做 PFS：KM+log-rank+Cox | WES,Clinical | CLINICAL_DATA_EXCEL,MUTATION_ANNOTATION_FORMAT_MAF |
+| `survival_analysis` | 按**指定基因的突变状态**（MAF）分组做 PFS：KM+log-rank+Cox | WES,Clinical | INDIVIDUAL_META,SAMPLE_META,T1_META,MUTATION_ANNOTATION_FORMAT_MAF |
 | `tcell_intervention` | 该流程用于对单细胞RNA-seq数据进行T细胞干预前 | bulk_RNA,sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,METADATA_SAMPLE_INFO,SCRNA_OBJECT_RDS |
-| `tmb_survival_analysis` | 按 **TMB 中位数**分高低组做 KM 生存（先从 MAF 算病人级 TMB） | WES,Clinical | MUTATION_ANNOTATION_FORMAT_MAF,CLINICAL_DATA_EXCEL |
+| `tmb_survival_analysis` | 按 **TMB 中位数**分高低组做 KM 生存（先从 MAF 算病人级 TMB） | WES,Clinical | MUTATION_ANNOTATION_FORMAT_MAF,INDIVIDUAL_META,SAMPLE_META,T1_META
 | `trim_galore` | 基于 Trim Galore 工具的 FASTQ 文 | bulk_RNA | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
 | `tumor_evolution_inference` | **肿瘤演化与克隆推断**，闭集内唯一一条。推的是克隆谱系，**不是因果机制**——问因果仍按 §7 拒绝纪律，别拿它顶。 | sc-RNA,WGS,RNA | DNA_GENOMIC_ALIGNMENT_BAM,TABULAR_BIO_DATA,DNA_VARIANT_VCF_GENERAL |
 | `umap` | **bulk10**：表达矩阵 **UMAP** 降维可视化；七个队列全可（§3.1 里唯一一条） | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填） |
 | `wes_somatic_maf_landscape` | 本流程用于全外显子测序（WES）队列的体细胞突变景观 | WES | MUTATION_ANNOTATION_FORMAT_MAF |
 | `wes_somatic_pair` | 用于单个病人配对 tumor-normal WES  | WGS,WES | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
-| `wgcna` | WGCNA 整链（QC+模块+模块-性状+hub+bootstrap）；**HRA003107/HRA007167 之外的共表达/hub 请求默认选它**；这两个队列上改用 wgcna_hub（要 hub 基因）/ wgcna_module_trait（要模块-性状） | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA |
+| `wgcna` | WGCNA 整链（QC+模块+模块-性状+hub+bootstrap）；**HRA003107/HRA007167 之外的共表达/hub 请求默认选它**；这两个队列上改用 wgcna_hub（要 hub 基因）/ wgcna_module_trait（要模块-性状） | bulk_RNA,Clinical | INDIVIDUAL_META,SAMPLE_META,T1_META,TABULAR_BIO_DATA |
 | `wgcna_hub` | **bulk10**：WGCNA **枢纽基因**；仅 HRA003107/HRA007167，在这两个队列上优先于 wgcna | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填） |
 | `wgcna_module_trait` | **bulk10**：WGCNA **模块-性状**关联；仅 HRA003107/HRA007167，在这两个队列上优先于 wgcna | bulk_RNA,Clinical | TABULAR_BIO_DATA（counts，唯一必填） |
 
@@ -577,27 +577,22 @@ rank1 填这条链的**主环节**（比对题填 `bwa`/`star` 而不是 `fastp`
 模型全改成只给一条 rank1；这条就是把它拉回来的。）
 
 **assets 只需给"主数据"一条**：主数据 = 该流程的核心输入（表达矩阵 / MAF / FASTQ）。
-流程需要临床表时，服务端会自动把同队列的临床表与样本元信息表补齐，
-**不用写，也不用查**——这两张表每队列各一份、服务端按队列号直接取，你连它们叫什么、
-在 T1 还是 T2 都不需要知道。判据是「图内 io 声明了 `CLINICAL_DATA_EXCEL` **或**交付卡把
-`clinical_xls`+`metainfo_xlsx`（另一套写法 `clinical_file`+`metainfo_file`）写成了必填参数」，
-覆盖 `driver_gene_gender_analysis` `wgcna` `her2_pfs_survival` `immune_infiltration_iobr`
+流程需要临床表时，服务端会自动把同队列的元信息表补齐，
+**不用写，也不用查**——这些表每队列各一份、服务端按队列号直接取，你连它们叫什么、
+在 T1 还是 T2 都不需要知道。判据是「图内 io 声明了 `CLINICAL_DATA_EXCEL`
+**或**交付卡把 `clinical_xls`+`metainfo_xlsx`（另一套写法 `clinical_file`+`metainfo_file`）
+**或** `individual_csv`+`sample_csv`+`t1_csv` 写成了必填参数」，覆盖
+`driver_gene_gender_analysis` `wgcna` `her2_pfs_survival` `immune_infiltration_iobr`
 `survival_analysis` `tmb_survival_analysis` 六条，**这六条只给主数据一条 asset 即可，
-两张表和它们的 `execution_params` 由服务端填**。
+表和它们的 `execution_params` 由服务端填**。
 
-**其中五条走的是旧版临床表**：`driver_gene_gender_analysis` `her2_pfs_survival`
-`survival_analysis` `tmb_survival_analysis` `wgcna`。它们吃的 Clinical/MetaInfo 在
-`/hpcdisk1/cbb_group/data/analysis/<ACC>/` 下，**图里一个节点都没有**（图内 18 份
-Clinical/MetaInfo 全在扁平 `/hpcdisk1/cbb_group/data/<ACC>/` 下、一律 `.xlsx`，
-是新版表、结构不同、喂进去跑不动）。扩展名逐队列逐流程不同（多数 `.xls`，
-`survival_analysis`/`tmb_survival_analysis` 在 HRA000873/HRA000071 上是 `.xlsx`），
-别按队列号硬拼。服务端按 22 条实跑记录覆盖，**你查不到也不用查、更不要把新版那份写进 assets**。
-这五条的队列白名单同样是固定的（`references/legacy5_proven_runs.tsv`）：
-
-| 流程 | 只在这些队列上跑通过 |
-|---|---|
-| `driver_gene_gender_analysis` `survival_analysis` `tmb_survival_analysis` | `HRA001272` `HRA007169` `HRA001749` `HRA000873` `HRA000071` |
-| `her2_pfs_survival` `wgcna` | `HRA001272` `HRA000074` `HRA007167` `HRA003107` |
+**其中五条走的是三张 CSV 元信息表**：`driver_gene_gender_analysis` `her2_pfs_survival`
+`survival_analysis` `tmb_survival_analysis` `wgcna` 声明的是 `individual_csv` +
+`sample_csv` + `t1_csv`，对应图内 `INDIVIDUAL_META` / `SAMPLE_META` / `T1_META` 三个标签，
+路径统一是 `/cbb-data/gsa/agent/<ACC>/` 下的 `individual.csv` / `sample.csv` / `T1.csv`，
+每队列一套。服务端按队列号取齐三张，和上面两张 XLSX 表一样，**不用写进 assets、也不用查**。
+给这五条塞旧版 `.xlsx` 临床表是无效的：服务端会摘掉——同一份提交不会同时带 XLSX 与 CSV
+两族元信息，卡片只读 CSV 那一套。
 
 MAF 与表达矩阵这两类主数据不受影响——它们的图内路径与实跑记录完全一致（含 HRA001272
 多一层 `/RNAseq/`），照常从图里查。**为找它们再开一轮取数是本项目最大的时间浪费**（先在 T2 按 format 猜、

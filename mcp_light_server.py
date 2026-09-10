@@ -835,9 +835,16 @@ def tool_validate_execution_chain(args):
             _accs = set()
             for _b in list(bindings.values()) + list(params.values()):
                 _accs |= set(_HRA.findall(json.dumps(_b, ensure_ascii=False)))
-            _pair = _clinical_pair_files(next(iter(_accs)), gid) if len(_accs) == 1 else {}
+            # 两族分开查图：XLSX 那对与 CSV 那组同队列各一份，但语义格式不重叠。
+            # 一次查全套会把没声明的那族也捞进来，`_clinical_pair_files` 的
+            # 「三张齐全的目录胜出」判据随之失真。
+            _pairs = {}
+            for _fam in ({v for v in _clin.values() if v in _CLINICAL_PARAM_FMT.values()},
+                         {v for v in _clin.values() if v in _CSV_META_PARAM_FMT.values()}):
+                if _fam and len(_accs) == 1:
+                    _pairs.update(_clinical_pair_files(next(iter(_accs)), gid, fmts=_fam))
             for _n, _fmt in _clin.items():
-                _hit = _pair.get(_fmt)
+                _hit = _pairs.get(_fmt)
                 if _hit:
                     params[_n] = _hit[1]
                 else:
@@ -1355,16 +1362,32 @@ _CLINICAL_PAIR = ("CLINICAL_DATA_EXCEL", "METADATA_SAMPLE_INFO")
 _CLINICAL_PARAM_FMT = {"clinical_xls": "CLINICAL_DATA_EXCEL", "clinical_file": "CLINICAL_DATA_EXCEL",
                        "metainfo_xlsx": "METADATA_SAMPLE_INFO", "metainfo_file": "METADATA_SAMPLE_INFO"}
 
-def _needs_clinical(gid):
-    """该流程按卡片声明需要哪几个「临床/元信息」参数：{参数名: 语义格式}。
+# 260902 交付把上面五条流程的临床输入从「两张 XLSX」换成了「三张 CSV」（individual/sample/T1）。
+# 这三张表同样是**服务端按队列补**、调用方一律不查（手册 §8 的口径没变，变的只是槽位名），
+# 所以走同一套补全：图内每个 HRA 队列各一份，`semantic_format` 是 `INDIVIDUAL_META` /
+# `SAMPLE_META` / `T1_META`，路径 `/cbb-data/gsa/agent/<ACC>/<name>.csv`。
+# 不接这一族的话这五条流程会各留三条 `no_confirmed_path`——换格式前是两条（临床对），
+# 换完变三条，因为槽位名从 `_CLINICAL_PARAM_FMT` 里查不到，`_needs_clinical` 直接返回空。
+_CSV_META_PARAM_FMT = {"individual_csv": "INDIVIDUAL_META",
+                       "sample_csv": "SAMPLE_META",
+                       "t1_csv": "T1_META"}
 
-    bulk10 走 `_bulk10_params` 的 CNCB 原生 CSV 那条路，它自己的 clinical_xls 是可选的，
-    不在这里补——两条路混着补会把 CSV 和 XLSX 两套表同时塞进同一次提交。"""
+def _needs_clinical(gid):
+    """该流程按卡片声明需要哪几个「由服务端按队列补」的元数据参数：{参数名: 语义格式}。
+
+    含两族，各有各的理由不该由调用方查：
+      · `clinical_xls`/`metainfo_xlsx` 那对 XLSX（`_CLINICAL_PARAM_FMT`）
+      · `individual_csv`/`sample_csv`/`t1_csv` 那组 CSV（`_CSV_META_PARAM_FMT`，260902 起）
+
+    bulk10 不在这里补：它走 `_bulk10_params` 的 CNCB 原生 CSV 那条路（按路径模板推、不看图），
+    它自己的 clinical_xls 是可选的——两条路混着补会把 CSV 和 XLSX 两套表同时塞进同一次提交。"""
     if gid in _BULK10:
         return {}
     card = KC_MAP.get(gid) or {}
-    return {i["name"]: _CLINICAL_PARAM_FMT[i["name"]] for i in card.get("inputs") or []
-            if i.get("name") in _CLINICAL_PARAM_FMT}
+    want = dict(_CLINICAL_PARAM_FMT)
+    want.update(_CSV_META_PARAM_FMT)
+    return {i["name"]: want[i["name"]] for i in card.get("inputs") or []
+            if i.get("name") in want}
 
 # 五个旧版工具：它们吃的临床表/样本元信息表是 `/hpcdisk1/cbb_group/data/analysis/<ACC>/`
 # 下的**旧版**表，而 0826 图内 18 份 Clinical/MetaInfo 全在扁平 `/hpcdisk1/cbb_group/data/<ACC>/`
@@ -1431,7 +1454,7 @@ def _legacy5_pair(gid, acc):
             out[fmt] = (name, _LEGACY5_DIR.format(acc=acc, name=name))
     return out
 
-def _clinical_pair_files(acc, gid=None):
+def _clinical_pair_files(acc, gid=None, fmts=None):
     """一个队列的临床表/样本元信息表：{语义格式: (file_name, file_path)}。
 
     这两张表**在图内**（每个队列各一份、都带真实 file_path），与 bulk10 的
@@ -1446,7 +1469,12 @@ def _clinical_pair_files(acc, gid=None):
     再从中取两张，保证成对同源，也保证同一个问题两次规划给同一份。
     扁平那套排在前，与手册记的口径一致（图内 18 份 Clinical/MetaInfo 都在扁平目录、
     一律 `.xlsx`）。
-    五个旧版工具例外：它们要 analysis 目录下的旧版表，图内没有，见 `_legacy5_pair`。"""
+    五个旧版工具例外：它们要 analysis 目录下的旧版表，图内没有，见 `_legacy5_pair`。
+
+    `fmts` 只取哪几个语义格式，默认那对 XLSX。260902 起五条流程改吃三张 CSV
+    （`INDIVIDUAL_META`/`SAMPLE_META`/`T1_META`），此时传 `_CSV_META_PARAM_FMT` 的值：
+    它们同样在**同一个目录**下成套交付（`/cbb-data/gsa/agent/<ACC>/`），
+    分目录分组的逻辑照用，三张齐全的那个目录胜出。"""
     if gid in _LEGACY5_RUNS:
         # 这五条一律不回落到图内新版表：回落等于把跑不动的表当答案交出去。
         # 表里 wgcna×HRA007167/HRA003107/HRA001272 三行本就没有临床列（实跑只给了表达矩阵），
@@ -1454,8 +1482,10 @@ def _clinical_pair_files(acc, gid=None):
         return _legacy5_pair(gid, acc)
     if not _SAFE_TOKEN.fullmatch(str(acc or "")):
         return {}
+    want_fmts = list(fmts or _CLINICAL_PAIR)
+    in_list = ",".join("'" + f + "'" for f in want_fmts)
     rows = neo4j_q([f"MATCH (n) WHERE (n:T1 OR n:T2) AND n.study_accession = '{acc}' "
-                    f"AND n.semantic_format IN ['CLINICAL_DATA_EXCEL','METADATA_SAMPLE_INFO'] "
+                    f"AND n.semantic_format IN [{in_list}] "
                     f"AND n.file_path IS NOT NULL "
                     f"RETURN n.semantic_format, n.file_name, n.file_path"])
     by_dir = {}
@@ -1574,7 +1604,8 @@ def _complete_assets(gid, assets, facts):
     # 图内 io 声明与交付卡声明取并集：前者对原子工具准，对那六条 pipeline 级流程是错的
     # （见 `_CARD_FMT_SEM`），后者反过来只在有卡片时有。少一边就有规则整条失效。
     req = {s["name"].upper() for s in _graph_tool_io(gid)[0]} | _card_req(gid)
-    need_clin = bool(_needs_clinical(gid))
+    _meta = _needs_clinical(gid)
+    need_clin = bool(_meta)
 
     # ⓪ 已验证样例输入（见 `_PROVEN_FMT`）。必须排在下面"资产为空就整条早退"之前：
     # 问题三的实况正是调用方一个 asset 都没给，早退之后就再没有第二次机会补。
@@ -1649,13 +1680,27 @@ def _complete_assets(gid, assets, facts):
     # 按队列号推 sample.csv/individual.csv），再塞图内的 Clinical/MetaInfo xlsx 就是两套
     # 元数据同时喂进去——卡片那组 require_any 本来就是二选一，喂两套跑起来不报错，
     # 读错哪一套只有结果不对时才看得出来。§3.1 的契约是「只有 expr 一个必填输入」。
-    if gid not in _BULK10 and ("CLINICAL_DATA_EXCEL" in req or need_clin):
+    #
+    # 家族随卡片走：260902 的 5 条改声明 individual_csv/sample_csv/t1_csv 之后吃 CSV 那组，
+    # 其余仍吃 XLSX 那对。**被淘汰的那一族要从 assets 里摘掉**——否则同一次提交里
+    # XLSX 和 CSV 两套元数据同时在，执行端读哪套看心情（旧版遗留问题四就是这么来的）。
+    _clin_fam = {v for v in _meta.values() if v in _CSV_META_PARAM_FMT.values()} \
+        or ({v for v in _meta.values() if v in _CLINICAL_PARAM_FMT.values()} or None)
+    if gid not in _BULK10 and _clin_fam and ("CLINICAL_DATA_EXCEL" in req or need_clin
+                                             or "INDIVIDUAL_META" in req):
         # 五个旧工具走 analysis 目录下的旧版表（见 `_LEGACY5_RUNS`）。这里必须**先把图内
         # 新版表从 assets 里摘掉再补旧版**：只补不摘就是两套元数据一起交，而卡片只吃一份，
         # 读到哪一份看执行端心情。PDF 问题四报的就是这条补出来的
         # `HRA001272-Clinical-1.0.xlsx | /hpcdisk1/cbb_group/data/HRA001272/…`。
         legacy = _legacy5_pair(gid, acc) if gid in _LEGACY5_RUNS else {}
-        for fmt in _CLINICAL_PAIR:
+        # 只摘**另一族**：CSV 族内部三张表是一起交的，按 fmt 逐个摘会把同族刚补的删掉。
+        # 判据用「文件名落在那族的 pool 里」而不是 facts 的 semantic_format：
+        # 调用方自己绑上来的资产未必进了 facts，按 facts 判会漏摘。
+        _drop_names = {f.lower()
+                       for d in (set(_CLINICAL_PAIR) | set(_CSV_META_PARAM_FMT.values()))
+                       - _clin_fam
+                       for f in (pool.get(d) or [])}
+        for fmt in sorted(_clin_fam):
             files = sorted(pool.get(fmt) or [])   # 定序：同一问题两次规划给同一份
             want = legacy.get(fmt)
             if gid in _LEGACY5_RUNS:
@@ -1667,6 +1712,12 @@ def _complete_assets(gid, assets, facts):
                     assets.remove(a)
                 if not want:            # 实跑记录里这条流程在该队列本就不吃这张表
                     continue
+            # 先摘掉不属于本族的另一族（把 XLSX 换成 CSV 时，旧的 xlsx 留在 assets 里
+            # 会被 `have` 判成"已有了"从而跳过补全，最后两套表一起交出去）。
+            for a in [a for a in assets
+                      if str(a.get("file_name") or "").lower() in _drop_names]:
+                notes.append("-" + str(a.get("file_name")))
+                assets.remove(a)
             have = {str(a.get("file_name") or "").lower() for a in assets}
             if want:
                 if want[0].lower() in have:

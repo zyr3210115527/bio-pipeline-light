@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""交付形态真实模型实测：skill + MCP + 真实 LLM（deepseek-v4-flash，无 thinking）"""
+"""交付形态真实模型实测：skill + MCP + 真实 LLM（deepseek-flash，无 thinking）"""
 import json, os, select, subprocess, sys, time, tempfile, yaml
 
 MCP_PY = os.path.expanduser("~/.dsh/mcp/neo4j-venv/bin/python")
 SKILL_MD = os.path.expanduser("~/.dsh/skills/bio-pipeline-planning/SKILL.md")
 API_KEY = os.environ.get("DEEPSEEK_API_KEY") or yaml.safe_load(
     open(os.path.expanduser("~/.dsh/.credentials.yaml")))["DEEPSEEK_API_KEY"]
-MODEL = "deepseek-v4-flash"
+MODEL = "deepseek-flash"
 LOG = "/tmp/agent_progress.log"
 
 def log(msg):
