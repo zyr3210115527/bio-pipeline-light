@@ -735,6 +735,15 @@ expression matrix, the MAF, or the FASTQ pair. `hydrate_plan` completes the rest
   the CSV metadata, and the card only reads the CSV set.
   The primary data — MAF and expression matrices — are unaffected: their graph paths match the
   proven runs exactly (including HRA001272's extra `/RNAseq/` level), so query those normally.
+  **`HRA000001` is the one cohort with no XLSX pair at all** (0 `CLINICAL_DATA_EXCEL`, 0
+  `METADATA_SAMPLE_INFO` — it is a healthy-population study). It still has all three CSV tables, so
+  the five CSV-trio pipelines above work there; the XLSX-consuming ones must not be offered for it,
+  and the empty pair is not a transient query miss worth re-probing.
+  **Two cohorts ship a duplicate copy of the pair** — `HRA001748` and `HRA005191` each hold one set
+  under `/hpcdisk1/cbb_group/data/<ACC>/` (both `.xlsx`) and another under
+  `/hpcdisk1/cbb_group/data/scRNAseq/<ACC>/` (Clinical as `.xls`). The server picks the flat
+  directory — the same one every other cohort uses — so nothing needs doing, but do not "fix" it by
+  supplying a clinical table yourself.
 - The same applies to the bulk10 family's `sample_csv` / `individual_csv` (§3.1) — server-derived from
   the study accession, never written and never queried.
 - The expression matrix is normalised to the pipeline's default quantification flavour. A study's FPKM,
@@ -775,6 +784,24 @@ with the most samples, so the same question always resolves the same way:
 
 Graph-wide, only seven cohorts carry any MAF: HRA000873, HRA016026, HRA001272, HRA006499, HRA001749,
 HRA007169 and HRA000071 (the last cohort-level only; the others also carry per-run `HRR*.maf`).
+**That list is a hard gate, and it is not the same as the WGCNA/cancer-type tables above.** The two
+commonest cohorts to reach for in a mutation question are the two that have *no* MAF: `HRA007167`
+(melanoma) sits in the WGCNA and cancer-type tables but carries RNA only — zero MAF nodes — so
+`tmb_survival_analysis`, `wes_somatic_maf_landscape`, `survival_analysis` and
+`driver_gene_gender_analysis` are all unrunnable there; the melanoma mutation answer is `HRA007169`.
+`HRA000073`/`HRA000074` are likewise RNA-only (glioma mutation answers resolve to `HRA000071`).
+Deciding against the cancer-type table instead of this list is the mistake to avoid — the tables
+answer "which cohort is *biggest*", this list answers "which cohort *has the data*".
+
+**Never resolve the cohort and the asset independently — they must name the same study.** The asset
+layer happily substitutes a study-level file into a slot you left loosely bound: ask for TMB on
+`HRA007167` and it will hand you `HRA007169-SomaticSNV-1.0.maf` — a *different study* — while the
+clinical tables come from `HRA007167`, so the MAF's samples and the clinical rows share no patient
+IDs and the run fails or silently analyses nothing. `selection_status` stays `ok` and nothing in
+`execution_params_missing` flags it. So when the named cohort has no MAF, the correct output is the
+honest one: state the gap (`missing_from_graph` with the reason, or a `no_candidate` naming the seven
+cohorts that do carry MAF). **Do not quietly retarget the asset** — and if you do switch cohorts, the
+`data.study_accessions` and every meta param must switch with it.
 
 Three cohorts carry single-cell data: **HRA001748** (10x, liver cancer, 320 paired FASTQ files named
 like `HRR572934_f1.fq.gz` / `HRR572934_r2.fq.gz` — the default cohort for any 10x / CellRanger

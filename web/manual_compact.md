@@ -283,6 +283,20 @@ HRA007413/HRA016026），另有 2 个数值是错的（HRA000074 写 572 实为 
 
 **全图带 MAF 的队列只有 7 个**：HRA000873、HRA016026、HRA001272、HRA006499、HRA001749、
 HRA007169、HRA000071（最后一个只有队列级汇总，其余还各带逐 run 的 `HRR*.maf`）。
+**这张表是硬门槛，和上面的 WGCNA / 癌种表不是一回事——后两张看的是"哪个队列最大"，
+这张看的是"哪个队列有数据"。** 突变问句里最容易被顺手选中的恰恰是两个没有 MAF 的：
+`HRA007167`（黑色素瘤）出现在 WGCNA 表和癌种表里，但只有 RNA、MAF 节点数为 0，
+`tmb_survival_analysis` `wes_somatic_maf_landscape` `survival_analysis`
+`driver_gene_gender_analysis` 四条在它身上一条都跑不动，黑色素瘤的突变答案是 `HRA007169`；
+`HRA000073`/`HRA000074` 同样是纯 RNA（胶质瘤突变答案落在 `HRA000071`）。
+
+**队列和资产必须落在同一个 study 上，不许各自独立挑。** 资产层会"贴心"地把队列级汇总文件
+填进你松绑的槽位：问 `HRA007167` 的 TMB，它会给你 `HRA007169-SomaticSNV-1.0.maf`——
+**别的队列的 MAF**——而临床表还是 `HRA007167` 的，两边样本号根本对不上，轻则跑挂、重则
+静默分析了个空。这种提交 `selection_status` 还是 `ok`，`execution_params_missing` 也是空的。
+所以点名的队列没有 MAF 时，正确答案是**如实说缺**（`missing_from_graph` 附原因，或
+`no_candidate` 并列出那 7 个有 MAF 的队列），**不许悄悄换资产**；真要换队列，`data.study_accessions`
+和每一个元信息参数都必须跟着一起换。
 
 **单细胞队列共三个**：**HRA001748**（10x，肝癌，320 个配对 FASTQ，形如
 `HRR572934_f1.fq.gz`/`_r2.fq.gz`——10x/CellRanger 类问题的默认队列）、
@@ -607,7 +621,14 @@ rank1 填这条链的**主环节**（比对题填 `bwa`/`star` 而不是 `fastp`
 两族元信息，卡片只读 CSV 那一套。
 
 MAF 与表达矩阵这两类主数据不受影响——它们的图内路径与实跑记录完全一致（含 HRA001272
-多一层 `/RNAseq/`），照常从图里查。**为找它们再开一轮取数是本项目最大的时间浪费**（先在 T2 按 format 猜、
+多一层 `/RNAseq/`），照常从图里查。
+**`HRA000001` 是全图唯一没有 XLSX 对的队列**（`CLINICAL_DATA_EXCEL`、`METADATA_SAMPLE_INFO`
+各 0 份——它是健康人群队列）。它的三张 CSV 元信息表是齐的，所以上面那五条走 CSV 三表的流程
+在它身上照常可跑；吃 XLSX 的那几条不要给它选，这个空缺也不是"再查一次就能查到"的抖动。
+**有两个队列的临床表各存了两份**——`HRA001748` 和 `HRA005191` 在
+`/hpcdisk1/cbb_group/data/<ACC>/`（两张都是 `.xlsx`）和
+`/hpcdisk1/cbb_group/data/scRNAseq/<ACC>/`（Clinical 是 `.xls`）下各一套。服务端取的是扁平
+目录这一套（与其余队列一致），不用管；**但不要自己塞临床表去"修"它**。**为找它们再开一轮取数是本项目最大的时间浪费**（先在 T2 按 format 猜、
 查空了再去 T1 按 strategy 猜，一轮几十秒）；**bulk10 族的 `sample_csv`/`individual_csv` 同理**
 （见 §3.1，它们根本不在图内，写进 assets 会直接判违规）；
 表达矩阵选错定量口径（FPKM/TPM/counts）也会被按该流程的默认口径自动换成正确的那份（bulk10 十条一律 counts，见 §3.1），

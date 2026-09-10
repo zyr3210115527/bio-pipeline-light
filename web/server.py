@@ -293,6 +293,15 @@ def load_system_prompt():
 
 
 # ---------- LLM 流式调用 ----------
+# **模型接口一律直连，不走系统代理。** 这台机器上「科学上网」客户端把系统代理设成了
+# 127.0.0.1:12334（`scutil --proxy` 里 HTTP/HTTPS/SOCKS 三项都指向它），而 urllib 默认
+# 就吃系统代理。代理一旦对 api.deepseek.com 做了 TLS 拦截或正好没在跑，报出来的是
+# `SSL: UNEXPECTED_EOF_WHILE_READING`——看着像网络抽风，实际是每次都在走那条死路。
+# 关掉代理后同一请求 1 秒内返回。**只关在模型请求上**：Neo4j 那些本地调用本来就不该走代理，
+# 而需要代理的外呼（GitHub 等）不在这个进程里。
+_LLM_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def _sse_open(url, payload, api_key):
     """发一份请求并读到**第一条 data: 行**为止，返回 (resp, first_line)。"""
     req = urllib.request.Request(
@@ -300,7 +309,7 @@ def _sse_open(url, payload, api_key):
         headers={"Content-Type": "application/json",
                  "Authorization": f"Bearer {api_key}"})
     try:
-        resp = urllib.request.urlopen(req, timeout=GEMINI_TIMEOUT)
+        resp = _LLM_OPENER.open(req, timeout=GEMINI_TIMEOUT)
     except urllib.error.HTTPError as e:
         detail = e.read()[:500].decode("utf-8", "replace")
         raise RuntimeError(f"模型接口 HTTP {e.code}：{detail}") from e
@@ -1167,7 +1176,7 @@ def _warmup(mcp, system_prompt):
                 data=json.dumps(payload).encode(),
                 headers={"Content-Type": "application/json",
                          "Authorization": f"Bearer {OPENAI_API_KEY}"})
-            with urllib.request.urlopen(req, timeout=120) as r:
+            with _LLM_OPENER.open(req, timeout=120) as r:
                 d = json.loads(r.read())
             cached = (d.get("usage", {}).get("prompt_tokens_details") or {}).get("cached_tokens")
             print(f"[web] 预热 LLM 提示词缓存: {time.time()-t1:.1f}s, cached_tokens={cached}",
