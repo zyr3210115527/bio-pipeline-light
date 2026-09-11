@@ -359,7 +359,7 @@ def _add_clinical(srv, assets, study, sem_fmt):
     return [item]
 
 
-def _bind_step(srv, gid, card, assets, upstream, step_id):
+def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None):
     """把资产/上游产物绑到卡片参数上，返回 (inputs 绑定对象, missing[])。
 
     绑定优先级：上游步骤的同格式输出 > 尚未用掉的同格式资产 > 卡片默认值/可推字面量。
@@ -367,7 +367,9 @@ def _bind_step(srv, gid, card, assets, upstream, step_id):
     会覆盖掉正确的路径。bulk10 的两张 CNCB 元数据表由 server 按队列号推，同理不绑。
     """
     inputs, missing, used, used_up = {}, [], set(), set()
-    study = next((a.get("study_accession") for a in assets if a.get("study_accession")), None)
+    # 队列的三个来源，按可信度排：资产自带 > 调用方给的推荐队列 > 从文件名里的队列号认领。
+    study = (next((a.get("study_accession") for a in assets if a.get("study_accession")), None)
+             or study_hint)
     if not study:
         # hydrate_plan 没跑成（图不通/模型直出）时字段是空的，但图内文件名本身就带队列号，
         # 从文件名兜一层——临床表补全全靠这个队列号，兜不到就只能如实报缺。
@@ -411,15 +413,25 @@ def _bind_step(srv, gid, card, assets, upstream, step_id):
                 inputs[name] = ([{"asset_id": a["asset_id"]} for a in cand] if is_arr
                                 else {"asset_id": cand[0]["asset_id"]})
                 continue
+            if _meta_fmt:
+                # 这批元数据表是**服务端按队列补**的（上面 `_add_clinical` 刚试过）。
+                # 补不出来只剩两种可能，都跟「图里有没有这个文件」无关，报
+                # no_confirmed_path 是错的——实测调用方和读包的人都被这句误导过：
+                #   · 队列还没定：调用方补上 assets（或直接给 study_accession）就能解；
+                #   · 队列定了却没补上：那是服务端的补全该修，不是谁欠一份文件——这些表
+                #     一直都在图里、带完整 file_path。
+                # 分开报，转述时才知道该去补队列、还是该来报 bug。
+                if required:
+                    missing.append({"param": name, "tool_id": (card or {}).get("meta_id") or gid,
+                                    "step_id": step_id,
+                                    "reason": "study_not_resolved" if not study
+                                              else "server_fill_missed"})
+                continue
             if required:
-                # 临床表补不出来的原因分两种：队列还没定（调用方补 assets 就能解）vs
-                # 队列定了但图里没这张表（数据侧的事）。混成一个 reason 会把前者误导成
-                # "去数据侧要文件"——师兄 0826 反馈的正是这一条。
+                # 到这里是真正的主数据槽（表达矩阵/MAF/FASTQ）：绑不上就是数据侧的事，
+                # 要补的是 `file_path`，no_confirmed_path 名副其实。
                 missing.append({"param": name, "tool_id": (card or {}).get("meta_id") or gid,
-                                "step_id": step_id,
-                                "reason": "study_not_resolved"
-                                          if (_meta_fmt and not study)
-                                          else "no_confirmed_path"})
+                                "step_id": step_id, "reason": "no_confirmed_path"})
             continue
         # 非 File 参数
         lit = _derive_literal(name, assets, study)
@@ -586,7 +598,12 @@ def to_cohort_v2(plan, query, top_k=3):
         tool["inputs"] = [dict(s, builder_param=s.get("name")) for s in slots]
         rec["tool"] = tool
 
-        inputs, missing = _bind_step(srv, gid, card, assets, [], "step-1")
+        # 队列号：卡片的 `study_accessions` 优先（模型点名了队列却没给资产时，这是唯一
+        # 的锚）、其次资产反查。`_complete_assets` 会照着它把该队列的元数据表补齐——
+        # 少了这一步，模型说「HRA016026 做 wgcna」而没给资产时，三张表全报
+        # study_not_resolved，读起来像"缺数据"，其实只差把队列号交给补全。
+        inputs, missing = _bind_step(srv, gid, card, assets, [], "step-1",
+                                     next(iter(accs)) if len(accs) == 1 else None)
         # 路径解析：绑定对象里只有 asset_id，执行合同还要给出扁平的 execution_params
         params, pmiss = _flat_params(srv, gid, inputs,
                                      {a["asset_id"]: a for a in assets},
@@ -642,7 +659,8 @@ def to_cohort_v2(plan, query, top_k=3):
         # recommendations[0] 里。合并前先把那一条的 assets/study 借过来，否则前置之后
         # rank1 从"队列在、链路是单步"变成"链路全了、队列没了"——数据反而比不改更差。
         conv = _convert_atomic(srv, atomic, meta_to_graph, 0,
-                               _rec_assets(rec_pool) or fallback)
+                               _rec_assets(rec_pool) or fallback,
+                               _rec_study(rec_pool) or _rec_study(recs))
         one_stop = [c for c in candidates if c.get("pipeline_id")]
         # **能跑通的才前置。** 链和一站式流程描述同一件事的两种粒度，前置哪一条只看
         # 谁真的跑得起来：链 ready 就一定前置（这是模型拆链的本意）；链跑不通、而模型
@@ -824,7 +842,18 @@ def _is_atomic_chain(cand):
     return bool(cand.get("tool_chain") or cand.get("chain")) and not cand.get("pipeline_id")
 
 
-def _convert_atomic(srv, cand, meta_to_graph, rank, fallback=None):
+def _rec_study(recs):
+    """推荐里已判定的队列号，**只在唯一时**返回（与 `_rec_assets` 同一条纪律）。
+
+    多条推荐落在不同队列 = 拿哪一份当锚是没依据的，宁可不给；给了就会把 A 队列的
+    元数据表挂到 B 队列的链上，执行端照跑不报错。多队列写成
+    `HRA001748;HRA001749` 时是一个字符串、仍算唯一，原样带回。"""
+    accs = {str(s) for r in recs
+            for s in ((r.get("data") or {}).get("study_accessions") or []) if s}
+    return next(iter(accs)) if len(accs) == 1 else None
+
+
+def _convert_atomic(srv, cand, meta_to_graph, rank, fallback=None, study_hint=None):
     """模型给出的原子链 candidates → 执行合同（步骤间按格式串上游产物）。
 
     `fallback` 是推荐里已解析好的 assets（见 `_rec_assets`）：原子链自己没写 assets 时
@@ -837,7 +866,12 @@ def _convert_atomic(srv, cand, meta_to_graph, rank, fallback=None):
     raw = ((cand.get("data") or {}).get("assets")) or cand.get("assets") or fallback
     accs = {str(s) for s in ((cand.get("data") or {}).get("study_accessions") or []) if s}
     accs |= {str(a.get("study_accession")) for a in (raw or []) if a.get("study_accession")}
-    assets = _mk_assets(srv, raw, next(iter(accs)) if len(accs) == 1 else None)
+    # `study` 是补元数据表的锚：链的每一步都要它。模型常把队列留在 recommendations 里、
+    # 链里一个字不提，此时 `raw` 可能是空（调用方还没补数据），assets 里也就推不出队列——
+    # 于是 `individual_csv/sample_csv/t1_csv` 报 study_not_resolved，整条链看着像缺数据，
+    # 实际只缺一个调用方补得上的队列号。`study_hint` 就是那条推荐里已判定过的队列。
+    study = next(iter(accs)) if len(accs) == 1 else (study_hint or None)
+    assets = _mk_assets(srv, raw, study)
     by_id = {a["asset_id"]: a for a in assets}
     steps, missing, upstream = [], [], []
     for idx, s in enumerate(chain, 1):
@@ -849,7 +883,7 @@ def _convert_atomic(srv, cand, meta_to_graph, rank, fallback=None):
         # 不会绑回原始输入），但 sample_id/report_id 这类字面量是从资产的
         # sample_accession/study_accession 推的——不给资产就每步都 literal_required，
         # 一条六步的链能凭空多报四五条缺失。
-        inputs, miss = _bind_step(srv, gid, card, assets, upstream, sid)
+        inputs, miss = _bind_step(srv, gid, card, assets, upstream, sid, study)
         tool_id = (card or {}).get("meta_id") or gid
         # 绑定对象里只有 asset_id，执行端要的是扁平路径——与 rank1 同一套解析。
         # 顺带堵一个洞：没有这一步，path 为空的资产也能安静绑上槽位，

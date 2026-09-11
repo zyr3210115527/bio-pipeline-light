@@ -207,14 +207,25 @@ key = f"{given}.{name}" if len(steps) > 1 else name
 - light（`mcp_light_server.py:707`）：`list[str]`，只有一个键名
 - 重版：`list[dict]`，每条是 `{param, slot, role, reason}`
 
-`reason` 是有处置含义的，**两个取值不能合并**：
+`reason` 是有处置含义的，**取值不能合并**：
 
 | `reason` | 含义 | 谁来修 |
 |---|---|---|
 | `no_confirmed_path` | 绑定正确，但图里没有该资产的确认路径 | 数据侧补 `file_path` |
 | `slot_not_bound` | 该输入槽没有 `builder_param`，映射不到 WDL 参数（`param` 为 `null`） | 目录侧补 `io_slot.csv` |
+| `study_not_resolved` | 队列号未定死（assets 为空或跨多个队列），服务端无从按队列补元数据表 | 回到数据选择，不是去数据侧要文件 |
+| `server_fill_missed` | 队列号已定死，服务端仍没补出那张元数据表（表在图里、`file_path` 齐全） | 服务端补全逻辑的 bug |
+| `literal_required` | 该参数只能由人给（如 `gene_symbol`、`input_samples`） | 问用户 |
+| `require_any_unbound` | `require_any` 组内一个都没绑 | 调用方补一个 |
 
-light 现在只有一个纯字符串，下游分不清该找谁。建议与重版同构，并把
+light 侧的 `server_fill_missed` 是 260911 加的：肺癌 WGCNA 那条链上文里，模型把
+`HRA016026` 写在 `recommendations[0].data.study_accessions`、链上 `candidates[]` 不带
+assets，队列号没传到补全，三张表报成 `study_not_resolved`——读起来像"缺数据"，实际图里
+`INDIVIDUAL_META`/`SAMPLE_META`/`T1_META` 各一份、路径完整。**`server_fill_missed` 和
+`study_not_resolved` 必须分开报**，否则转述的人会去数据侧要一份从来没缺过的文件。
+前置修复是让 `to_cohort_v2` 把卡片声明的队列号一路带进 rank1 的 `_bind_step`。
+
+light 原来只有一个纯字符串，下游分不清该找谁。建议与重版同构，并把
 `schema_version` 从 `tool-chain-validation/v1.1` 升到 `v1.2`。
 
 注：light 走的是 Knowledge Card 而不是槽表，所以 `slot_not_bound` 在 light 侧未必用得上；

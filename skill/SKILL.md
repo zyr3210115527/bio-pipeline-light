@@ -970,6 +970,11 @@ Six things to get right when transcribing execution params:
   `reason = study_not_resolved` is a different thing: the study accession was never pinned down (empty
   `assets`, or assets spanning several studies), so the server had no cohort to derive the clinical
   pair from. **That one is fixed by choosing the data, not by asking the data side for a file.**
+  `reason = server_fill_missed` is the third case, and it only ever appears on the metadata tables the
+  server derives by accession (`clinical_*`, `metainfo_*`, `individual_csv`, `sample_csv`, `t1_csv`):
+  the accession *was* pinned down and the fill still did not produce the table. The table is in the
+  graph with a complete `file_path`, so nobody owes a file — **report it as a server-side defect, not
+  as missing data.** Seeing it means the fill needs fixing, not the cohort.
 
 ## 11. Boundaries and principles
 
