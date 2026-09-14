@@ -1379,11 +1379,17 @@ def _study_run_lists(study):
             continue                                  # 数据层给不出整行（mock/异常）时静默跳过
         role = sample_role({"study_accession": study, "sample_name": r[1],
                             "tissue_type": r[2], "specimen_type": r[3]})
-        out["all"].append(str(r[0]))
-        if role in ("tumor", "normal"):
-            out[role].append(str(r[0]))
+        # sample 的 run_accession 允许一格多值（"HRR1;HRR2"，HRA001272 里 393/698），
+        # 交付惯例是一元素一 run——摊平+去重，否则执行端拿到的是带分号的字符串
+        for run in str(r[0]).split(";"):
+            run = run.strip()
+            if not run:
+                continue
+            out["all"].append(run)
+            if role in ("tumor", "normal"):
+                out[role].append(run)
     for k in out:
-        out[k].sort()
+        out[k] = sorted(set(out[k]))
     return out
 
 
