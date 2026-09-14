@@ -26,9 +26,11 @@ python3 web/server.py                 # 默认 http://127.0.0.1:8017
   MCP `tools/list`，schema 自动适配为 Gemini functionDeclarations。
 - `manual_compact.md`：web 层默认使用的精简手册（21KB≈7k tokens，落进端点 8192 缓存帽；全部坑表/闭集/契约保留）。缺失时回退 `skill/SKILL.md` 全量版。工具描述在适配层另有短版（`TOOL_DESC_SHORT`），MCP server 端不变。
 - 会话历史（含 `thoughtSignature`）保存在服务端内存，`POST /api/reset` 清除。
-- 前端：思考段（流式/可折叠）、工具调用时间线（参数/返回可展开）、
-  **tool-chain/v2 Plan 编排视图**（状态徽章、意图 chips、atomic 链步骤流、I/O 契约双列、
-  数据资产表含角色徽章、备选队列、原始 JSON 折叠）；散文兜底为 Markdown 渲染。
+- 前端（浅色毛玻璃科技风，面向 PPT 截图演示）：思考段默认折叠为一行（可点开）、
+  工具调用只以名称 chips 平铺（状态点 + 耗时，不展开参数/返回）、
+  **tool-chain/v2 Plan 卡片为视觉核心**（状态徽章 + 接地校验标记、意图 chips、atomic 链
+  横向流水线、数据资产表含角色徽章、备选队列、原始 JSON 折叠）；
+  流式输出中的裸 JSON 以骨架屏遮罩；散文兜底为 Markdown 渲染。
 - 接口：`GET /` 页面；`GET /api/health` 健康检查；`POST /api/chat`
   `{session, message}` SSE 事件流（`thought` / `text` / `tool_call` /
   `tool_result` / `done` / `error`）。
