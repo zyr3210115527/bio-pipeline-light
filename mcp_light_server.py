@@ -715,6 +715,12 @@ def tool_validate_execution_chain(args):
                     bad_bind.append(f"{i['name']} binding 类型应为 {i['type']}")
         if bad_bind:
             errors.extend(f"{card['meta_id']}: {x}" for x in bad_bind)
+        # 卡片之外的参数会被执行端静默忽略（如实测 her2_pfs_survival 没有 gene 槽位，
+        # 传入 ERBB3 被脚本 hardcode 兜回 HER2，属 no-op）——如实告警，别悄悄答非所问。
+        _known = {i["name"] for i in card["inputs"]}
+        for _bn in bindings:
+            if _bn not in _known:
+                warnings.append(f"{card['meta_id']}: 绑定了卡片之外的参数 {_bn}（执行端会忽略）")
         normalized.append({"tool_id": card["meta_id"], "inputs": {k: v for k, v in bindings.items()}})
     stages.append({"stage": "knowledge_card_contract",
                    "passed": not any("缺必填输入" in e for e in errors),
@@ -847,6 +853,11 @@ def tool_validate_execution_chain(args):
         for _b in bindings.values():
             _accs0 |= set(_HRA.findall(json.dumps(_b, ensure_ascii=False)))
         _study = cohort or (next(iter(_accs0)) if len(_accs0) == 1 else None)
+        # 实跑失败黑名单：该「流程 × 队列」组合明确跑挂过（数据侧原因），直接判不可提交
+        _fail = _failed_run(gid, _study)
+        if _fail:
+            errors.append(f"{tool_key} × {_study} 有实跑失败记录（{_fail}）——不可提交，"
+                          f"请改选别的队列（failed_runs.tsv，解禁就删行）")
         _id_vals, _id_missing = _resolve_id_params(gid, card, _bound_file_names(bindings), _study,
                                                    chain_facts=chain_facts)
         for _n, _v in _id_vals.items():
@@ -1097,6 +1108,13 @@ def tool_validate_plan(args):
         gid = meta_to_graph.get(pid, pid)
         if gid not in CATALOG:
             v.append(f"recommendations[{i}] 工具不在闭集目录（疑似模型编造）: {pid}")
+        # 实跑失败黑名单：该「流程 × 队列」组合明确跑挂过（数据侧原因），不可交付，
+        # 让模型修正轮改选别的队列——别等执行端再烧一次（failed_runs.tsv，解禁就删行）。
+        for _st in _rec_studies(rec):
+            _reason = _failed_run(gid, _st)
+            if _reason:
+                v.append(f"recommendations[{i}] {gid} × {_st} 有实跑失败记录（{_reason}）。"
+                         f"该组合不可交付：请改选其它队列重出 Plan")
         # 没有数据的推荐不可执行：selection_status 说 ok 就必须指出图内的具体文件。
         # 实测调用方对「我有 10x 单细胞 FASTQ」这类没点名队列的问题会直接交空 assets——
         # 等于把选数据这一半的活儿留给了用户。
@@ -1768,6 +1786,39 @@ def load_legacy5_runs() -> None:
         _LEGACY5_COHORT.clear()
 
 load_legacy5_runs()
+
+# 实跑失败黑名单（skill/references/failed_runs.tsv）：与 bulk10/legacy5 的白名单互为反面——
+# 「流程 × 队列」明确跑挂过（数据侧原因）的组合，validate_plan 判违规、
+# validate_execution_chain 判不可提交，让模型改选别的队列，别把已知跑不了的交出去。
+# 上游数据修好后从表里删行即解禁。
+_FAILED_RUNS: dict = {}     # tool_id -> {study: reason}
+
+
+def load_failed_runs() -> None:
+    path = os.path.join(SKILL_REF, "failed_runs.tsv")
+    _FAILED_RUNS.clear()
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, newline="", encoding="utf-8") as f:
+            lines = [ln for ln in f if not ln.startswith("#")]
+        for row in csv.DictReader(lines, delimiter="\t"):
+            t = (row.get("tool_id") or "").strip()
+            s = (row.get("study") or "").strip()
+            if t and s:
+                _FAILED_RUNS.setdefault(t, {})[s] = (row.get("reason") or "").strip()
+    except Exception:
+        _FAILED_RUNS.clear()
+
+
+def _failed_run(gid, acc):
+    """该「流程 × 队列」在实跑黑名单里吗？在则返回原因，不在返回 None。"""
+    if not gid or not acc:
+        return None
+    return (_FAILED_RUNS.get(gid) or {}).get(acc)
+
+
+load_failed_runs()
 
 def _legacy5_pair(gid, acc):
     """五个旧版工具在该队列的旧版临床对：{语义格式: (file_name, file_path)}。不适用则空。"""

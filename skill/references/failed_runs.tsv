@@ -1,0 +1,16 @@
+# 实跑失败黑名单（一行一个「流程 × 队列」封禁组合），与 bulk10_proven_runs.tsv 互为反面：
+# 那边是「只放行跑通过的」，这边是「明确跑挂过的别再交」。
+# 来源：2026-09 实跑记录（40 条，交付方回流）。命中后 validate_plan 判违规（模型修正轮改选
+# 别的队列）、validate_execution_chain 判不可提交。全部是数据侧原因，不是工具 bug——
+# 上游数据修好后从本表删掉对应行即解禁。
+tool_id	study	reason
+driver_gene_gender_analysis	HRA006499	MAF 的 Tumor_Sample_Barcode 不是 run_accession 格式，与传入 run 交集为空（需上游用 run_accession 重出 MAF）
+survival_analysis	HRA000071	individual 生存列（13_pfs_time/13_survival_days 等）无可用值，过滤后 0 条
+survival_analysis	HRA000873	individual 生存列无可用值，过滤后 0 条
+survival_analysis	HRA006499	individual 生存列 123 行全部为空，过滤后 0 条
+wgcna	HRA003107	grade 3 组比例失衡（最大/最小 >3），卡硬编码阈值
+wgcna	HRA000122	grade/gender 列存在但值为空，关联后 n=0
+wgcna	HRA002693	grade/gender 列存在但值为空，关联后 n=0
+wgcna	HRA006117	grade/gender 列存在但值为空，关联后 n=0
+wgcna	HRA007167	grade/gender 列存在但值为空，关联后 n=0
+wgcna	HRA007413	6 个 run 在 counts 矩阵列名中零匹配
