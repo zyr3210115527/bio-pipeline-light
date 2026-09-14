@@ -285,34 +285,11 @@ def _real_path(a):
     return p if p.startswith("/") and "NOT_FOUND" not in p else ""
 
 
-# 可从资产确定性推出来的字面量参数。**这不是编造**：sample_id/pair_id 这类就是图内
-# 记录的 accession，quant_type 就写在矩阵文件名里（HRA001272-Genes-TPM-1.0.tsv）。
-# 推不出来的（group_a_samples 这种要人来分组的）一律如实报缺，不给猜的值。
-_ID_PARAMS = {"sample_id", "sample_name", "pair_id", "dataset_id", "report_id",
-              "sample_accession", "tumor_id", "normal_id", "output_prefix"}
-_FLAVOR = re.compile(r"(?<![A-Za-z])(logCPM|FPKM|TPM|counts?)(?![A-Za-z])", re.I)
+# String 型标识参数（sample_id/pair_id/quant_type/group_a_samples…）的确定性解析已
+# 收口到 mcp_light_server._resolve_id_params（两条路径共用）：按交付包实跑输入定口径，
+# 从绑定文件与队列遍历产出，推不出的由调用方如实报缺（literal_required）。
 # candidates 保底条数：一站式流程 + 原子链拆法。见 to_cohort_v2 结尾。
 _CAND_CAP = 3
-
-
-def _derive_literal(name, assets, study):
-    """按参数名从已选资产推字面量；推不出返回 None。"""
-    if name == "quant_type":
-        for a in assets:
-            m = _FLAVOR.search(str(a.get("file_name") or ""))
-            if m:
-                return m.group(1)
-        return None
-    if name not in _ID_PARAMS:
-        return None
-    if name in ("sample_id", "sample_name", "sample_accession", "tumor_id", "normal_id"):
-        for key in ("sample_accession", "run_accession"):
-            v = next((a.get(key) for a in assets if a.get(key)), None)
-            if v:
-                return str(v)
-        return None
-    # pair_id / dataset_id / report_id / output_prefix：队列号是稳定且有意义的标识
-    return f"{study}_{name.rsplit('_', 1)[0]}" if study and name == "pair_id" else (study or None)
 
 
 def _meta_param_fmt(srv, name):
@@ -359,7 +336,7 @@ def _add_clinical(srv, assets, study, sem_fmt):
     return [item]
 
 
-def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None):
+def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None, chain_facts=None):
     """把资产/上游产物绑到卡片参数上，返回 (inputs 绑定对象, missing[])。
 
     绑定优先级：上游步骤的同格式输出 > 尚未用掉的同格式资产 > 卡片默认值/可推字面量。
@@ -434,13 +411,35 @@ def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None):
                                 "step_id": step_id, "reason": "no_confirmed_path"})
             continue
         # 非 File 参数
-        lit = _derive_literal(name, assets, study)
-        if lit is not None:
-            inputs[name] = {"value": lit}
-        elif required:
+        if name in srv._ID_RESOLVABLE:
+            # 标识参数等全部 File 槽位绑完后统一确定性解析（见下方第二遍）——第一遍边绑
+            # 边推只能看到资产池，tumor_id/normal_id 会推成同一个（都是池里第一个带
+            # accession 的资产）；且 T2 资产的样本归属要走 generated_from→T1→sample。
+            continue
+        if required:
             # 如实报缺。**不许拿交付包 example_inputs 里的值填**——那是别的队列跑过的
             # 分组，填上去执行端会照跑，结果是错的，而且一路绿灯没人发现。
             missing.append({"param": name, "tool_id": (card or {}).get("meta_id") or gid,
+                            "step_id": step_id, "reason": "literal_required"})
+    # 第二遍：String 型标识参数（sample_id/pair_id/tumor_id/group_*_samples…）的确定性
+    # 解析，见 mcp_light_server._resolve_id_params。从「槽位→资产文件名」反推，
+    # 角色参数与角色对应槽位对齐（tumor_id ← tumor_* 槽位绑定的文件）。
+    if card:
+        _by_id = {a["asset_id"]: a for a in assets}
+        _bound = {}
+        for _pn, _b in inputs.items():
+            _items = _b if isinstance(_b, list) else [_b]
+            _fns = [str((_by_id.get(x.get("asset_id")) or {}).get("file_name"))
+                    for x in _items if isinstance(x, dict) and x.get("asset_id")]
+            _fns = [f for f in _fns if f and f != "None"]
+            if _fns:
+                _bound[_pn] = _fns
+        _id_vals, _id_missing = srv._resolve_id_params(gid, card, _bound, study,
+                                                       chain_facts=chain_facts)
+        for _n, _v in _id_vals.items():
+            inputs[_n] = {"value": _v}
+        for _n in _id_missing:
+            missing.append({"param": _n, "tool_id": card.get("meta_id") or gid,
                             "step_id": step_id, "reason": "literal_required"})
     # 二选一约束：组内参数各自 required=false，只看必填查不出「一个都没给」。
     # bulk10 的两张 CNCB 元数据表由 server 按队列号推，含它们的组不算调用方欠的。
@@ -873,6 +872,10 @@ def _convert_atomic(srv, cand, meta_to_graph, rank, fallback=None, study_hint=No
     study = next(iter(accs)) if len(accs) == 1 else (study_hint or None)
     assets = _mk_assets(srv, raw, study)
     by_id = {a["asset_id"]: a for a in assets}
+    # 链级样本事实一次算好，逐步共享：中游步骤的文件输入是上游产物，自己没有图内文件
+    # 可查，但同一条数据在链里流动，sample_id 等标识沿链一致（见 srv._resolve_id_params）。
+    _chain_fns = [a["file_name"] for a in assets if a.get("file_name")]
+    chain_facts = srv._file_sample_facts(_chain_fns) if _chain_fns else None
     steps, missing, upstream = [], [], []
     for idx, s in enumerate(chain, 1):
         tid = srv._step_tool_id(s) if isinstance(s, dict) else str(s)
@@ -883,7 +886,8 @@ def _convert_atomic(srv, cand, meta_to_graph, rank, fallback=None, study_hint=No
         # 不会绑回原始输入），但 sample_id/report_id 这类字面量是从资产的
         # sample_accession/study_accession 推的——不给资产就每步都 literal_required，
         # 一条六步的链能凭空多报四五条缺失。
-        inputs, miss = _bind_step(srv, gid, card, assets, upstream, sid, study)
+        inputs, miss = _bind_step(srv, gid, card, assets, upstream, sid, study,
+                                  chain_facts=chain_facts)
         tool_id = (card or {}).get("meta_id") or gid
         # 绑定对象里只有 asset_id，执行端要的是扁平路径——与 rank1 同一套解析。
         # 顺带堵一个洞：没有这一步，path 为空的资产也能安静绑上槽位，

@@ -46,7 +46,7 @@ def load_knowledge_cards() -> None:
     if not os.path.exists(path):
         return
     try:
-        cards = json.load(open(path))
+        cards = json.load(open(path, encoding="utf-8"))   # Windows 默认 GBK，不写死会静默加载失败
     except Exception:
         return
     for card_id, c in cards.items():
@@ -663,7 +663,8 @@ def tool_validate_execution_chain(args):
                    "findings": [] if not reg_bad else [f"未知工具: {reg_bad}"]})
     if reg_bad: errors.append(f"未知工具: {reg_bad}")
     # ── stage 2/3 卡契约 + 绑定结构 ──
-    for s in steps:
+    pending_any = []        # 延后的 require_any 组：(step_idx, meta_id, grp)，见下
+    for s_i, s in enumerate(steps):
         gid, given = _norm(s.get("tool_id"))
         card = KC_MAP.get(gid)
         bindings = s.get("inputs") or {}
@@ -674,11 +675,14 @@ def tool_validate_execution_chain(args):
         # 必填输入检查（参考资源有卡片默认值，缺了不算缺——见 REFERENCE_RESOURCES）。
         # 临床表/样本元信息表同样不算调用方欠的：手册要求「一律不查、不写进 inputs」，
         # 服务端按队列号补（见 _needs_clinical）。这里不豁免就变成「照手册做 = 报错」。
+        # 标识参数（sample_id/pair_id/…）同理豁免：它们由服务端从绑定文件与队列确定性
+        # 解析（见 _resolve_id_params），补不出来在执行参数阶段报 literal_required。
         _clin_names = _needs_clinical(gid)
         missing = [i["name"] for i in card["inputs"]
                    if i.get("required", True) and i["name"] not in bindings
                    and not _is_reference_resource(card, i["name"])
-                   and i["name"] not in _clin_names]
+                   and i["name"] not in _clin_names
+                   and i["name"] not in _ID_RESOLVABLE]
         if missing:
             errors.append(f"{card['meta_id']} 缺必填输入: {missing}")
         # 二选一约束：卡片 interface.validators 里的 one_of，每组至少绑一个。
@@ -686,11 +690,12 @@ def tool_validate_execution_chain(args):
         # individual_csv 两张，三个参数各自 required=false，只查必填查不出「一个都没给」。
         # 但 bulk10 的这两张 CNCB 原生元数据表由服务端按队列号推（_bulk10_params），
         # 手册明写「不写进 inputs 也不查图」，所以含它们的组不能反过来要求调用方绑。
+        # 评估延后到执行参数解析之后：paired_fastq 的 sample_name/sample_accession 这组
+        # 由服务端补（_ID_RESOLVABLE），只看调用方 bindings 会把已补上的组误判成没绑。
         for grp in card.get("require_any") or []:
             if gid in _BULK10 and set(grp) & {"sample_csv", "individual_csv"}:
                 continue
-            if not any(n in bindings for n in grp):
-                errors.append(f"{card['meta_id']} 缺必填输入: {grp} 至少需提供一个")
+            pending_any.append((s_i, card["meta_id"], grp))
         # 绑定结构检查（对齐重版：binding 必须为对象；Array[File] 额外允许对象数组）
         bad_bind = []
         for i in card["inputs"]:
@@ -795,6 +800,11 @@ def tool_validate_execution_chain(args):
                 paths.append(p)
         return paths
     by_step, execution_params, exec_missing, ambiguous = [], {}, [], set()
+    # 链级样本事实一次算好、逐步共享：多步链里中游步骤的文件输入是上游产物，自己没有
+    # 图内文件可查，但同一条数据在链里流动，sample_id 等标识沿链一致（见 _resolve_id_params）。
+    _all_fns = [fn for _s in steps
+                for fns in _bound_file_names(_s.get("inputs") or {}).values() for fn in fns]
+    chain_facts = _file_sample_facts(_all_fns) if _all_fns else None
     for idx, s in enumerate(steps):
         gid, given = _norm(s.get("tool_id"))
         card = KC_MAP.get(gid)
@@ -829,6 +839,34 @@ def tool_validate_execution_chain(args):
                 # （数据侧补 file_path）。light 走 Knowledge Card 而非槽表，没有 slot_not_bound。
                 exec_missing.append({"param": name, "tool_id": tool_key, "step": idx,
                                      "reason": "no_confirmed_path"})
+        # String 型标识参数（sample_id/pair_id/tumor_id/group_*_samples…）：不是判断性内容，
+        # 服务端从绑定文件与队列确定性解析（见 _resolve_id_params），模型不需要也不该自己编
+        # （编了也不会报错，是最危险的一种幻觉）。图内事实覆盖调用方给的值（与 file_path
+        # 的处置一致）；补不出来且调用方没给的，如实报 literal_required。
+        _accs0 = set()
+        for _b in bindings.values():
+            _accs0 |= set(_HRA.findall(json.dumps(_b, ensure_ascii=False)))
+        _study = cohort or (next(iter(_accs0)) if len(_accs0) == 1 else None)
+        _id_vals, _id_missing = _resolve_id_params(gid, card, _bound_file_names(bindings), _study,
+                                                   chain_facts=chain_facts)
+        for _n, _v in _id_vals.items():
+            # 分组/样本清单是「意图」不是「事实」：调用方（或前端用户）显式给了就照用，
+            # 不让服务端的角色默认覆盖用户选择。事实型标识仍以图为准覆盖。
+            if _n in bindings and (_n in _ID_ARRAY_GROUP or _n in _ID_ARRAY_ALL):
+                continue
+            params[_n] = _v
+        # 调用方显式给了值、服务端没覆盖的标识参数，原值搬进 params（不留空）
+        for _n in _ID_RESOLVABLE:
+            if _n in bindings and _n not in params and bindings[_n] is not None:
+                params[_n] = bindings[_n]
+        for _n in _id_missing:
+            if _n not in bindings:
+                exec_missing.append({"param": _n, "tool_id": tool_key, "step": idx,
+                                     "reason": "literal_required"})
+        # 延后的二选一约束：服务端的解析结果也算满足（见 stage 2 的注释）
+        for _ci, _mid, _grp in pending_any:
+            if _ci == idx and not any(n in bindings or n in params for n in _grp):
+                errors.append(f"{_mid} 缺必填输入: {_grp} 至少需提供一个")
         if _clin:
             # 队列号从已绑资产反查（图内文件名与路径里都带 HRA######）。**恰好一个**才补：
             # 零个说明队列还没定，多个说明这一步混了队列，补哪份临床表都是错的，如实报缺。
@@ -864,6 +902,11 @@ def tool_validate_execution_chain(args):
             if name in execution_params and execution_params[name] != val:
                 ambiguous.add(name)
             execution_params[name] = val
+    # require_any 的违规是延后在执行参数解析阶段才进 errors 的，这里补齐阶段结论
+    for _st in stages:
+        if _st["stage"] == "knowledge_card_contract":
+            _st["passed"] = not any("缺必填输入" in e for e in errors)
+            _st["findings"] = [e for e in errors if "缺必填输入" in e]
     for name in ambiguous:
         execution_params.pop(name, None)
     submittable = not errors and not exec_missing
@@ -878,7 +921,9 @@ def tool_validate_execution_chain(args):
             "hint": "提交前把关：errors 清零且 execution_params_missing 为空（submittable=true）才可提交执行端。"
                     "键与 Knowledge Card 参数名一致；Array[File] 参数的值是路径数组，消费方不要假定一定是字符串。"
                     "多步链以 execution_params_by_step 为准——execution_params 是扁平便捷视图，"
-                    "同名参数跨步冲突时会被剔除并列进 execution_params_ambiguous。"}
+                    "同名参数跨步冲突时会被剔除并列进 execution_params_ambiguous。"
+                    "sample_id/pair_id/tumor_id 等标识参数由服务端从绑定文件与队列确定性解析"
+                    "（reason=literal_required 表示图内推不出，请补绑数据文件或队列号）。"}
 
 # route_pipeline_request / rule_baseline_plan 已下线（v2.1）：规则规划路径与架构主张
 # （推理必来自调用方模型）冲突。关键词基线仅保留给 benchmark 三臂评测的 ceiling 对照臂
@@ -1142,7 +1187,8 @@ def _card_slots(card):
              "optional": not bool(d.get("required", True)),
              "formats": [d["format"]] if d.get("format") else []}
         if is_in:
-            s["is_file"] = (d.get("type") or "File") == "File"
+            # 与全 server 同一判据：`File?`/`Array[File]+` 都是 File（裸等号会漏）
+            s["is_file"] = _is_file_type(d.get("type"))
         return s
     return ([_slot(d, True) for d in card.get("inputs") or []],
             [_slot(d, False) for d in card.get("outputs") or []])
@@ -1212,6 +1258,276 @@ def _asset_facts(names, acc=None):
             facts[fn] = min(cands, key=lambda p: _node_rank(p, acc))
     return facts
 
+
+# ---------- String 型样本/run 标识参数的确定性解析 ----------
+# 卡片里有一批非 File 的标识参数（sample_id / pair_id / tumor_id / normal_id /
+# group_a_samples …），它们不是判断性内容，是图谱里本来就记着的 accession——该由服务端
+# 确定性填，而不是让模型编一个（编了也不会报错，是最危险的一种幻觉）。
+#
+# 取值口径按交付包实跑输入定（归档的 input.json / example_inputs.json）：
+#   · WES 配对族（fastp / gatk / wes_somatic_pair / snpeff）用**样本号** HRS*
+#     （fastp input.json: sample_id="HRS280607"；gatk: tumor_id="HRS280607" normal_id="HRS280608"）
+#   · cellranger / cnvkit / gatk_germline / star_fusion / diff_expr 族用 **run 号** HRR*
+#     （cellranger example: sample_id="HRR572934"；diff_expr_go 的 group_a_samples 实测全是 tumor run）
+#   · manta 用样本名（"BDESCC0671"）
+#   · 其余默认 run 号
+# 数据侧注意：**T2 节点永远没有 sample_accession**（0826 图实测 0/35572），BAM/VCF 这类
+# 结果文件的样本归属必须走 (T2)-[:generated_from]->(T1)-[:in_sample]->(sample)。
+_ID_USES_SAMPLE = {"fastp", "gatk", "wes_somatic_pair", "snpeff"}
+_ID_USES_NAME = {"manta_structural_variants"}
+_ID_SINGLE = ("sample_id", "sample_name", "sample_accession")
+_ID_ROLE = {"tumor_id": "tumor", "normal_id": "normal"}
+_ID_STUDY = ("dataset_id", "report_id", "output_prefix")     # 队列号本身就是稳定标识
+# 交付样例实测：diff_expr_go 的 group_a_samples 全是 tumor run（HRA000074），group_b 即对照组
+_ID_ARRAY_GROUP = {"group_a_samples": "tumor", "group_b_samples": "normal"}
+_ID_ARRAY_ALL = ("sample_ids",)     # 队列级工具（gatk_germline_cohort / cnvkit）：整队列 run
+# 服务端可确定性补的 String 参数全集：stage-2 不再把它们当「调用方欠的必填」，
+# 补不出来时由执行参数阶段报 literal_required。
+_ID_RESOLVABLE = (frozenset(_ID_SINGLE) | frozenset(_ID_ROLE) | frozenset(_ID_STUDY)
+                  | frozenset(_ID_ARRAY_GROUP) | frozenset(_ID_ARRAY_ALL)
+                  | frozenset({"pair_id", "quant_type"}))
+
+
+def _file_sample_facts(names):
+    """文件名 → 样本事实 {sample_accession, run_accession, sample_name, individual_accession, role}。
+
+    三级解析，逐级兜底：
+    ① T1 直接读节点属性（0821 起 sample_accession 就落在 T1 上）；
+    ② T2 节点自身永远没有 sample_accession（0826 实测 0/35572），走
+       generated_from→T1→in_sample→sample（用 OPTIONAL，边不全也把文件自己的
+       run_accession 带回来）；
+    ③ ②还拿不到样本的（图谱 in_sample 边不全），按文件自己的 run_accession
+       反查 sample 节点（sample.run_accession 可能有分号多值，按 split 匹配）。
+    角色用 `sample_role` 判，与 resolve_sample_roles 同一套规则。"""
+    keys = [str(fn) for fn in dict.fromkeys(names) if _SAFE_FILE.fullmatch(str(fn))]
+    if not keys:
+        return {}
+    in_list = ",".join("'" + k + "'" for k in keys)
+    rows = neo4j_q([
+        f"MATCH (n:T1) WHERE n.file_name IN [{in_list}] "
+        "RETURN n.file_name, n.sample_accession, n.run_accession, n.sample_name, "
+        "n.individual_accession, n.study_accession, n.specimen_type, NULL",
+        f"MATCH (t2:T2) WHERE t2.file_name IN [{in_list}] "
+        "OPTIONAL MATCH (t2)-[:generated_from]->(:T1)-[:in_sample]->(sp:sample) "
+        "OPTIONAL MATCH (sp)-[:in_individual]->(i:individual) "
+        "RETURN t2.file_name, sp.sample_accession, t2.run_accession, sp.sample_name, "
+        "i.`00_individual_accession`, t2.study_accession, sp.specimen_type, sp.tissue_type",
+    ])
+    facts = {}
+    for r in (rows[0] if rows else []) or []:      # T1
+        if not r or len(r) < 7 or not r[0]:
+            continue                                # 数据层给不出整行（mock/异常）时静默跳过
+        rec = {"sample_accession": r[1], "run_accession": r[2], "sample_name": r[3],
+               "individual_accession": r[4], "study_accession": r[5], "specimen_type": r[6],
+               "tissue_type": None}
+        rec["role"] = sample_role(rec)
+        facts[r[0]] = rec
+    for r in (rows[1] if len(rows) > 1 else []) or []:      # T2
+        if not r or len(r) < 8 or not r[0] or r[0] in facts:
+            continue
+        rec = {"sample_accession": r[1], "run_accession": r[2], "sample_name": r[3],
+               "individual_accession": r[4], "study_accession": r[5], "specimen_type": r[6],
+               "tissue_type": r[7]}
+        rec["role"] = sample_role(rec)
+        facts[r[0]] = rec
+    # ③ run→sample 反查兜底（如 HRA000021 的 BAM 没有 in_sample 边）
+    orphan_runs = sorted({f["run_accession"] for f in facts.values()
+                          if not f.get("sample_accession") and f.get("run_accession")})
+    orphan_runs = [r for r in orphan_runs if _SAFE_FILE.fullmatch(r)]
+    if orphan_runs:
+        rin = ",".join("'" + r + "'" for r in orphan_runs)
+        rows3 = neo4j_q([f"MATCH (sp:sample) WHERE any(x IN "
+                         f"split(coalesce(sp.run_accession,''),';') WHERE x IN [{rin}]) "
+                         "OPTIONAL MATCH (sp)-[:in_individual]->(i:individual) "
+                         "RETURN sp.sample_accession, sp.run_accession, sp.sample_name, "
+                         "i.`00_individual_accession`, sp.study_accession, sp.specimen_type, sp.tissue_type"])
+        run_map = {}
+        for r in (rows3[0] if rows3 else []) or []:
+            if not r or len(r) < 7 or not r[0]:
+                continue
+            rec = {"sample_accession": r[0], "run_accession": r[1], "sample_name": r[2],
+                   "individual_accession": r[3], "study_accession": r[4], "specimen_type": r[5],
+                   "tissue_type": r[6]}
+            rec["role"] = sample_role(rec)
+            for run in str(r[1] or "").split(";"):
+                if run:
+                    run_map.setdefault(run, rec)
+        for f in facts.values():
+            if f.get("sample_accession"):
+                continue
+            hit = run_map.get(str(f.get("run_accession") or ""))
+            if hit:
+                for k, v in hit.items():
+                    if v is not None and k != "run_accession":
+                        f[k] = v
+                f["role"] = sample_role(f)
+    return facts
+
+
+def _study_run_lists(study):
+    """队列级样本枚举：{"tumor": [run…], "normal": [run…], "all": [run…]}（定序，同一问题两次
+    规划给同一份）。sample 自带 study_accession，与 study←in_study←individual←in_individual
+    遍历等价（见 resolve_sample_roles 的注释）。"""
+    if not study or not _SAFE_TOKEN.fullmatch(str(study)):
+        return None
+    rows = neo4j_q([f"MATCH (sp:sample) WHERE sp.study_accession = '{study}' "
+                    "AND sp.run_accession IS NOT NULL RETURN DISTINCT sp.run_accession, "
+                    "sp.sample_name, sp.tissue_type, sp.specimen_type"])
+    out = {"tumor": [], "normal": [], "all": []}
+    for r in (rows[0] if rows else []) or []:
+        if not r or len(r) < 4 or not isinstance(r[0], str) or not r[0]:
+            continue                                  # 数据层给不出整行（mock/异常）时静默跳过
+        role = sample_role({"study_accession": study, "sample_name": r[1],
+                            "tissue_type": r[2], "specimen_type": r[3]})
+        out["all"].append(str(r[0]))
+        if role in ("tumor", "normal"):
+            out[role].append(str(r[0]))
+    for k in out:
+        out[k].sort()
+    return out
+
+
+def _patient_key(t_name, n_name):
+    """配对的患者键：剥角色前缀（T_/B_/N_/P_）后，两侧一致就用全名（T_CGGA_1251/B_CGGA_1251
+    → CGGA_1251），否则取最长公共前缀截到完整 token（M019_RT1…/M019_LN1… → M019）。
+    对不上返回 None，由调用方回退。"""
+    a = re.sub(r"^[TBNP]_", "", str(t_name or "").strip())
+    b = re.sub(r"^[TBNP]_", "", str(n_name or "").strip())
+    if a and a == b:
+        return a
+    i = 0
+    while i < min(len(a), len(b)) and a[i] == b[i]:
+        i += 1
+    if i >= 3:
+        return a[:i].rstrip("_-. ") or None
+    return None
+
+
+def _resolve_id_params(gid, card, bound_files, study, chain_facts=None):
+    """String 型标识参数的确定性取值。`bound_files` 是本步已绑定的 {槽位名: [文件名…]}；
+    `chain_facts` 是整条链的样本事实（`_file_sample_facts` 的输出），用于链里中游步骤：
+    它们的文件输入是上游产物、自己没有图内文件可查，同一条数据在链里流动，标识沿链共享。
+
+    返回 ({param: value}, [missing_param…])。**推不出来的一律进 missing，不给猜的值**——
+    但以下都是图内/交付包里有唯一答案的：单样本 id 从本步绑定文件取；tumor_id/normal_id
+    从角色对应槽位的文件取（槽位名对不上时按样本角色事实兜底）；pair_id 取配对双方样本名
+    的共享患者键（T_CGGA_1251/B_CGGA_1251 → CGGA_1251；M019_RT1…/M019_LN1… → M019），退回
+    共享的 individual 号；数组型按 `sample_role` 角色从队列遍历产 run 列表。"""
+    out, missing = {}, []
+    inputs = (card or {}).get("inputs") or []
+    if not inputs:
+        return out, missing
+    names = [fn for fns in bound_files.values() for fn in fns]
+    facts = _file_sample_facts(names) if names else {}
+    if chain_facts:
+        if names and all(fn in chain_facts for fn in names):
+            facts = chain_facts                     # 链级已覆盖本步全部文件，省一次查图
+        elif not facts:
+            facts = dict(chain_facts)               # 本步无图内文件（中游步骤）→ 沿链共享
+    # 缺省报告的证据门：绑定文件在图里查得到、或队列已定，才说明这个 id 「本应推得出」，
+    # 报 literal_required 才有处置意义。规划早期/图外路径（文件根本不在图里）时静默，
+    # 别给已经够长的缺项清单添噪声。
+    evidence = bool(facts) or bool(study)
+    flavor = ("sample" if gid in _ID_USES_SAMPLE else
+              "name" if gid in _ID_USES_NAME else "run")
+
+    def pick(f, pname=""):
+        if not f:
+            return None
+        # 参数名直接点名的按名字给：sample_name 要名字、sample_accession 要样本号
+        if pname == "sample_name":
+            return f.get("sample_name") or f.get("sample_accession") or f.get("run_accession")
+        if pname == "sample_accession":
+            return f.get("sample_accession") or f.get("run_accession")
+        if flavor == "sample":
+            return f.get("sample_accession") or f.get("run_accession")
+        if flavor == "name":
+            return f.get("sample_name") or f.get("sample_accession") or f.get("run_accession")
+        return f.get("run_accession") or f.get("sample_accession")
+
+    def slot_value(prefixes, pname=""):
+        for pn, fns in bound_files.items():
+            if any(str(pn).lower().startswith(p) for p in prefixes):
+                for fn in fns:
+                    v = pick(facts.get(fn), pname)
+                    if v:
+                        return v
+        return None
+
+    run_lists = None                # 惰性：只有数组参数才做队列级枚举
+    for i in inputs:
+        name, typ = str(i.get("name") or ""), str(i.get("type") or "")
+        if _is_file_type(typ) or _is_reference_resource(card, name):
+            continue
+        v = None
+        if name in _ID_SINGLE:
+            v = slot_value(("",), name)              # 本步任一绑定文件（R1/R2 同一样本）
+            if v is None and not names and facts:
+                # 链里中游步骤：本步没有自己的绑定文件，沿链共享上游样本
+                v = pick(next(iter(facts.values()), None), name)
+        elif name in _ID_ROLE:
+            v = slot_value((name.split("_")[0],), name)   # tumor_id ← tumor_* 槽位的文件
+            if v is None:
+                # 槽位名对不上时按样本角色事实兜底（链场景：配对文件绑在上游步骤名下）
+                v = next((pick(f, name) for f in facts.values() if f.get("role") == _ID_ROLE[name]),
+                         None)
+        elif name == "pair_id":
+            t_f = next((facts.get(fn) for pn, fns in bound_files.items()
+                        if str(pn).lower().startswith("tumor") for fn in fns
+                        if facts.get(fn)), None)
+            n_f = next((facts.get(fn) for pn, fns in bound_files.items()
+                        if str(pn).lower().startswith("normal") for fn in fns
+                        if facts.get(fn)), None)
+            if not (t_f and n_f):
+                # 槽位名对不上（链场景）时按角色事实兜底
+                t_f = t_f or next((f for f in facts.values() if f.get("role") == "tumor"), None)
+                n_f = n_f or next((f for f in facts.values() if f.get("role") == "normal"), None)
+            if t_f and n_f:
+                v = _patient_key(t_f.get("sample_name"), n_f.get("sample_name"))
+                if v is None and (t_f.get("individual_accession") and
+                                  t_f.get("individual_accession") == n_f.get("individual_accession")):
+                    v = t_f["individual_accession"]
+            if v is None and study:
+                v = f"{study}_pair"      # 队列级占位（沿用既有行为），总好过空着
+        elif name in _ID_STUDY:
+            v = study
+        elif name == "quant_type":
+            v = next((m.group(1) for fn in names
+                      for m in [_FLAVOR_PAT.search(str(fn))] if m), None)
+        elif name in _ID_ARRAY_GROUP or name in _ID_ARRAY_ALL:
+            if study:
+                if run_lists is None:
+                    run_lists = _study_run_lists(study)
+                if run_lists:
+                    if name in _ID_ARRAY_ALL:
+                        v = run_lists["all"] or None
+                    else:
+                        grp = run_lists[_ID_ARRAY_GROUP[name]]
+                        v = grp or None
+        if v is not None and v != []:
+            out[name] = v
+        elif i.get("required", True) and name in _ID_RESOLVABLE and evidence:
+            missing.append(name)
+    return out, missing
+
+
+def _bound_file_names(bindings):
+    """从调用方绑定里收集 {槽位名: [文件名…]}（dict/list 两种形态都吃）。"""
+    out = {}
+    for pname, b in (bindings or {}).items():
+        items = b if isinstance(b, list) else [b]
+        fns = []
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            fn = str(it.get("file_name") or it.get("file_id") or "").strip()
+            if fn and _SAFE_FILE.fullmatch(fn):
+                fns.append(fn)
+        if fns:
+            out[str(pname)] = fns
+    return out
+
+
 def _name_paths(names):
     """按 file_name 批量取图内**全部**同名路径：{file_name: {path, …}}。
 
@@ -1270,7 +1586,7 @@ def load_bulk10_runs() -> None:
     if not os.path.exists(path):
         return
     try:
-        with open(path, newline="") as f:
+        with open(path, newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f, delimiter="\t"):
                 t, s = (row.get("tool_id") or "").strip(), (row.get("study") or "").strip()
                 if t and s:
@@ -1417,7 +1733,7 @@ def load_legacy5_runs() -> None:
         return
     try:
         seen: dict = {}     # study -> [{clinical 名}, {metainfo 名}]，用来判队列级是否唯一
-        with open(path, newline="") as f:
+        with open(path, newline="", encoding="utf-8") as f:
             lines = [ln for ln in f if not ln.startswith("#")]
         for row in csv.DictReader(lines, delimiter="\t"):
             t, s = (row.get("tool_id") or "").strip(), (row.get("study") or "").strip()
@@ -1950,6 +2266,29 @@ def tool_hydrate_plan(args):
             if data.get("assets"):
                 data.setdefault("matched_count", len(data["assets"]))
                 data.setdefault("missing_asset_names", [])
+    # —— alternatives 的角色信息以图为准补齐 ——
+    # 手册要求配对/分组分析在 data 下附 alternatives[]（候选队列）。sample_roles /
+    # role_resolved 目前是模型自己写的，可能与图不符——前端要拿它标「有无对照组」，
+    # 标错比不标更糟。这两个字段以图为准覆盖（selected 尊重模型/用户的选择不动）。
+    alt_accs = [a.get("study_accession") for r in recs
+                for a in ((r.get("data") or {}).get("alternatives") or [])
+                if a.get("study_accession")]
+    alt_roles = {}
+    for acc in dict.fromkeys(alt_accs):
+        if not _SAFE_FILE.fullmatch(str(acc)):
+            continue
+        try:
+            rr = tool_resolve_sample_roles({"study": acc, "sample_limit": 0})
+            if rr.get("status") == "ok":
+                alt_roles[acc] = (rr.get("sample_roles") or {}, bool(rr.get("role_resolved")))
+        except Exception:
+            pass                        # 图不通不影响交付，角色信息留模型原值
+    for rec in recs:
+        for a in ((rec.get("data") or {}).get("alternatives") or []):
+            got = alt_roles.get(a.get("study_accession"))
+            if got:
+                a["sample_roles"], a["role_resolved"] = got
+                filled.append(f"alternatives[{a.get('study_accession')}].roles")
     plan["recommendation_count"] = len(recs)
 
     # —— candidates：原子链槽位一律按 Knowledge Card 补全 ——

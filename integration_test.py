@@ -156,8 +156,11 @@ check("individual.00_sample_accession 与 in_individual 边一致（CSV 错位�
 
 # ── 4. execution_params：file_name → 图内真实路径回填 ──
 sec("4. validate_execution_chain：execution_params 查图回填 + submittable")
-rows = m.neo4j_q(["MATCH (n:T2) WHERE n.file_name CONTAINS 'FPKM' AND n.file_path STARTS WITH '/' "
-                  "RETURN n.file_name, n.file_path LIMIT 1"])
+# 定点到双组队列 HRA001272（485 tumor / 213 normal）：原来「取图内第一个 FPKM 文件」
+# 会随到 HRA000073 这种 tumor-only 队列——diff_expr 缺对照组本就**不该**可提交，
+# 服务端现在会如实报 group_b_samples literal_required（标识参数解析上线后的新行为）。
+rows = m.neo4j_q(["MATCH (n:T2) WHERE n.file_name = 'HRA001272-Genes-FPKM-1.0.tsv' "
+                  "AND n.file_path STARTS WITH '/' RETURN n.file_name, n.file_path LIMIT 1"])
 if rows and rows[0]:
     fname, fpath = rows[0][0][0], rows[0][0][1]
     out = m.tool_validate_execution_chain({"steps": [

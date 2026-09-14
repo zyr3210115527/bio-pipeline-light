@@ -68,7 +68,8 @@ check("可配对队列发现查询", bool(rows), rows)
 target = rows[0][0] if rows else "HRA000873"
 print(f"    可配对队列 top3: {rows} → 选 {target}")
 tpl = open(os.path.join(os.path.dirname(m.__file__), "skill", "references",
-                        "query_templates", "find_paired_tumor_normal_samples.cypher")).read()
+                        "query_templates", "find_paired_tumor_normal_samples.cypher"),
+           encoding="utf-8").read()
 import re as _re
 params = {p: target for p in set(_re.findall(r"\$(\w+)", tpl))}
 import urllib.request, base64
@@ -102,7 +103,12 @@ if rows:
     out = m.tool_validate_execution_chain({"steps": [{"tool_id": "fastp", "inputs": bindings}]})
     real = str(fq_path or "").startswith("/")
     if real:
-        check("T1 真实路径回填", all(p.startswith("/") for p in out["execution_params"].values()), out)
+        check("T1 真实路径回填", all(str(out["execution_params"].get(i["name"]) or "").startswith("/")
+              for i in card["inputs"]
+              if i.get("required", True) and m._is_file_type(i.get("type"))), out)
+        # 标识参数由服务端从绑定文件确定性解析（execution_params 里不再只有路径）
+        check("标识参数由服务端补（sample_id）",
+              bool(out["execution_params"].get("sample_id")), out["execution_params"])
     else:
         check("T1 占位路径→如实 missing 不伪造", not out["submittable"] and out["execution_params_missing"],
               out["execution_params"])
@@ -262,8 +268,8 @@ tpl_dir = os.path.join(os.path.dirname(m.__file__), "skill", "references", "quer
 blocked = []
 for f in sorted(_glob.glob(os.path.join(tpl_dir, "*.cypher"))):
     try:
-        m._assert_read_only(open(f).read())
-        m._assert_privacy(open(f).read())
+        m._assert_read_only(open(f, encoding="utf-8").read())
+        m._assert_privacy(open(f, encoding="utf-8").read())
     except ValueError as e:
         blocked.append((os.path.basename(f), str(e)[:60]))
 check("15 条官方模板零误杀", not blocked, blocked)
@@ -337,7 +343,7 @@ for key in ("Rejection discipline", "off_topic", "privacy", "Privacy red line", 
 # ────────────────────────────────────────────────────────────────────
 sec("S10 接地校验 validate_plan — 防调用方模型用内部知识编造")
 real_plan = json.load(open(os.path.join(os.path.dirname(m.__file__), "examples",
-                                        "plan_go_enrichment_liver_v2.json")))
+                                        "plan_go_enrichment_liver_v2.json"), encoding="utf-8"))
 r = m.tool_validate_plan({"plan": real_plan})
 check("真实示例 Plan → grounded=true", r.get("grounded") is True, r.get("violations"))
 fake = json.loads(json.dumps(real_plan))
