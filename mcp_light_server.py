@@ -1280,7 +1280,7 @@ _ID_ROLE = {"tumor_id": "tumor", "normal_id": "normal"}
 _ID_STUDY = ("dataset_id", "report_id", "output_prefix")     # 队列号本身就是稳定标识
 # 交付样例实测：diff_expr_go 的 group_a_samples 全是 tumor run（HRA000074），group_b 即对照组
 _ID_ARRAY_GROUP = {"group_a_samples": "tumor", "group_b_samples": "normal"}
-_ID_ARRAY_ALL = ("sample_ids",)     # 队列级工具（gatk_germline_cohort / cnvkit）：整队列 run
+_ID_ARRAY_ALL = ("sample_ids", "input_samples")     # 队列级工具的整队列 run（gatk_germline / cnvkit / driver 性别分层，交付样例均为 run 号列表）
 # 服务端可确定性补的 String 参数全集：stage-2 不再把它们当「调用方欠的必填」，
 # 补不出来时由执行参数阶段报 literal_required。
 _ID_RESOLVABLE = (frozenset(_ID_SINGLE) | frozenset(_ID_ROLE) | frozenset(_ID_STUDY)
