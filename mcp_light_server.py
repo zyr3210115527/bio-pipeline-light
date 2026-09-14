@@ -1281,6 +1281,10 @@ _ID_STUDY = ("dataset_id", "report_id", "output_prefix")     # 队列号本身�
 # 交付样例实测：diff_expr_go 的 group_a_samples 全是 tumor run（HRA000074），group_b 即对照组
 _ID_ARRAY_GROUP = {"group_a_samples": "tumor", "group_b_samples": "normal"}
 _ID_ARRAY_ALL = ("sample_ids", "input_samples")     # 队列级工具的整队列 run（gatk_germline / cnvkit / driver 性别分层，交付样例均为 run 号列表）
+# 队列级 run 列表的交付上限：全量枚举（HRA001272 摊平后 899 个 tumor run）会把执行合同
+# 撑到没法读，交付样例本来就是精选小组。默认每组取定序后的前 48 个（同一队列两次规划
+# 给同一份）；0 = 不截断。
+_RUN_LIST_CAP = int(os.environ.get("BIO_RUN_LIST_CAP", "48"))
 # 服务端可确定性补的 String 参数全集：stage-2 不再把它们当「调用方欠的必填」，
 # 补不出来时由执行参数阶段报 literal_required。
 _ID_RESOLVABLE = (frozenset(_ID_SINGLE) | frozenset(_ID_ROLE) | frozenset(_ID_STUDY)
@@ -1510,6 +1514,8 @@ def _resolve_id_params(gid, card, bound_files, study, chain_facts=None):
                     else:
                         grp = run_lists[_ID_ARRAY_GROUP[name]]
                         v = grp or None
+                    if v and _RUN_LIST_CAP > 0:
+                        v = v[:_RUN_LIST_CAP]       # 交付上限：每组取定序后的前 N 个
         if v is not None and v != []:
             out[name] = v
         elif i.get("required", True) and name in _ID_RESOLVABLE and evidence:
