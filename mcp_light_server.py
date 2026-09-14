@@ -1328,20 +1328,21 @@ def _file_sample_facts(names):
     rows = neo4j_q([
         f"MATCH (n:T1) WHERE n.file_name IN [{in_list}] "
         "RETURN n.file_name, n.sample_accession, n.run_accession, n.sample_name, "
-        "n.individual_accession, n.study_accession, n.specimen_type, NULL",
+        "n.individual_accession, n.study_accession, n.specimen_type, NULL, n.strategy",
         f"MATCH (t2:T2) WHERE t2.file_name IN [{in_list}] "
         "OPTIONAL MATCH (t2)-[:generated_from]->(:T1)-[:in_sample]->(sp:sample) "
         "OPTIONAL MATCH (sp)-[:in_individual]->(i:individual) "
         "RETURN t2.file_name, sp.sample_accession, t2.run_accession, sp.sample_name, "
-        "i.`00_individual_accession`, t2.study_accession, sp.specimen_type, sp.tissue_type",
+        "i.`00_individual_accession`, t2.study_accession, sp.specimen_type, sp.tissue_type, "
+        "t2.strategy",
     ])
     facts = {}
     for r in (rows[0] if rows else []) or []:      # T1
-        if not r or len(r) < 7 or not r[0]:
+        if not r or len(r) < 8 or not r[0]:
             continue                                # 数据层给不出整行（mock/异常）时静默跳过
         rec = {"sample_accession": r[1], "run_accession": r[2], "sample_name": r[3],
                "individual_accession": r[4], "study_accession": r[5], "specimen_type": r[6],
-               "tissue_type": None}
+               "tissue_type": None, "strategy": r[7] if len(r) > 7 else None}
         rec["role"] = sample_role(rec)
         facts[r[0]] = rec
     for r in (rows[1] if len(rows) > 1 else []) or []:      # T2
@@ -1349,7 +1350,7 @@ def _file_sample_facts(names):
             continue
         rec = {"sample_accession": r[1], "run_accession": r[2], "sample_name": r[3],
                "individual_accession": r[4], "study_accession": r[5], "specimen_type": r[6],
-               "tissue_type": r[7]}
+               "tissue_type": r[7], "strategy": r[8] if len(r) > 8 else None}
         rec["role"] = sample_role(rec)
         facts[r[0]] = rec
     # ③ run→sample 反查兜底（如 HRA000021 的 BAM 没有 in_sample 边）
@@ -1386,30 +1387,36 @@ def _file_sample_facts(names):
     return facts
 
 
-def _study_run_lists(study):
+def _study_run_lists(study, strategy=None):
     """队列级样本枚举：{"tumor": [run…], "normal": [run…], "all": [run…]}（定序，同一问题两次
-    规划给同一份）。sample 自带 study_accession，与 study←in_study←individual←in_individual
-    遍历等价（见 resolve_sample_roles 的注释）。"""
+    规划给同一份）。
+
+    **必须按测序策略过滤**：sample 的 run_accession 字符串把 WES/RNA 混在一格里
+    （HRA001272 实踩：分组数组被 WES run 污染，矩阵列名全对不上），而 strategy 只挂在
+    T1 节点上。所以这里不读 sample.run_accession，改走 sample←in_sample←T1 边，
+    按 `strategy`（如 bulk_RNA / WES）逐样本取该策略下的 run。"""
     if not study or not _SAFE_TOKEN.fullmatch(str(study)):
         return None
-    rows = neo4j_q([f"MATCH (sp:sample) WHERE sp.study_accession = '{study}' "
-                    "AND sp.run_accession IS NOT NULL RETURN DISTINCT sp.run_accession, "
-                    "sp.sample_name, sp.tissue_type, sp.specimen_type"])
+    if strategy and not _SAFE_TOKEN.fullmatch(str(strategy)):
+        strategy = None
+    q = (f"MATCH (sp:sample) WHERE sp.study_accession = '{study}' "
+         f"OPTIONAL MATCH (t:T1)-[:in_sample]->(sp)" +
+         (f" WHERE t.strategy = '{strategy}'" if strategy else "") +
+         " RETURN sp.sample_name, sp.tissue_type, sp.specimen_type, "
+         "collect(DISTINCT t.run_accession)")
+    rows = neo4j_q([q])
     out = {"tumor": [], "normal": [], "all": []}
     for r in (rows[0] if rows else []) or []:
-        if not r or len(r) < 4 or not isinstance(r[0], str) or not r[0]:
+        if not r or len(r) < 4:
             continue                                  # 数据层给不出整行（mock/异常）时静默跳过
-        role = sample_role({"study_accession": study, "sample_name": r[1],
-                            "tissue_type": r[2], "specimen_type": r[3]})
-        # sample 的 run_accession 允许一格多值（"HRR1;HRR2"，HRA001272 里 393/698），
-        # 交付惯例是一元素一 run——摊平+去重，否则执行端拿到的是带分号的字符串
-        for run in str(r[0]).split(";"):
-            run = run.strip()
+        role = sample_role({"study_accession": study, "sample_name": r[0],
+                            "tissue_type": r[1], "specimen_type": r[2]})
+        for run in (r[3] or []):
             if not run:
                 continue
-            out["all"].append(run)
+            out["all"].append(str(run))
             if role in ("tumor", "normal"):
-                out[role].append(run)
+                out[role].append(str(run))
     for k in out:
         out[k] = sorted(set(out[k]))
     return out
@@ -1525,7 +1532,11 @@ def _resolve_id_params(gid, card, bound_files, study, chain_facts=None):
         elif name in _ID_ARRAY_GROUP or name in _ID_ARRAY_ALL:
             if study:
                 if run_lists is None:
-                    run_lists = _study_run_lists(study)
+                    # 按绑定输入的测序策略过滤 run（表达矩阵→bulk_RNA；BAM/MAF→WES），
+                    # 防 WES run 混进 RNA 矩阵的分组（HRA001272 实踩过的坑）
+                    strat = next((f.get("strategy") for fn in names
+                                  for f in [facts.get(fn)] if f and f.get("strategy")), None)
+                    run_lists = _study_run_lists(study, strategy=strat)
                 if run_lists:
                     if name in _ID_ARRAY_ALL:
                         v = run_lists["all"] or None
