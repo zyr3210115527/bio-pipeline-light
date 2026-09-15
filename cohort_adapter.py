@@ -536,6 +536,14 @@ def _mk_filler(srv, gid, assets, rank):
     missing = missing + pmiss
     has_path = any(a["path"] for a in assets)
     ready = has_path and not missing
+    # 实跑黑/白名单闸门（与 validate_plan / validate_execution_chain 同一套）：
+    # 补位候选同样不许荐出「跑挂过 / 未验证」的组合
+    _acc = next((a["study_accession"] for a in assets if a.get("study_accession")), None)
+    _blocked = srv._failed_run(gid, _acc) or srv._unproven_combo(gid, _acc)
+    if _blocked:
+        missing.append({"param": "*", "tool_id": tool_id, "step_id": "step-1",
+                        "reason": "proven_run_blocked", "detail": _blocked})
+        ready = False
     return {
         "rank": rank,
         "match_id": f"candidate-{rank}",
@@ -617,6 +625,17 @@ def to_cohort_v2(plan, query, top_k=3):
                            source="neo4j")
         rec["execution_params"] = params
         rec["execution_params_missing"] = missing
+
+        # 实跑黑/白名单闸门（与 validate_plan / validate_execution_chain 同一套）：
+        # 明确跑挂过的组合、或有成功记录的工具选了表外队列，都不得标 ready——
+        # 不然执行平台拿到的「可提交」合同里就混着已知跑不了的组合。
+        _cand_acc = (next(iter(accs)) if len(accs) == 1 else None) or next(
+            (a["study_accession"] for a in assets if a.get("study_accession")), None)
+        _blocked = srv._failed_run(gid, _cand_acc) or srv._unproven_combo(gid, _cand_acc)
+        if _blocked:
+            missing.append({"param": "*", "tool_id": tool["tool_id"], "step_id": "step-1",
+                            "reason": "proven_run_blocked", "detail": _blocked})
+            rec["execution_params_missing"] = missing
 
         ready = bool(cat) and has_path and not missing
         candidates.append({
