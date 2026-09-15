@@ -749,6 +749,12 @@ def to_cohort_v2(plan, query, top_k=3):
         for gid in _alt_gids(srv, rank1_assets, taken, _CAND_CAP - len(candidates)):
             candidates.append(_mk_filler(srv, gid, rank1_assets, len(candidates) + 1))
 
+    # 「不在白名单里的压根不返回」：命中实跑黑/白名单的候选直接从合同里拿掉，
+    # 不是标个不可用——平台上「标出来但跑不了」和「能跑」长得太像，已经误导过一次。
+    candidates = [c for c in candidates
+                  if not any(m.get("reason") == "proven_run_blocked"
+                             for m in (c.get("execution_params_missing") or []))]
+
     # candidates 的上限**不跟 top_k 走**。top_k 限的是推荐条数（light 严格 top-1，
     # 实际就 1 条），而 candidates 是「同一个请求的另几种拆法」——一站式流程 + 原子链。
     # 两者共用一个上限时，调用方传 top_k=1 会把原子链整条截掉，rank2/rank3 凭空消失。
