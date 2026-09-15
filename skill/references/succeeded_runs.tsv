@@ -1,0 +1,33 @@
+# 实跑成功记录（一行一个「流程 × 队列」可用组合），与 failed_runs.tsv 互为正反面。
+# 来源：2026-09 实跑回流（lzx 两份记录，含 9月旧流程修复包 后的 her2/tmb 重跑）。
+# 用途：hydrate_plan 给命中的推荐打 proven_run 标记，前端可展示「实跑验证」；
+# 不是白名单闸门——不在表里的组合照样可规划（黑名单只管明确跑挂过的）。
+tool_id	study	cromwell_id	note
+driver_gene_gender_analysis	HRA000071	9431dc99-81ce-4376-842c-03baba572b78	
+driver_gene_gender_analysis	HRA000873	fbfc2e89-288f-494a-8929-bf17db8d5df4	
+driver_gene_gender_analysis	HRA001272		
+driver_gene_gender_analysis	HRA001749		
+driver_gene_gender_analysis	HRA007169		
+driver_gene_gender_analysis	HRA016026		
+her2_pfs_survival	HRA000073		
+her2_pfs_survival	HRA000074		
+her2_pfs_survival	HRA000122		
+her2_pfs_survival	HRA001272	0efeb2c6-8e2d-421f-8e30-e10ed5846788	修复包（真 gene 参数，不回退 HER2）后跑通
+her2_pfs_survival	HRA002693		
+her2_pfs_survival	HRA003107		
+her2_pfs_survival	HRA006117		
+her2_pfs_survival	HRA007167		
+her2_pfs_survival	HRA007413		
+survival_analysis	HRA001272		
+survival_analysis	HRA001749		
+survival_analysis	HRA007169		
+survival_analysis	HRA016026		
+tmb_survival_analysis	HRA000071	8aed0192-8935-44cb-9b17-bad0ead6a95d	修复包后跑通
+tmb_survival_analysis	HRA000873	06d96872-e776-4ff2-b2b1-152666746543	修复包后跑通
+tmb_survival_analysis	HRA001272	2e687e99-3695-4bc2-b07e-2ff7fb0f9cec	修复包后跑通
+tmb_survival_analysis	HRA001749	94cacbfc-a44c-4846-b128-968d3e6189a0	修复包后跑通
+tmb_survival_analysis	HRA006499	93f71acf-72fc-4be6-9f3a-74ed7ad2c74f	修复包后跑通
+tmb_survival_analysis	HRA007169	39921563-f4ae-486f-8807-53b44c73b391	修复包后跑通
+tmb_survival_analysis	HRA016026	3937fdd8-62f1-4c18-9189-819b3464f07a	修复包后跑通
+wgcna	HRA000073		
+wgcna	HRA000074		

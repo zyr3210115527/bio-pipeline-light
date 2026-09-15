@@ -858,6 +858,11 @@ def tool_validate_execution_chain(args):
         if _fail:
             errors.append(f"{tool_key} × {_study} 有实跑失败记录（{_fail}）——不可提交，"
                           f"请改选别的队列（failed_runs.tsv，解禁就删行）")
+        else:
+            # 白名单闸门：有成功记录的工具只放行表内组合（「只推实跑验证过的」）
+            _unp = _unproven_combo(gid, _study)
+            if _unp:
+                errors.append(f"{tool_key}: {_unp}")
         _id_vals, _id_missing = _resolve_id_params(gid, card, _bound_file_names(bindings), _study,
                                                    chain_facts=chain_facts)
         for _n, _v in _id_vals.items():
@@ -1115,6 +1120,11 @@ def tool_validate_plan(args):
             if _reason:
                 v.append(f"recommendations[{i}] {gid} × {_st} 有实跑失败记录（{_reason}）。"
                          f"该组合不可交付：请改选其它队列重出 Plan")
+            else:
+                # 白名单闸门：有成功记录的工具只放行表内组合（「只推实跑验证过的」）
+                _unp = _unproven_combo(gid, _st)
+                if _unp:
+                    v.append(f"recommendations[{i}] 未过实跑白名单：{_unp}")
         # 没有数据的推荐不可执行：selection_status 说 ok 就必须指出图内的具体文件。
         # 实测调用方对「我有 10x 单细胞 FASTQ」这类没点名队列的问题会直接交空 assets——
         # 等于把选数据这一半的活儿留给了用户。
@@ -1830,6 +1840,45 @@ def _failed_run(gid, acc):
 
 
 load_failed_runs()
+
+# 实跑成功白名单（skill/references/succeeded_runs.tsv）：与黑名单互为正面。
+# 口径是「**只推实跑验证过的**」：凡是有成功记录的工具（driver/her2/survival/tmb/wgcna），
+# 只放行表内的「流程 × 队列」——validate_plan 判违规（模型修正轮改荐表内队列）、
+# validate_execution_chain 判不可提交。没有任何成功记录的工具不受此约束（不添乱）。
+_SUCCEEDED_RUNS: dict = {}     # tool_id -> {study: cromwell_id}
+
+
+def load_succeeded_runs() -> None:
+    path = os.path.join(SKILL_REF, "succeeded_runs.tsv")
+    _SUCCEEDED_RUNS.clear()
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, newline="", encoding="utf-8") as f:
+            lines = [ln for ln in f if not ln.startswith("#")]
+        for row in csv.DictReader(lines, delimiter="\t"):
+            t = (row.get("tool_id") or "").strip()
+            s = (row.get("study") or "").strip()
+            if t and s:
+                _SUCCEEDED_RUNS.setdefault(t, {})[s] = (row.get("cromwell_id") or "").strip()
+    except Exception:
+        _SUCCEEDED_RUNS.clear()
+
+
+def _unproven_combo(gid, acc):
+    """白名单判定。返回 None=放行；否则返回一句可用的违规理由。
+
+    只有「这个工具有成功记录、而该组合不在表里」才拦——工具一条记录都没有时
+    白名单对它不构成约束（不然等于把这些工具整体关掉）。"""
+    ok = _SUCCEEDED_RUNS.get(gid)
+    if not ok or not acc:
+        return None
+    if acc in ok:
+        return None
+    return f"{gid} 只在实跑验证过的队列上放行：{'/'.join(sorted(ok))}（{acc} 不在其中）"
+
+
+load_succeeded_runs()
 
 def _legacy5_pair(gid, acc):
     """五个旧版工具在该队列的旧版临床对：{语义格式: (file_name, file_path)}。不适用则空。"""
