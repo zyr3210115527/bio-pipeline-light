@@ -336,6 +336,22 @@ def _add_clinical(srv, assets, study, sem_fmt):
     return [item]
 
 
+def _asset_roles(srv, assets, chain_facts=None):
+    """{asset_id: 'tumor'/'normal'/None}：按文件样本事实判角色（`_file_sample_facts`，
+    与 resolve_sample_roles 同一套规则）。chain_facts 已覆盖的文件直接复用，不重复查图；
+    图不通时全部 None，由调用方退回不按角色过滤的原逻辑。"""
+    fns = {a.get("file_name"): a["asset_id"] for a in assets
+           if a.get("asset_id") and a.get("file_name")}
+    facts = dict(chain_facts or {})
+    need = [fn for fn in fns if fn not in facts]
+    if need:
+        try:
+            facts.update(srv._file_sample_facts(need) or {})
+        except Exception:
+            pass                     # 图不通不该让绑定失败：角色全 None，走原逻辑
+    return {aid: (facts.get(fn) or {}).get("role") for fn, aid in fns.items()}
+
+
 def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None, chain_facts=None):
     """把资产/上游产物绑到卡片参数上，返回 (inputs 绑定对象, missing[])。
 
@@ -344,6 +360,7 @@ def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None, chain
     会覆盖掉正确的路径。bulk10 的两张 CNCB 元数据表由 server 按队列号推，同理不绑。
     """
     inputs, missing, used, used_up = {}, [], set(), set()
+    _role_map = None               # 惰性：只在遇到 tumor_*/normal_* 槽位时查一次图
     # 队列的三个来源，按可信度排：资产自带 > 调用方给的推荐队列 > 从文件名里的队列号认领。
     study = (next((a.get("study_accession") for a in assets if a.get("study_accession")), None)
              or study_hint)
@@ -380,7 +397,21 @@ def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None, chain
                 ref = [{"from": {"step_id": u["step_id"], "output": u["name"]}} for u in ups]
                 inputs[name] = ref if is_arr else ref[0]
                 continue
-            cand = _pick_assets(assets, used, p, is_arr)
+            # 角色槽位（tumor_*/normal_*）按图内样本角色过滤资产池：同格式数组槽
+            # 纯按格式抢会错位——cnvkit 的四个 BAM/BAI 槽，先处理的 normal_* 把肿瘤
+            # 文件也抢走，tumor_bams/tumor_bais 恒 no_confirmed_path（HRA000021 实测）。
+            # 一个角色都判不出（图外/mock）时退回原池，不误伤。
+            _role = next((r for r in ("tumor", "normal")
+                          if str(name).lower().startswith(r + "_")), None)
+            if _role:
+                if _role_map is None:
+                    _role_map = _asset_roles(srv, assets, chain_facts)
+                pool_assets = ([a for a in assets
+                                if _role_map.get(a["asset_id"]) == _role]
+                               if any(_role_map.values()) else assets)
+            else:
+                pool_assets = assets
+            cand = _pick_assets(pool_assets, used, p, is_arr)
             _meta_fmt = _meta_param_fmt(srv, name) if gid not in srv._BULK10 else None
             if not cand and _meta_fmt:
                 cand = _add_clinical(srv, assets, study, _meta_fmt)
