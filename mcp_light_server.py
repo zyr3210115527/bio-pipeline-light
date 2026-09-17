@@ -682,7 +682,10 @@ def tool_validate_execution_chain(args):
                    if i.get("required", True) and i["name"] not in bindings
                    and not _is_reference_resource(card, i["name"])
                    and i["name"] not in _clin_names
-                   and i["name"] not in _ID_RESOLVABLE]
+                   and i["name"] not in _ID_RESOLVABLE
+                   # 角色数组槽（tumor/normal_bams/bais）由服务端按队列同个体配对补齐
+                   # （见执行参数阶段的 _paired_bam_fill），不算调用方欠的
+                   and not _role_array_slot(i["name"], i.get("type"), i.get("format"))]
         if missing:
             errors.append(f"{card['meta_id']} 缺必填输入: {missing}")
         # 二选一约束：卡片 interface.validators 里的 one_of，每组至少绑一个。
@@ -835,6 +838,39 @@ def tool_validate_execution_chain(args):
         else:   # pipeline 级无卡：有对象/对象数组 binding 的输入都当 File 处理
             wanted = [(k, isinstance(v, list)) for k, v in bindings.items()
                       if isinstance(v, (dict, list))]
+        # 队列号先定（下面的角色数组补全要用）：从已绑资产反查（图内文件名与路径里都带
+        # HRA######），恰好一个才认；零个说明队列还没定，多个说明这一步混了队列。
+        _accs0 = set()
+        for _b in bindings.values():
+            _accs0 |= set(_HRA.findall(json.dumps(_b, ensure_ascii=False)))
+        _study = cohort or (next(iter(_accs0)) if len(_accs0) == 1 else None)
+        # 队列级配对流程的角色数组槽补全（cnvkit 的 tumor/normal_bams/bais）：数组槽是
+        # 队列语义，调用方只给代表性文件时缺的一侧由服务端按同个体配对补齐
+        # （见 _paired_bam_fill  docstring）。已绑的一侧不动：补全集合按已绑 run 过滤，
+        # 保证两侧数组按对平行；一侧都没绑才按队列全量配对（前 _RUN_LIST_CAP 对）。
+        _role_slots = [i["name"] for i in (card["inputs"] if card else [])
+                       if _role_array_slot(i.get("name"), i.get("type"), i.get("format"))]
+        if _role_slots and _study and any(not bindings.get(_n) for _n in _role_slots):
+            _fill = _paired_bam_fill(_study)
+            if _fill:
+                _bound_runs = set()
+                for _pn, _fns in _bound_file_names(bindings).items():
+                    if _pn in _role_slots:
+                        _bound_runs |= {m.group(0) for _f in _fns
+                                        for m in [re.search(r"HRR\d+", str(_f))] if m}
+                _keep = [(_t, _n) for _t, _n in _fill["pair_runs"]
+                         if not _bound_runs or _t in _bound_runs or _n in _bound_runs]
+                _fill_idx = {pr: j for j, pr in enumerate(_fill["pair_runs"])}
+                for _pn in _role_slots:
+                    if bindings.get(_pn) or not _keep:
+                        continue
+                    _vals = [{"file_path": _fill[_pn][_fill_idx[pr]],
+                              "file_name": _fill[_pn][_fill_idx[pr]].rsplit("/", 1)[-1]}
+                             for pr in _keep]
+                    if _vals:
+                        bindings[_pn] = _vals
+                        warnings.append(f"{tool_key}.{_pn}: 调用方未绑，服务端按队列 {_study} "
+                                        f"的同个体配对补齐 {len(_vals)} 项（与对侧数组平行）")
         params = {}
         for name, is_arr in wanted:
             val = _resolve(bindings.get(name), is_arr)
@@ -849,10 +885,7 @@ def tool_validate_execution_chain(args):
         # 服务端从绑定文件与队列确定性解析（见 _resolve_id_params），模型不需要也不该自己编
         # （编了也不会报错，是最危险的一种幻觉）。图内事实覆盖调用方给的值（与 file_path
         # 的处置一致）；补不出来且调用方没给的，如实报 literal_required。
-        _accs0 = set()
-        for _b in bindings.values():
-            _accs0 |= set(_HRA.findall(json.dumps(_b, ensure_ascii=False)))
-        _study = cohort or (next(iter(_accs0)) if len(_accs0) == 1 else None)
+        # （_study 已在执行参数解析前定好，见上）
         # 实跑失败黑名单：该「流程 × 队列」组合明确跑挂过（数据侧原因），直接判不可提交
         _fail = _failed_run(gid, _study)
         if _fail:
@@ -1432,6 +1465,77 @@ def _study_run_lists(study, strategy=None):
     return out
 
 
+def _paired_bam_fill(study, cap=0):
+    """队列级配对角色数组槽（tumor_bams/tumor_bais/normal_bams/normal_bais）的服务端补全。
+
+    cnvkit 这类队列级配对流程的四个数组槽是**队列语义**（要放几十上百对 BAM），调用方
+    按手册「只给主数据资产」给出一两个代表文件后，肿瘤/正常必有一边凑不齐——
+    0817 起实测 cnvkit 的 tumor_bams/tumor_bais 恒 no_confirmed_path。角色划分与同个体
+    配对图里都有，服务端补全是确定性活，不该让调用方枚举几百个文件。
+
+    配对规则：同一 individual 下角色为 tumor 与 normal 的样本各取一个**有 BQSR BAM+BAI
+    交付文件**的 run。BQSR BAM 只产自 DNA 流程，这一约束顺带消掉了 WES/WGS 策略选择
+    问题（RNA 比对产物的 semantic_format 不同，天然进不来）；没有交付文件的 run 跳过。
+
+    返回 {"tumor_bams"/"tumor_bais"/"normal_bams"/"normal_bais": [路径…]（四数组按对平行，
+    tumor_bams[i] 与 normal_bams[i] 同个体）, "sample_ids": [各对肿瘤 run…],
+    "pair_runs": [(t_run, n_run)…]}；配不出对返回 None。cap<=0 时用 _RUN_LIST_CAP。"""
+    if not study or not _SAFE_TOKEN.fullmatch(str(study)):
+        return None
+    rows = neo4j_q([f"MATCH (t2:T2) WHERE t2.study_accession = '{study}' "
+                    "AND t2.semantic_format IN ['DNA_ALIGNMENT_BQSR_BAM','DNA_ALIGNMENT_INDEX_BAI'] "
+                    "AND t2.file_path IS NOT NULL "
+                    "RETURN t2.run_accession, t2.semantic_format, t2.file_path"])
+    files = {}
+    for r in (rows[0] if rows else []) or []:
+        if not r or not r[0] or not r[2]:
+            continue
+        files.setdefault(str(r[0]), {})[r[1]] = str(r[2])
+    good = {run for run, d in files.items()
+            if "DNA_ALIGNMENT_BQSR_BAM" in d and "DNA_ALIGNMENT_INDEX_BAI" in d}
+    if not good:
+        return None
+    rows = neo4j_q([f"MATCH (sp:sample)-[:in_individual]->(i:individual) "
+                    f"WHERE sp.study_accession = '{study}' "
+                    "OPTIONAL MATCH (t:T1)-[:in_sample]->(sp) "
+                    "RETURN i.`00_individual_accession`, sp.sample_name, sp.tissue_type, "
+                    "sp.specimen_type, collect(DISTINCT t.run_accession)"])
+    per_ind = {}
+    for r in (rows[0] if rows else []) or []:
+        if not r or len(r) < 5 or not r[0]:
+            continue
+        role = sample_role({"study_accession": study, "sample_name": r[1],
+                            "tissue_type": r[2], "specimen_type": r[3]})
+        if role not in ("tumor", "normal"):
+            continue
+        runs = sorted({str(x) for x in (r[4] or []) if x and str(x) in good})
+        if runs:
+            per_ind.setdefault(str(r[0]), {}).setdefault(role, set()).update(runs)
+    pairs = []
+    for ind in sorted(per_ind):
+        d = per_ind[ind]
+        if d.get("tumor") and d.get("normal"):
+            pairs.append((sorted(d["tumor"])[0], sorted(d["normal"])[0]))
+    if not pairs:
+        return None
+    cap = cap if cap and cap > 0 else _RUN_LIST_CAP
+    if cap > 0:
+        pairs = pairs[:cap]
+    return {"tumor_bams": [files[t]["DNA_ALIGNMENT_BQSR_BAM"] for t, _ in pairs],
+            "tumor_bais": [files[t]["DNA_ALIGNMENT_INDEX_BAI"] for t, _ in pairs],
+            "normal_bams": [files[n]["DNA_ALIGNMENT_BQSR_BAM"] for _, n in pairs],
+            "normal_bais": [files[n]["DNA_ALIGNMENT_INDEX_BAI"] for _, n in pairs],
+            "sample_ids": [t for t, _ in pairs],
+            "pair_runs": pairs}
+
+
+def _role_array_slot(name, typ, fmt):
+    """是「配对角色数组槽」吗（tumor_bams/normal_bais 这种，cnvkit 契约的四个）。"""
+    n = str(name or "").lower()
+    return (_is_array_type(typ) and re.fullmatch(r"(tumor|normal)_(bams|bais)", n)
+            and any(k in str(fmt or "").upper() for k in ("BAM", "BAI")))
+
+
 def _patient_key(t_name, n_name):
     """配对的患者键：剥角色前缀（T_/B_/N_/P_）后，两侧一致就用全名（T_CGGA_1251/B_CGGA_1251
     → CGGA_1251），否则取最长公共前缀截到完整 token（M019_RT1…/M019_LN1… → M019）。
@@ -1540,7 +1644,17 @@ def _resolve_id_params(gid, card, bound_files, study, chain_facts=None):
             v = next((m.group(1) for fn in names
                       for m in [_FLAVOR_PAT.search(str(fn))] if m), None)
         elif name in _ID_ARRAY_GROUP or name in _ID_ARRAY_ALL:
-            if study:
+            # 配对数组流程（卡片带 tumor_bams 槽，如 cnvkit）：sample_ids 必须与已绑的
+            # 肿瘤 BAM 数组按对平行（交付样例口径：sample_ids[i] 就是 tumor_bams[i] 的 run），
+            # 不能取整队列——数组长度对不上执行端就错位。
+            _tb = next((fns for pn, fns in bound_files.items()
+                        if str(pn).lower() == "tumor_bams" and fns), None)
+            if name in _ID_ARRAY_ALL and _tb:
+                v = [r for r in ((facts.get(fn) or {}).get("run_accession") for fn in _tb)
+                     if r]
+                if len(v) != len(_tb):
+                    v = None          # 有文件查不到 run：退回队列枚举，别给残缺的平行数组
+            if v is None and study:
                 if run_lists is None:
                     # 按绑定输入的测序策略过滤 run（表达矩阵→bulk_RNA；BAM/MAF→WES），
                     # 防 WES run 混进 RNA 矩阵的分组（HRA001272 实踩过的坑）

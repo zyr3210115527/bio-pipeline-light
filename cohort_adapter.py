@@ -361,6 +361,7 @@ def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None, chain
     """
     inputs, missing, used, used_up = {}, [], set(), set()
     _role_map = None               # 惰性：只在遇到 tumor_*/normal_* 槽位时查一次图
+    _pair_fill = None              # 惰性：角色数组槽的队列级配对补全（_paired_bam_fill）
     # 队列的三个来源，按可信度排：资产自带 > 调用方给的推荐队列 > 从文件名里的队列号认领。
     study = (next((a.get("study_accession") for a in assets if a.get("study_accession")), None)
              or study_hint)
@@ -415,6 +416,49 @@ def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None, chain
             _meta_fmt = _meta_param_fmt(srv, name) if gid not in srv._BULK10 else None
             if not cand and _meta_fmt:
                 cand = _add_clinical(srv, assets, study, _meta_fmt)
+            if (not cand and _role and is_arr and study
+                    and re.fullmatch(r"(tumor|normal)_(bams|bais)", str(name).lower())):
+                # 角色数组槽是队列语义（要放几十对 BAM），调用方只给代表性资产时缺的一侧
+                # 由服务端按队列同个体配对补齐——与 tool_validate_execution_chain 同一套
+                # srv._paired_bam_fill。已绑进 inputs 的对侧槽位的 run 用来过滤配对集合，
+                # 保证两侧数组按对平行；一侧都没绑则按队列全量配对（服务端已按上限截断）。
+                if _pair_fill is None:
+                    try:
+                        _pair_fill = srv._paired_bam_fill(study) or {}
+                    except Exception:
+                        _pair_fill = {}          # 图不通：留空，走下面如实报缺
+                if _pair_fill:
+                    _bound_runs = set()
+                    _by_id0 = {a.get("asset_id"): a for a in assets}
+                    for _pn2, _bnd in inputs.items():
+                        if not re.fullmatch(r"(tumor|normal)_(bams|bais)", str(_pn2).lower()):
+                            continue
+                        for _x in (_bnd if isinstance(_bnd, list) else [_bnd]):
+                            _a = _by_id0.get((_x or {}).get("asset_id")) if isinstance(_x, dict) else None
+                            _m = re.search(r"HRR\d+", str((_a or {}).get("file_name") or ""))
+                            if _m:
+                                _bound_runs.add(_m.group(0))
+                    _keep = [j for j, (_t, _n) in enumerate(_pair_fill["pair_runs"])
+                             if not _bound_runs or _t in _bound_runs or _n in _bound_runs]
+                    cand = []
+                    for _j in _keep:
+                        _p = _pair_fill[name][_j]
+                        _fn = _p.rsplit("/", 1)[-1]
+                        if any(str(a.get("file_name")) == _fn for a in assets):
+                            continue
+                        _n0 = 1 + max([int(m.group(1)) for a in assets
+                                       if (m := re.match(r"asset-(\d+)$",
+                                                         str(a.get("asset_id") or "")))]
+                                      or [len(assets)])
+                        _item = {"asset_id": f"asset-{_n0}", "file_name": _fn,
+                                 "path": _p, "file_path": _p,
+                                 "artifact_type": _asset_artifact({"file_name": _fn}),
+                                 "semantic_format": None, "study_accession": study,
+                                 "sample_accession": None, "run_accession": None,
+                                 "match_reason": f"配对角色槽服务端按队列 {study} 同个体配对补齐",
+                                 "_fmt": _asset_artifact({"file_name": _fn})}
+                        assets.append(_item)
+                        cand.append(_item)
             if cand:
                 for a in cand:
                     used.add(a["asset_id"])
