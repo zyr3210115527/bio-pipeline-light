@@ -97,6 +97,35 @@ atomic 闭集：`bwa` `fastp` `fastqc` `featurecounts` `gatk` `bcftools` `snpeff
 
 其余（镜像标签、产出三件套、按队列的 `native_status_source_col`）是执行端契约，服务端补，规划时不用管。
 
+### 3.2 bulk10 之外的实跑白名单（`references/succeeded_runs.tsv`）
+
+**凡是有实跑记录的工具，只放行它真跑过的「工具 × 队列」组合**——与 bulk10 同口径、同两道闸
+（`validate_plan` 判违规、`validate_execution_chain` 判不可提交）。机器判定的真值在
+`references/succeeded_runs.tsv`（2026-09 运行测试表回流，49 个工具 233 条组合，含原子工具）；
+下表是规划侧速查。**一条记录都没有的工具**（`gatk`/`multiqc`/`samtools`/`rsem`/`featurecounts`/
+`rnaseq_singletask`）不受白名单约束。反面是黑名单 `failed_runs.tsv`：跑挂过的组合封禁到上游修好。
+
+- `wgcna`：仅 `HRA000073`/`HRA000074`
+- `bootstrap_stability`/`hvg_pca_gmm`：`HRA003107`/`000073`/`000074`/`000122`/`002693`/`006117`
+- `umap`/`diff_expr_go`/`diff_expr_kegg`/`rnaseq_unsupervised_cluster`：上述六个 + `HRA007167`
+- `preprocess_counts`：上述七个 + `HRA007413`
+- `her2_pfs_survival`/`immune_infiltration_iobr`：上述八个 + `HRA001272`
+- `tmb_survival_analysis`/`wes_somatic_maf_landscape`：`HRA000071`/`000873`/`001272`/`001749`/`006499`/`007169`/`016026`
+- `driver_gene_gender_analysis`：上述七个 − `HRA006499`
+- `survival_analysis`：`HRA001272`/`001749`/`007169`/`016026`
+- `cnvkit_cnv_clinical`：`HRA000021`/`000071`/`000873`/`001272`/`001749`/`006499`/`007169`
+- `manta_structural_variants`：上述七个 + `HRA016026`
+- `gatk_germline_cohort`：上述八个 + `HRA000087`
+- `wes_somatic_pair`/`bcftools`/`snpeff`：`HRA001749`/`007169`
+- `rmats_alternative_splicing`：`HRA000073`/`000074`/`001272`/`002693`/`003107`/`006117`/`007167`/`016026`
+- 单细胞任务流（`breast_cellchat`/`celltype_case_control_de`/`dataset_downstream`/`dataset_matrix_annotation`/`immunotherapy_cellchat`/`lung_tme_annotation_cnv`/`tcell_intervention`）：`HRA000087`/`000321`；`scrna_cell_communication`/`ipf_trajectory_regulon`：仅 `HRA000087`
+- `gsea_pathway_enrichment`/`tumor_evolution_inference`：仅 `HRA001272`
+- `cellranger_workflow`：`HRA001748`/`HRA005191`
+- 原子工具：`bwa` `HRA000071`/`000073`/`000074`/`000087`/`000127`/`000321`/`000873`；`fastqc` 同此七个 − `HRA000873`；`paired_fastq_to_unmapped_bam` 再 − `HRA000321`；`star` 同 bwa 七个但 `HRA000873`→`HRA002693`；`trim_galore` 仅 `HRA000071`/`000073`/`000074`；`star_fusion`（17 个）、`fastp`（19 个）见 tsv
+
+用户点名的组合不在表内：直说该工具跑过哪几个队列、改荐其一，别静默替换。没点名队列时从
+该工具自己那行里选（别按并集）。
+
 ## 4. 查询配方
 
 15 条官方模板在 `references/query_templates/`（按名取用，**0826 图上重跑 15/15 全部有行**；传参照抄模板里的属性名——`tool_id` 收的是 `T033` 这类号、不是 `bcftools` 这类名，传错了静默 0 行）。**属性名大小写照抄**——`t1_id` 写成 `T1_id` 不报错、静默 0 行：
@@ -124,7 +153,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
        AND (any(t IN tts WHERE t CONTAINS 'normal') OR any(n IN nms WHERE n ENDS WITH '_normal'))
      RETURN study, count(i) AS pairable_individuals ORDER BY pairable_individuals DESC
      ```
-   - **可配对队列（0826 实测个体数）**：HRA000873 1015、HRA000021 508、HRA016026 350、HRA001272 206、HRA003107 155、HRA007169 76、HRA006499 72、HRA001749 56、HRA000122 42、HRA001748 30。比 0821 两处变化：HRA001749 从 84 降到 56；**HRA000122 变成可配对**（0821 还在"判不出角色"那张表里，0826 是 245 Tumor / 42 Normal）——但它仍被 §3 固定数据白名单限制成只能走 `umap`，可配对不等于随便用。全部配对都是 Tumor+Normal，**没有任何队列靠 Blood 配对**。陷阱：**HRA000071 血液对照与肿瘤不属同一个体**——能分组不能同个体配对；要现成配对优先 HRA016026（350 个体各 2 样本）
+   - **可配对队列（0826 实测个体数）**：HRA000873 1015、HRA000021 508、HRA016026 350、HRA001272 206、HRA003107 155、HRA007169 76、HRA006499 72、HRA001749 56、HRA000122 42、HRA001748 30。比 0821 两处变化：HRA001749 从 84 降到 56；**HRA000122 变成可配对**（0821 还在"判不出角色"那张表里，0826 是 245 Tumor / 42 Normal）——bulk10 里它仍只能走 `umap`，但 §3.2 白名单里 `diff_expr_go`/`diff_expr_kegg`/`bootstrap_stability`/`hvg_pca_gmm`/`rnaseq_unsupervised_cluster` 也跑过它；可配对不等于随便用。全部配对都是 Tumor+Normal，**没有任何队列靠 Blood 配对**。陷阱：**HRA000071 血液对照与肿瘤不属同一个体**——能分组不能同个体配对；要现成配对优先 HRA016026（350 个体各 2 样本）
    - **判不出角色的队列（0826 重测，别浪费轮数）**：HRA000001（557 全 `Blood`）、HRA000074（693 全 `Tumor`）、HRA002693（655 全 `Tumor`）、HRA006117（835 全 `Tumor`）、HRA005191（243 全 `Tumor`）。**0821 写的理由「大量缺 tissue_type」现在是错的，已删**：0826 把全图空值补齐了，这些样本都有 `tissue_type`，只是整个队列只有一条臂、没有对照——事实变了，结论没变。HRA000122 **已从这张表移走**。别再拿"是不是空值没查到"重查一遍，就是只有一条臂。如实告知或换队列。**这只卡「逐样本配对」这一件事**：这些队列的队列级矩阵/MAF 分析（差异、富集、聚类、免疫浸润、生存）照常可做，不要因为角色判不出就报 `no_candidate`
    - **队列样本清单以 sample 节点为准**（`MATCH (sp:sample) WHERE sp.study_accession='HRA*'`）；别用 `(T1)-[:in_sample]->(sample)` 数样本（漏无文件样本）
    - 文件缺口判定只看 `resolve_sample_roles` 的 `file_coverage.t1_files_unlinked`（真无 in_sample 边的文件数，正常是聚合文件个位数）；`runs_without_sample_node` 是诊断字段不是缺口，拿它判队列会误杀。真缺口如实 `missing_from_graph`，绝不按文件名/顺序猜样本归属
@@ -199,8 +228,8 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `de_enrichment` | **bulk10**：差异表达 + 富集，分组从 CNCB 原生元数据自动解析；**仅 HRA003107**——**只在用户点名了队列时才选它**，通用「差异表达/富集」请求走 `diff_expr_go`/`diff_expr_kegg` | bulk_RNA,Clinical | TABULAR_BIO_DATA（counts，唯一必填）＋case/control 标签 |
 | `deg_enrichment` | **bulk10**：差异表达 + **功能富集**面板，分组自动解析；**仅 HRA003107**——同上，没点名队列不要选 | bulk_RNA,Clinical | TABULAR_BIO_DATA（counts，唯一必填）＋case/control 标签 |
 | `deg_trend` | **bulk10**：差异表达**趋势**分析（火山/热图/箱线/趋势图全套）；**仅 HRA003107** | bulk_RNA,Clinical | TABULAR_BIO_DATA（counts，唯一必填）＋case/control 标签 |
-| `diff_expr_go` | limma 两组差异 + 上下调基因分别做 **GO 功能**富集；只吃表达矩阵，**无队列限制**——用户没点名队列的通用「差异表达/富集」请求默认选它（问句出现 GO 选这条） | bulk_RNA | TABULAR_BIO_DATA |
-| `diff_expr_kegg` | limma 两组差异 + 上下调基因分别做 **通路/Reactome** 富集；只吃表达矩阵，**无队列限制**（问句出现 KEGG/Reactome/通路选这条） | bulk_RNA | TABULAR_BIO_DATA |
+| `diff_expr_go` | limma 两组差异 + 上下调基因分别做 **GO 功能**富集；只吃表达矩阵。用户没点名队列的通用「差异表达/富集」请求默认选它（问句出现 GO 选这条）——**实跑白名单（§3.2）：仅 `HRA000073`/`000074`/`000122`/`002693`/`003107`/`006117`/`007167** | bulk_RNA | TABULAR_BIO_DATA |
+| `diff_expr_kegg` | limma 两组差异 + 上下调基因分别做 **通路/Reactome** 富集；只吃表达矩阵（问句出现 KEGG/Reactome/通路选这条）——**实跑白名单同 `diff_expr_go`（§3.2）** | bulk_RNA | TABULAR_BIO_DATA |
 | `driver_gene_gender_analysis` | 该流程基于 WES MAF 文件、临床表和 Meta | Clinical,WES | INDIVIDUAL_META,SAMPLE_META,T1_META,MUTATION_ANNOTATION_FORMAT_MAF |
 | `fastp` | 对双端测序FASTQ文件进行质量过滤、接头修剪和质控 | WES | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
 | `fastqc` | 对输入的 FASTQ 文件进行质量评估，生成 HTM | bulk_RNA,sc-RNA,WES,WGS | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
@@ -238,7 +267,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `umap` | **bulk10**：表达矩阵 **UMAP** 降维可视化；七个队列全可（§3.1 里唯一一条） | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填） |
 | `wes_somatic_maf_landscape` | 本流程用于全外显子测序（WES）队列的体细胞突变景观 | WES | MUTATION_ANNOTATION_FORMAT_MAF |
 | `wes_somatic_pair` | 用于单个病人配对 tumor-normal WES  | WGS,WES | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
-| `wgcna` | WGCNA 整链（QC+模块+模块-性状+hub+bootstrap）；**HRA003107/HRA007167 之外的共表达/hub 请求默认选它**；这两个队列上改用 wgcna_hub（要 hub 基因）/ wgcna_module_trait（要模块-性状） | bulk_RNA,Clinical | INDIVIDUAL_META,SAMPLE_META,T1_META,TABULAR_BIO_DATA |
+| `wgcna` | WGCNA 整链（QC+模块+模块-性状+hub+bootstrap）；**实跑白名单仅 `HRA000073`/`HRA000074`（§3.2）**；`HRA003107`/`HRA007167` 上改用 wgcna_hub（要 hub 基因）/ wgcna_module_trait（要模块-性状），其余队列的共表达请求按 §3.2 改荐白名单内队列 | bulk_RNA,Clinical | INDIVIDUAL_META,SAMPLE_META,T1_META,TABULAR_BIO_DATA |
 | `wgcna_hub` | **bulk10**：WGCNA **枢纽基因**；仅 HRA003107/HRA007167，在这两个队列上优先于 wgcna | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填） |
 | `wgcna_module_trait` | **bulk10**：WGCNA **模块-性状**关联；仅 HRA003107/HRA007167，在这两个队列上优先于 wgcna | bulk_RNA,Clinical | TABULAR_BIO_DATA（counts，唯一必填） |
 
@@ -541,7 +570,8 @@ FASTQ 出发，依次完成 FastQC、Trim Galore、rRNA 去除、STAR 比对、R
 
 **未点名队列时的默认队列也是硬规则**：bulk10 那十条一律默认 `HRA003107`（十条唯一都跑过的），
 不要按"样本数最多"另选——实测因此落到 `HRA001272`（19 次）和 `HRA006117`，而 `HRA001272`
-一条 bulk10 都没跑过，`validate_plan` 会直接拒。非 bulk10 的流程按 §8.2 队列表选，
+一条 bulk10 都没跑过，`validate_plan` 会直接拒。非 bulk10 的流程按 §3.2 实跑白名单里
+该工具自己那行选（选不出来再按 §8.2 队列表看癌种，但组合必须在 §3.2 表内），
 选完在 `match_note` 里说明"用户未点名队列，按已验证组合默认选 X"。
 
 工具属性怎么取数（答进 `answer`，**不改变必须给 rank1** 这件事）：

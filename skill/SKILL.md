@@ -174,6 +174,51 @@ manifest), `run_summary` (run summary table).
 proven runs set it to `13_vital_status` for `HRA000073`, `HRA000074`, `HRA002693`, `HRA006117`. On
 `HRA003107` — cox_model's fifth and last proven cohort — the default applies. The server fills this in.
 
+## 3.2 The proven-run whitelist beyond bulk10 (`references/succeeded_runs.tsv`)
+
+**Every tool with a real-run record may only be paired with the cohorts it has actually run on** —
+the same per-combination rule as bulk10, enforced by the same two gates (`validate_plan` flags an
+unlisted pair as a violation; `validate_execution_chain` marks it unsubmittable). The table below is
+the planning-side copy; `references/succeeded_runs.tsv` is the machine-checked truth (49 tools, 233
+combinations, from the 2026-09 run-test reflux). A tool with **no** rows in that file (e.g. `gatk`,
+`multiqc`, `samtools`, `rsem`, `featurecounts`, `rnaseq_singletask`) is unconstrained by this
+whitelist. The blacklist `failed_runs.tsv` is the other side: combinations that ran and failed stay
+banned until the data is fixed upstream.
+
+| Cohort set | Tools |
+|---|---|
+| `HRA000073`, `HRA000074` | `wgcna` |
+| `HRA003107` | (bulk10 five: `de_enrichment` `deg_enrichment` `deg_trend` `gene_boxplot` `stage_heatmap` — §3.1) |
+| `HRA003107`, `HRA007167` | `wgcna_hub`, `wgcna_module_trait` (bulk10, §3.1) |
+| `HRA003107`, `HRA000073`, `HRA000074`, `HRA002693`, `HRA006117` | `cox_model`, `km_survival` (bulk10, §3.1) |
+| that five + `HRA000122` | `bootstrap_stability`, `hvg_pca_gmm` |
+| that six + `HRA007167` | `umap` (bulk10, §3.1), `diff_expr_go`, `diff_expr_kegg`, `rnaseq_unsupervised_cluster` |
+| those seven + `HRA007413` | `preprocess_counts` |
+| those eight + `HRA001272` | `her2_pfs_survival`, `immune_infiltration_iobr` |
+| `HRA000071`, `HRA000873`, `HRA001272`, `HRA001749`, `HRA006499`, `HRA007169`, `HRA016026` | `tmb_survival_analysis`, `wes_somatic_maf_landscape` |
+| that seven minus `HRA006499` | `driver_gene_gender_analysis` |
+| `HRA001272`, `HRA001749`, `HRA007169`, `HRA016026` | `survival_analysis` |
+| `HRA000021`, `HRA000071`, `HRA000873`, `HRA001272`, `HRA001749`, `HRA006499`, `HRA007169` | `cnvkit_cnv_clinical` |
+| that seven + `HRA016026` | `manta_structural_variants` |
+| that eight + `HRA000087` | `gatk_germline_cohort` |
+| `HRA001749`, `HRA007169` | `wes_somatic_pair`, `bcftools`, `snpeff` |
+| `HRA000073`, `HRA000074`, `HRA001272`, `HRA002693`, `HRA003107`, `HRA006117`, `HRA007167`, `HRA016026` | `rmats_alternative_splicing` |
+| `HRA000087`, `HRA000321` | `breast_cellchat`, `celltype_case_control_de`, `dataset_downstream`, `dataset_matrix_annotation`, `immunotherapy_cellchat`, `lung_tme_annotation_cnv`, `tcell_intervention` |
+| `HRA000087` | `scrna_cell_communication`, `ipf_trajectory_regulon` |
+| `HRA001272` | `gsea_pathway_enrichment`, `tumor_evolution_inference` |
+| `HRA001748`, `HRA005191` | `cellranger_workflow` |
+| `HRA000071`, `HRA000073`, `HRA000074`, `HRA000087`, `HRA000127`, `HRA000321`, `HRA000873` | `bwa` |
+| that seven minus `HRA000873` | `fastqc` |
+| that six minus `HRA000321` | `paired_fastq_to_unmapped_bam` |
+| `bwa`'s seven minus `HRA000873`, plus `HRA002693` | `star` |
+| `HRA000071`, `HRA000073`, `HRA000074` | `trim_galore` |
+| 17 cohorts (see tsv) | `star_fusion` |
+| 19 cohorts (see tsv) | `fastp` |
+
+The same rule as §3.1 applies when the user names a pair outside the list: say which cohorts the tool
+has run on and offer one of them — do not substitute silently, and do not leave the named cohort in
+place. When the user names no cohort, pick from the tool's own row here (not from the union).
+
 ## 4. Query cookbook
 
 **15 official Cypher templates** live in `references/query_templates/`, use by name (all runnable as-is
@@ -213,8 +258,9 @@ Standard recipes:
    a search: the pipeline determines the cohort set (§3.1 table) and the file is always
    `{STUDY}-Genes-counts-1.0.tsv`. **Run no data query for them** — no `tumor_type` matching, no
    `find_t1_by_*`, no `resolve_sample_roles`. A graph search there can only produce a cohort that has
-   never been run, which the server rejects. Everything below applies to the other 41 tools, where the
-   cohort genuinely has to be discovered.
+   never been run, which the server rejects. Everything below applies to the other 41 tools — but for
+   any tool with a §3.2 whitelist row, "discovery" means picking from its proven cohorts, not from a
+   graph search: the same unproven-pair rejection applies there.
 
    - Cohort: `tumor_type` is **English Title Case** — match with `toLower(s.tumor_type) CONTAINS '<english>'`;
      Chinese matches nothing. All values re-measured on 0826 — unchanged from 0821 (20 studies): `Liver Cancer`,
@@ -250,8 +296,9 @@ Standard recipes:
      **HRA016026 350**, HRA001272 206, HRA003107 155, HRA007169 76, HRA006499 72, HRA001749 56,
      HRA000122 42, HRA001748 30. Two changes from 0821: HRA001749 dropped 84 → 56, and **HRA000122
      became pairable** (0821 had it in the unresolvable list; 0826 gives it 245 Tumor / 42 Normal).
-     Note HRA000122 is still restricted to `umap` by the fixed-data whitelist in §3 — pairable does
-     not mean freely usable. Every pair here is Tumor+Normal; **no cohort pairs via Blood**. The naive form
+     Note HRA000122's whitelist reach is still narrow — within bulk10 only `umap` (§3.1), plus
+     `diff_expr_go`/`diff_expr_kegg`/`bootstrap_stability`/`hvg_pca_gmm`/`rnaseq_unsupervised_cluster`
+     in §3.2 — pairable does not mean freely usable. Every pair here is Tumor+Normal; **no cohort pairs via Blood**. The naive form
      (`'Tumor' IN tts`) **misses HRA016026 entirely** — the third-largest pairable cohort.
      Known trap: **HRA000071's blood controls and tumor samples belong to different individuals**
      (572 samples 1:1 to 572 individuals) — usable for tumor/normal grouping (`resolve_sample_roles`
@@ -627,9 +674,9 @@ question does name STAR, but only as one of seven stages, and the sentence as a 
 **The default cohort when none is named is a hard rule too**: all ten bulk10 pipelines default to
 `HRA003107`, the only cohort every one of them has run on. Do not re-pick by "largest sample count" —
 that is how runs landed on `HRA001272` (19 times) and `HRA006117`, and no bulk10 pipeline has ever run
-on `HRA001272`, so `validate_plan` rejects it outright. Non-bulk10 pipelines pick from the cohort table
-in §8.2; either way, note in `match_note` that the user named no cohort and X was chosen as the proven
-default.
+on `HRA001272`, so `validate_plan` rejects it outright. Non-bulk10 pipelines pick from their own row of
+the §3.2 proven-run whitelist (cohort inventory: §12.2); either way, note in `match_note` that the
+user named no cohort and X was chosen as the proven default.
 
 Where tool properties are looked up (they go into `answer`; **they do not excuse dropping rank-1**):
 
@@ -705,6 +752,10 @@ breakdown shows `bulk_RNA` runs whose only semantic formats are `RAW_PAIRED_END_
 prompted this rule, and it is the *only* way to do a lung-cancer expression analysis in this graph:
 the other lung cohort, `HRA005191`, has 18 `TABULAR_BIO_DATA` files but they are scRNA annotation
 outputs (`Cell_Type.tsv`, `FinalAnno_*.csv`), not a bulk matrix.
+**Whitelist check still applies to every chain step** (§3.2): `trim_galore` and `star` have no proven
+run on `HRA016026`, so this derivation chain is blocked there by `validate_execution_chain` until the
+whitelist says otherwise — when that happens, say the chain is derivable-but-unproven and name it in
+`match_note`, rather than discovering the rejection at submission time.
 
 **Assets: supply the primary datum only.** The primary datum is the pipeline's core input — the
 expression matrix, the MAF, or the FASTQ pair. `hydrate_plan` completes the rest deterministically:
@@ -1018,7 +1069,9 @@ get confused in practice:
   request meant `HRA003107`, yet the bulk10 siblings were chosen three times and were wrong each time.
   Default a cohort-less DE request to `diff_expr_go` / `diff_expr_kegg`, split by which enrichment
   word the question uses — GO → `diff_expr_go`; KEGG / Reactome / pathway → `diff_expr_kegg`; neither
-  named → `diff_expr_go`.
+  named → `diff_expr_go`. Both are still gated by the §3.2 whitelist (seven RNA cohorts:
+  `HRA000073`/`000074`/`000122`/`002693`/`003107`/`006117`/`007167`) — a DE request naming a cohort
+  outside that list gets the whitelist answer, not a silent swap.
 - `survival_analysis` stratifies by a **named gene's mutation status** (MAF) and `tmb_survival_analysis`
   by **TMB median**. Grouping by a gene's **expression level** is `her2_pfs_survival` — it is the
   default for that whole shape, whatever the gene (HER2/ERBB2 is only its default, not its scope).
@@ -1028,10 +1081,11 @@ get confused in practice:
   `HRA006117`) — and only those.
 - `rnaseq_unsupervised_cluster` is the end-to-end chain from counts; `preprocess_counts`,
   `hvg_pca_gmm` and `bootstrap_stability` are single steps carved out of it and take logCPM.
-- `wgcna` is the full co-expression chain and the default for a co-expression / hub-gene request on any
-  cohort other than `HRA003107` / `HRA007167`. On those two, prefer the bulk10 pair: `wgcna_hub` for
+- `wgcna` is the full co-expression chain, and its proven-run whitelist is **`HRA000073` and
+  `HRA000074` only** (§3.2). On `HRA003107` / `HRA007167`, prefer the bulk10 pair: `wgcna_hub` for
   hub-gene output, `wgcna_module_trait` for module↔trait association — both parse grouping from CNCB
-  metadata with no clinical table to bind.
+  metadata with no clinical table to bind. On any other cohort, a co-expression request is a
+  whitelist miss: say which cohorts do support it and offer one of them (§3.2).
 
 | tool | function | modal | inputs | outputs |
 |---|---|---|---|---|
@@ -1048,8 +1102,8 @@ get confused in practice:
 | `de_enrichment` | 本流程整合 CNCB 元数据，执行差异表达分析并生成富集分析结果。支持自动样本分组、生存分析关联，输出火山图、热图及富集分析可视化。适用于具有临床元数据的 bulk RNA-seq 数据。 **HRA003107 only — pick only when the question names that cohort; a cohort-less DE request goes to `diff_expr_go`/`diff_expr_kegg`.** | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) + case/control labels | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `deg_enrichment` | 本流程整合表达矩阵、样本元数据和临床信息，执行差异表达分析并生成火山图、热图及功能富集分析结果。 支持自动分组识别、生存分析关联，适用于批量 RNA-seq 数据的标准化差异表达与富集分析场景。 **HRA003107 only — same rule as `de_enrichment`: no cohort named, do not pick it.** | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) + case/control labels | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `deg_trend` | 本流程用于差异表达基因(DEG)的趋势分析与可视化。输入基因表达矩阵、样本元数据和临床信息，自动完成样本分组、差异分析，并生成火山图、热图、箱线图和趋势图等多种可视化结果。适用于批量 RNA-seq 数据的临床关联分析场景。 | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) + case/control labels | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
-| `diff_expr_go` | 基于表达矩阵进行差异基因分析（limma）并针对上下调基因分别进行 GO 功能富集（clusterProfiler）。 适用于 FPKM/TPM 定量数据的两组比较场景，输出差异基因列表及 GO 富集结果表。 **No cohort restriction — the default for a generic DE/enrichment request; pick it when the question says GO, or says nothing about the enrichment target.** | bulk_RNA | TABULAR_BIO_DATA | TABULAR_BIO_DATA |
-| `diff_expr_kegg` | 基于 limma 包进行两组样本差异表达分析，并使用 ReactomePA 对上下调基因进行通路富集。 适用于人类基因表达矩阵（FPKM/TPM），输出差异基因列表及富集结果。 **No cohort restriction — pick it when the question says KEGG / Reactome / pathway.** | bulk_RNA | TABULAR_BIO_DATA | TABULAR_BIO_DATA |
+| `diff_expr_go` | 基于表达矩阵进行差异基因分析（limma）并针对上下调基因分别进行 GO 功能富集（clusterProfiler）。 适用于 FPKM/TPM 定量数据的两组比较场景，输出差异基因列表及 GO 富集结果表。 **通用「差异表达/富集」请求的默认选项（问句出现 GO 选这条）；实跑白名单见 §3.2——只在 `HRA000073`/`000074`/`000122`/`002693`/`003107`/`006117`/`007167 放行** | bulk_RNA | TABULAR_BIO_DATA | TABULAR_BIO_DATA |
+| `diff_expr_kegg` | 基于 limma 包进行两组样本差异表达分析，并使用 ReactomePA 对上下调基因进行通路富集。 适用于人类基因表达矩阵（FPKM/TPM），输出差异基因列表及富集结果。 **问句出现 KEGG / Reactome / 通路选这条；实跑白名单同 `diff_expr_go`（§3.2）** | bulk_RNA | TABULAR_BIO_DATA | TABULAR_BIO_DATA |
 | `driver_gene_gender_analysis` | 该流程基于 WES MAF 文件、临床表和 MetaInfo 表，对驱动基因的突变频率进行性别分层分析。 通过卡方检验比较男性和女性样本中每个驱动基因的突变率，并输出统计结果表、诊断表及多种可视化图表（分组柱状图、瀑布图、热图、火山图）。 | Clinical,WES | INDIVIDUAL_META,SAMPLE_META,T1_META,MUTATION_ANNOTATION_FORMAT_MAF | TABULAR_BIO_DATA,VISUALIZATION_RESULT,MUTATION_ANNOTATION_FORMAT_MAF |
 | `fastp` | 对双端测序FASTQ文件进行质量过滤、接头修剪和质控报告生成。输入为样本ID和双端FASTQ文件，输出为修剪后的FASTQ文件以及HTML和JSON格式的质控报告。适用于WES等双端测序数据的预处理步骤。 | WES | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | QC_STATS_REPORT,RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ |
 | `fastqc` | 对输入的 FASTQ 文件进行质量评估，生成 HTML 和 ZIP 格式的 FastQC 报告。 适用于 WES、WGS、RNA-seq 和单细胞测序等多种测序数据类型，可接收原始或修剪后的 FASTQ 文件。 | bulk_RNA,sc-RNA,WES,WGS | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | QC_STATS_REPORT |

@@ -1842,9 +1842,11 @@ def _failed_run(gid, acc):
 load_failed_runs()
 
 # 实跑成功白名单（skill/references/succeeded_runs.tsv）：与黑名单互为正面。
-# 口径是「**只推实跑验证过的**」：凡是有成功记录的工具（driver/her2/survival/tmb/wgcna），
-# 只放行表内的「流程 × 队列」——validate_plan 判违规（模型修正轮改荐表内队列）、
-# validate_execution_chain 判不可提交。没有任何成功记录的工具不受此约束（不添乱）。
+# 口径是「**只推实跑验证过的**」：凡是有成功记录的工具（2026-09 运行测试表回流，
+# 49 个工具 233 条组合，pipeline 与原子工具都有），只放行表内的「流程/工具 × 队列」——
+# validate_plan 判违规（模型修正轮改荐表内队列）、validate_execution_chain 判不可提交。
+# 没有任何成功记录的工具不受此约束（不添乱）。bulk10 十条另受 bulk10_proven_runs.tsv
+# 一道同口径闸门，两表组合保持一致。
 _SUCCEEDED_RUNS: dict = {}     # tool_id -> {study: cromwell_id}
 
 
