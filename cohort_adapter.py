@@ -830,6 +830,34 @@ def to_cohort_v2(plan, query, top_k=3):
                   if not any(m.get("reason") == "proven_run_blocked"
                              for m in (c.get("execution_params_missing") or []))]
 
+    # 差异表达类 rank1 的演示友好候选：「某基因升高还是降低」除 diff_expr_go/kegg 外，
+    # 同队列的单基因箱线图也是最直观的答案形态。队列落在 gene_boxplot 的实跑白名单内时，
+    # 把它插到差异表达候选**前面**（bulk10 口径锁定 counts 矩阵，路径按 §3.1 定拼）。
+    if candidates and not any(c.get("pipeline_id") == "gene_boxplot" for c in candidates):
+        _de_i = next((i for i, c in enumerate(candidates)
+                      if c.get("pipeline_id") in ("diff_expr_go", "diff_expr_kegg")), None)
+        _de_acc = (candidates[_de_i].get("study_accession") if _de_i is not None else None)
+        if _de_i is not None and _de_acc:
+            _fn = f"{_de_acc}-Genes-counts-1.0.tsv"
+            try:
+                _fp = str((srv._asset_facts([_fn], _de_acc).get(_fn) or {})
+                          .get("file_path") or "")
+            except Exception:
+                _fp = ""
+            if _fp.startswith("/"):
+                _box = _mk_filler(srv, "gene_boxplot", [
+                    {"asset_id": "asset-boxplot-1", "file_name": _fn, "path": _fp,
+                     "file_path": _fp, "artifact_type": "tsv",
+                     "semantic_format": "TABULAR_BIO_DATA", "study_accession": _de_acc,
+                     "sample_accession": None, "run_accession": None,
+                     "match_reason": "同队列表达矩阵可跑单基因箱线图（bulk10 口径锁定 counts）",
+                     "_fmt": "tsv"}], _de_i + 1)
+                # 只在真可跑时插入（白名单/绑定/路径任一不过就不塞演示候选）
+                if _box.get("feasibility_status") == "ready":
+                    candidates.insert(_de_i, _box)
+                    for _i, _c in enumerate(candidates, 1):
+                        _c["rank"] = _i
+
     # candidates 的上限**不跟 top_k 走**。top_k 限的是推荐条数（light 严格 top-1，
     # 实际就 1 条），而 candidates 是「同一个请求的另几种拆法」——一站式流程 + 原子链。
     # 两者共用一个上限时，调用方传 top_k=1 会把原子链整条截掉，rank2/rank3 凭空消失。
