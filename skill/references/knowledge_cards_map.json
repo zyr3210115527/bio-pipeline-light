@@ -1452,6 +1452,30 @@
         "type": "Array[File]+",
         "format": "BAM",
         "required": true
+      },
+      {
+        "name": "analysis_ready_bais",
+        "type": "Array[File]+",
+        "format": "BAI",
+        "required": true
+      },
+      {
+        "name": "sample_metadata",
+        "type": "File",
+        "format": "CSV",
+        "required": true
+      },
+      {
+        "name": "clinical_metadata",
+        "type": "File",
+        "format": "CSV",
+        "required": true
+      },
+      {
+        "name": "run_group_report",
+        "type": "Boolean",
+        "format": null,
+        "required": false
       }
     ],
     "outputs": [
@@ -2232,6 +2256,18 @@
         "format": "FAI",
         "required": true,
         "reference_resource": true
+      },
+      {
+        "name": "normal_bam",
+        "type": "File",
+        "format": "BAM",
+        "required": false
+      },
+      {
+        "name": "normal_bai",
+        "type": "File",
+        "format": "BAI",
+        "required": false
       }
     ],
     "outputs": [
@@ -3468,6 +3504,30 @@
         "name": "sample_manifest",
         "type": "File",
         "format": "CSV",
+        "required": true
+      },
+      {
+        "name": "somatic_small_variant_vcfs",
+        "type": "Array[File]+",
+        "format": "VCF",
+        "required": true
+      },
+      {
+        "name": "tumor_bams",
+        "type": "Array[File]+",
+        "format": "BAM",
+        "required": true
+      },
+      {
+        "name": "tumor_bam_indexes",
+        "type": "Array[File]+",
+        "format": "BAI",
+        "required": true
+      },
+      {
+        "name": "allele_specific_cnv_files",
+        "type": "Array[File]+",
+        "format": "TSV",
         "required": true
       }
     ],

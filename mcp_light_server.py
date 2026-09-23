@@ -683,9 +683,9 @@ def tool_validate_execution_chain(args):
                    and not _is_reference_resource(card, i["name"])
                    and i["name"] not in _clin_names
                    and i["name"] not in _ID_RESOLVABLE
-                   # 角色数组槽（tumor/normal_bams/bais）由服务端按队列同个体配对补齐
-                   # （见执行参数阶段的 _paired_bam_fill），不算调用方欠的
-                   and not _role_array_slot(i["name"], i.get("type"), i.get("format"))]
+                   # 队列级数组槽（cnvkit 角色槽/germline analysis_ready_*/肿瘤演化数组）
+                   # 由服务端按队列补齐（见执行参数阶段 _cohort_fill_entries），不算调用方欠的
+                   and not _cohort_fillable_slot(gid, i["name"], i.get("type"), i.get("format"))]
         if missing:
             errors.append(f"{card['meta_id']} 缺必填输入: {missing}")
         # 二选一约束：卡片 interface.validators 里的 one_of，每组至少绑一个。
@@ -820,6 +820,56 @@ def tool_validate_execution_chain(args):
         bindings = s.get("inputs") or {}
         tool_key = card["meta_id"] if card else given
         _clin = _needs_clinical(gid) if card else {}
+        # 队列号先定（下面的角色数组补全要用）：从已绑资产反查（图内文件名与路径里都带
+        # HRA######），恰好一个才认；零个说明队列还没定，多个说明这一步混了队列。
+        _accs0 = set()
+        for _b in bindings.values():
+            _accs0 |= set(_HRA.findall(json.dumps(_b, ensure_ascii=False)))
+        _study = cohort or (next(iter(_accs0)) if len(_accs0) == 1 else None)
+        # 队列级数组槽的服务端补全（三族：cnvkit 配对角色槽 / gatk_germline 的
+        # analysis_ready_* / tumor_evolution 的三证数组——见 _cohort_fill_entries）：
+        # 这些槽是队列语义，调用方只给代表性文件时缺的由服务端补齐。已绑的槽不动：
+        # 补全集按已绑 run 过滤，保证各数组按对/按 run 平行（48 个 id 配 1 个 BAM
+        # 会被执行端 Validate 拒，2026-09 实踩）。
+        _fill_slots = [i["name"] for i in (card["inputs"] if card else [])
+                       if _cohort_fillable_slot(gid, i.get("name"), i.get("type"), i.get("format"))]
+        if _fill_slots and _study and any(not bindings.get(_n) for _n in _fill_slots):
+            _slot_l = {str(_n).lower() for _n in _fill_slots}
+            _bound_runs = {m.group(0) for _pn, _fns in _bound_file_names(bindings).items()
+                           if str(_pn).lower() in _slot_l
+                           for _f in _fns
+                           for m in [re.search(r"HRR\d+|HRS\d+", str(_f))] if m}
+            _entries = _cohort_fill_entries(gid, _study, _bound_runs)
+            for _pn in _fill_slots:
+                if bindings.get(_pn):
+                    continue
+                _vals = [{"file_path": _p, "file_name": _p.rsplit("/", 1)[-1]}
+                         for _, _p in _entries.get(str(_pn).lower(), [])]
+                if _vals:
+                    bindings[_pn] = _vals
+                    warnings.append(f"{tool_key}.{_pn}: 调用方未绑，服务端按队列 {_study} "
+                                    f"补齐 {len(_vals)} 项（与同族槽位平行）")
+        # 标量角色槽（tumor_bam/normal_bam 单对 File，manta/gatk 的契约）：配对的另一侧
+        # 没绑时按同个体补上（manta 卡片把 normal 标可选=肿瘤单样本模式能跑，但图里有
+        # 配对就补上，配对分析才是完整答案）。什么都没绑时四个槽一起落第一对。
+        _scalar_role = [i["name"] for i in (card["inputs"] if card else [])
+                        if re.fullmatch(r"(tumor|normal)_(bam|bai)", str(i.get("name") or "").lower())
+                        and not _is_array_type(str(i.get("type") or ""))]
+        if _scalar_role and _study and any(not bindings.get(_n) for _n in _scalar_role):
+            _first, _by_run = _paired_scalar_fill(_study)
+            if _first:
+                _any_run = next((m.group(0)
+                                 for _fns in _bound_file_names(bindings).values()
+                                 for _f in _fns
+                                 for m in [re.search(r"HRR\d+|HRS\d+", str(_f))] if m), None)
+                _src = _by_run.get(_any_run) or _first
+                for _sn in _scalar_role:
+                    if not bindings.get(_sn) and _src.get(_sn):
+                        _p = _src[_sn]
+                        bindings[_sn] = {"file_path": _p, "file_name": _p.rsplit("/", 1)[-1]}
+                        warnings.append(f"{tool_key}.{_sn}: 服务端按队列 {_study} 的同个体配对补齐")
+        # wanted 必须在补全之后构造：服务端补上的可选槽（如 manta normal_bam）要在列，
+        # 不然补了 bindings 却不解析进 params——补了等于没补（manta 实踩）。
         if card:
             # 判据是「必需的 **或** 用户绑了的」，不是「必需的」：可选的 File? 被用户明确绑上
             # 却丢掉，执行端 `is_paired = defined(read2)` 就变 false，**双端数据静默按单端跑完，
@@ -838,39 +888,6 @@ def tool_validate_execution_chain(args):
         else:   # pipeline 级无卡：有对象/对象数组 binding 的输入都当 File 处理
             wanted = [(k, isinstance(v, list)) for k, v in bindings.items()
                       if isinstance(v, (dict, list))]
-        # 队列号先定（下面的角色数组补全要用）：从已绑资产反查（图内文件名与路径里都带
-        # HRA######），恰好一个才认；零个说明队列还没定，多个说明这一步混了队列。
-        _accs0 = set()
-        for _b in bindings.values():
-            _accs0 |= set(_HRA.findall(json.dumps(_b, ensure_ascii=False)))
-        _study = cohort or (next(iter(_accs0)) if len(_accs0) == 1 else None)
-        # 队列级配对流程的角色数组槽补全（cnvkit 的 tumor/normal_bams/bais）：数组槽是
-        # 队列语义，调用方只给代表性文件时缺的一侧由服务端按同个体配对补齐
-        # （见 _paired_bam_fill  docstring）。已绑的一侧不动：补全集合按已绑 run 过滤，
-        # 保证两侧数组按对平行；一侧都没绑才按队列全量配对（前 _RUN_LIST_CAP 对）。
-        _role_slots = [i["name"] for i in (card["inputs"] if card else [])
-                       if _role_array_slot(i.get("name"), i.get("type"), i.get("format"))]
-        if _role_slots and _study and any(not bindings.get(_n) for _n in _role_slots):
-            _fill = _paired_bam_fill(_study)
-            if _fill:
-                _bound_runs = set()
-                for _pn, _fns in _bound_file_names(bindings).items():
-                    if _pn in _role_slots:
-                        _bound_runs |= {m.group(0) for _f in _fns
-                                        for m in [re.search(r"HRR\d+", str(_f))] if m}
-                _keep = [(_t, _n) for _t, _n in _fill["pair_runs"]
-                         if not _bound_runs or _t in _bound_runs or _n in _bound_runs]
-                _fill_idx = {pr: j for j, pr in enumerate(_fill["pair_runs"])}
-                for _pn in _role_slots:
-                    if bindings.get(_pn) or not _keep:
-                        continue
-                    _vals = [{"file_path": _fill[_pn][_fill_idx[pr]],
-                              "file_name": _fill[_pn][_fill_idx[pr]].rsplit("/", 1)[-1]}
-                             for pr in _keep]
-                    if _vals:
-                        bindings[_pn] = _vals
-                        warnings.append(f"{tool_key}.{_pn}: 调用方未绑，服务端按队列 {_study} "
-                                        f"的同个体配对补齐 {len(_vals)} 项（与对侧数组平行）")
         params = {}
         for name, is_arr in wanted:
             val = _resolve(bindings.get(name), is_arr)
@@ -1479,7 +1496,11 @@ def _paired_bam_fill(study, cap=0):
 
     返回 {"tumor_bams"/"tumor_bais"/"normal_bams"/"normal_bais": [路径…]（四数组按对平行，
     tumor_bams[i] 与 normal_bams[i] 同个体）, "sample_ids": [各对肿瘤 run…],
-    "pair_runs": [(t_run, n_run)…]}；配不出对返回 None。cap<=0 时用 _RUN_LIST_CAP。"""
+    "pair_runs": [(t_run, n_run)…]}；配不出对返回 None。
+
+    cap>0 才截断，默认全量。截断必须发生在「按调用方已绑 run 过滤」之后（统一在
+    _cohort_fill_entries 做）——先截断会把已绑 run 的配对截出界，过滤就找不到它
+    （HRR573240 排在 HRA001749 第 48 名之后实踩）。"""
     if not study or not _SAFE_TOKEN.fullmatch(str(study)):
         return None
     rows = neo4j_q([f"MATCH (t2:T2) WHERE t2.study_accession = '{study}' "
@@ -1518,8 +1539,7 @@ def _paired_bam_fill(study, cap=0):
             pairs.append((sorted(d["tumor"])[0], sorted(d["normal"])[0]))
     if not pairs:
         return None
-    cap = cap if cap and cap > 0 else _RUN_LIST_CAP
-    if cap > 0:
+    if cap and cap > 0:
         pairs = pairs[:cap]
     return {"tumor_bams": [files[t]["DNA_ALIGNMENT_BQSR_BAM"] for t, _ in pairs],
             "tumor_bais": [files[t]["DNA_ALIGNMENT_INDEX_BAI"] for t, _ in pairs],
@@ -1534,6 +1554,165 @@ def _role_array_slot(name, typ, fmt):
     n = str(name or "").lower()
     return (_is_array_type(typ) and re.fullmatch(r"(tumor|normal)_(bams|bais)", n)
             and any(k in str(fmt or "").upper() for k in ("BAM", "BAI")))
+
+
+def _cohort_bam_fill(study, role=None, cap=0):
+    """非配对的队列级 BAM 数组补全（gatk_germline_cohort / tumor_evolution_inference 用）。
+
+    返回 {"bams": [...], "bais": [...], "runs": [...]}（按下标平行），配不出返回 None。
+    role=None 取全队列有 BQSR BAM+BAI 的 run（胚系联合分型不分肿瘤正常）；
+    role="tumor" 只取肿瘤样本的 run（肿瘤演化这类流程不吃正常样本）。"""
+    if not study or not _SAFE_TOKEN.fullmatch(str(study)):
+        return None
+    rows = neo4j_q([f"MATCH (t2:T2) WHERE t2.study_accession = '{study}' "
+                    "AND t2.semantic_format IN ['DNA_ALIGNMENT_BQSR_BAM','DNA_ALIGNMENT_INDEX_BAI'] "
+                    "AND t2.file_path IS NOT NULL "
+                    "RETURN t2.run_accession, t2.semantic_format, t2.file_path"])
+    files = {}
+    for r in (rows[0] if rows else []) or []:
+        if not r or not r[0] or not r[2]:
+            continue
+        files.setdefault(str(r[0]), {})[r[1]] = str(r[2])
+    runs = sorted(run for run, d in files.items()
+                  if "DNA_ALIGNMENT_BQSR_BAM" in d and "DNA_ALIGNMENT_INDEX_BAI" in d)
+    if not runs:
+        return None
+    if role in ("tumor", "normal"):
+        rl = _study_run_lists(study) or {}
+        keep = set(rl.get(role) or [])
+        runs = [r for r in runs if r in keep]
+    if not runs:
+        return None
+    if cap and cap > 0:
+        runs = runs[:cap]                     # 同 _paired_bam_fill：截断在过滤之后（入口统一做）
+    return {"bams": [files[r]["DNA_ALIGNMENT_BQSR_BAM"] for r in runs],
+            "bais": [files[r]["DNA_ALIGNMENT_INDEX_BAI"] for r in runs],
+            "runs": runs}
+
+
+def _tei_fill(study, cap=0):
+    """tumor_evolution_inference 的图内可补槽位（2026-09 运行测试表口径）：
+    三证齐全（BQSR BAM+BAI 且 SomaticSNV-VCF 在图）的肿瘤 run 出 tumor_bams /
+    tumor_bam_indexes / somatic_small_variant_vcfs 三个平行数组；allele_specific_cnv_files
+    补队列级 SOMATIC_CNV_TSV（全图唯一一份才补）。
+    sample_manifest 图内没有——它是 MakeManifest 辅助流程的运行产物（如
+    MakeHra001272TestManifest），不在这里补，由调用方如实报缺。
+
+    返回 {"tumor_bams": [...], "tumor_bam_indexes": [...], "somatic_small_variant_vcfs": [...],
+          "allele_specific_cnv_files": [...], "runs": [...]}；关键件缺了返回 None。"""
+    base = _cohort_bam_fill(study, role="tumor", cap=cap)
+    if not base:
+        return None
+    rows = neo4j_q([f"MATCH (t2:T2) WHERE t2.study_accession = '{study}' "
+                    "AND t2.file_path CONTAINS '/SomaticSNV-VCF' "
+                    "AND (t2.file_name ENDS WITH '.vcf' OR t2.file_name ENDS WITH '.vcf.gz') "
+                    "AND t2.file_path IS NOT NULL "
+                    "RETURN t2.run_accession, t2.file_path",
+                    f"MATCH (n) WHERE (n:T1 OR n:T2) AND n.study_accession = '{study}' "
+                    "AND n.semantic_format = 'SOMATIC_CNV_TSV' AND n.file_path IS NOT NULL "
+                    "RETURN DISTINCT n.file_path"])
+    vcfs = {}
+    for r in (rows[0] if rows else []) or []:
+        if not r or not r[1]:
+            continue
+        run = str(r[0] or "") or next((m.group(0) for m in
+                                       [re.search(r"(HRR\d+|HRS\d+)", str(r[1]))] if m), "")
+        if run:
+            vcfs.setdefault(run, str(r[1]))
+    keep = [r for r in base["runs"] if r in vcfs]
+    if not keep:
+        return None
+    idx = [base["runs"].index(r) for r in keep]
+    cnv = [str(r[0]) for r in (rows[1] if len(rows) > 1 else []) or [] if r and r[0]]
+    return {"runs": keep,
+            "tumor_bams": [base["bams"][i] for i in idx],
+            "tumor_bam_indexes": [base["bais"][i] for i in idx],
+            "somatic_small_variant_vcfs": [vcfs[r] for r in keep],
+            "allele_specific_cnv_files": cnv[:1]}
+
+
+# 队列级数组槽的三族补全口径（槽位名 → fill 返回里的键）：
+# 配对角色槽走 _paired_bam_fill（同个体）；这两族走 _cohort_bam_fill / _tei_fill。
+_GERMLINE_FILL = {"analysis_ready_bams": "bams", "analysis_ready_bais": "bais"}
+_TEI_FILL_SLOTS = {"tumor_bams": "tumor_bams", "tumor_bam_indexes": "tumor_bam_indexes",
+                   "somatic_small_variant_vcfs": "somatic_small_variant_vcfs",
+                   "allele_specific_cnv_files": "allele_specific_cnv_files"}
+# 槽位表是按工具分的——直接拿 gid 查平铺表永远查不中（实踩）
+_GID_FILL = {"gatk_germline_cohort": _GERMLINE_FILL,
+             "tumor_evolution_inference": _TEI_FILL_SLOTS}
+
+
+def _cohort_fillable_slot(gid, name, typ, fmt):
+    """该槽位是不是「队列语义、可由服务端补全」的数组槽（三族任一）。"""
+    if _role_array_slot(name, typ, fmt):
+        return True
+    if not _is_array_type(typ):
+        return False
+    return str(name or "").lower() in (_GID_FILL.get(gid) or {})
+
+
+def _cohort_fill_entries(gid, study, bound_runs, cap=0):
+    """{槽位名: [(frozenset(run…), 绝对路径)…]}：队列级数组槽的确定性补全。
+
+    `bound_runs` 是调用方已绑的同族槽位里的 run 号：非空时按它过滤补全集，
+    保证两侧数组按对/按 run 平行（教训：48 个 sample_ids 配 1 个 BAM 必炸
+    ValidateCnvInputs）。entry 的 run 集为空（队列级文件）时不受过滤影响。"""
+    out = {}
+    if not study or not _SAFE_TOKEN.fullmatch(str(study)):
+        return out
+    card = KC_MAP.get(gid) or {}
+
+    def _keep(es):
+        # 先按已绑 run 过滤（平行性），再截断（顺序不能反，见 _paired_bam_fill docstring）
+        kept = [e for e in es if not bound_runs or not e[0] or (e[0] & bound_runs)]
+        return kept[:_RUN_LIST_CAP] if _RUN_LIST_CAP > 0 else kept
+
+    if any(_role_array_slot(i.get("name"), i.get("type"), i.get("format"))
+           for i in card.get("inputs") or []):
+        pf = _paired_bam_fill(study, cap=cap)
+        if pf:
+            for slot in ("tumor_bams", "tumor_bais", "normal_bams", "normal_bais"):
+                out[slot] = _keep([(frozenset(pr), p)
+                                   for pr, p in zip(pf["pair_runs"], pf[slot])])
+    if gid == "gatk_germline_cohort":
+        cf = _cohort_bam_fill(study, cap=cap)
+        if cf:
+            for slot, key in _GERMLINE_FILL.items():
+                out[slot] = _keep([(frozenset({r}), p)
+                                   for r, p in zip(cf["runs"], cf[key])])
+    if gid == "tumor_evolution_inference":
+        tf = _tei_fill(study, cap=cap)
+        if tf:
+            for slot, key in _TEI_FILL_SLOTS.items():
+                vals = tf.get(key)
+                if not vals:
+                    continue
+                if slot == "allele_specific_cnv_files":
+                    out[slot] = [(frozenset(), p) for p in vals]
+                else:
+                    out[slot] = _keep([(frozenset({r}), p)
+                                       for r, p in zip(tf["runs"], vals)])
+    return out
+
+
+def _paired_scalar_fill(study):
+    """标量角色槽（tumor_bam/normal_bam 这种单对 File，manta/gatk 的契约）的配对补全：
+    返回 {(槽位名): (run, 路径)} 的第一对，以及按 run 索引全对的映射。
+    manta 的 normal_bam/normal_bai 卡片标可选（肿瘤单样本模式能跑），但图里有配对就补上——
+    配对分析才是完整答案。配不出返回 ({}, {})。"""
+    pf = _paired_bam_fill(study) if study else None
+    if not pf:
+        return {}, {}
+    first = {}
+    by_run = {}
+    for j, (t, n) in enumerate(pf["pair_runs"]):
+        m = {"tumor_bam": pf["tumor_bams"][j], "tumor_bai": pf["tumor_bais"][j],
+             "normal_bam": pf["normal_bams"][j], "normal_bai": pf["normal_bais"][j]}
+        if j == 0:
+            first = m
+        by_run[t] = m
+        by_run[n] = m
+    return first, by_run
 
 
 def _patient_key(t_name, n_name):
@@ -1644,11 +1823,12 @@ def _resolve_id_params(gid, card, bound_files, study, chain_facts=None):
             v = next((m.group(1) for fn in names
                       for m in [_FLAVOR_PAT.search(str(fn))] if m), None)
         elif name in _ID_ARRAY_GROUP or name in _ID_ARRAY_ALL:
-            # 配对数组流程（卡片带 tumor_bams 槽，如 cnvkit）：sample_ids 必须与已绑的
-            # 肿瘤 BAM 数组按对平行（交付样例口径：sample_ids[i] 就是 tumor_bams[i] 的 run），
-            # 不能取整队列——数组长度对不上执行端就错位。
+            # 配对/队列数组流程（卡片带 tumor_bams 槽的 cnvkit、带 analysis_ready_bams 的
+            # gatk_germline_cohort）：sample_ids 必须与已绑的 BAM 数组按位平行（交付样例口径：
+            # sample_ids[i] 就是数组第 i 项的 run），不能取整队列——长度对不上执行端就拒
+            # （ValidateCnvInputs 实踩）。
             _tb = next((fns for pn, fns in bound_files.items()
-                        if str(pn).lower() == "tumor_bams" and fns), None)
+                        if str(pn).lower() in ("tumor_bams", "analysis_ready_bams") and fns), None)
             if name in _ID_ARRAY_ALL and _tb:
                 v = [r for r in ((facts.get(fn) or {}).get("run_accession") for fn in _tb)
                      if r]
@@ -1851,7 +2031,11 @@ _CLINICAL_PARAM_FMT = {"clinical_xls": "CLINICAL_DATA_EXCEL", "clinical_file": "
 # 换完变三条，因为槽位名从 `_CLINICAL_PARAM_FMT` 里查不到，`_needs_clinical` 直接返回空。
 _CSV_META_PARAM_FMT = {"individual_csv": "INDIVIDUAL_META",
                        "sample_csv": "SAMPLE_META",
-                       "t1_csv": "T1_META"}
+                       "t1_csv": "T1_META",
+                       # gatk_germline_cohort 的交付口径（运行测试表）：同一套 CNCB 原生 CSV，
+                       # 只是槽位名不同——sample_metadata=sample.csv、clinical_metadata=individual.csv
+                       "sample_metadata": "SAMPLE_META",
+                       "clinical_metadata": "INDIVIDUAL_META"}
 
 def _needs_clinical(gid):
     """该流程按卡片声明需要哪几个「由服务端按队列补」的元数据参数：{参数名: 语义格式}。

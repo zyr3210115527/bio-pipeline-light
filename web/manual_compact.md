@@ -235,7 +235,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `fastqc` | 对输入的 FASTQ 文件进行质量评估，生成 HTM | bulk_RNA,sc-RNA,WES,WGS | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
 | `featurecounts` | 该流程使用 featureCounts 工具对 RN | bulk_RNA | DNA_GENOMIC_ALIGNMENT_BAM |
 | `gatk` | 基于 GATK 最佳实践的全外显子组（WES）肿瘤- | WES | DNA_ALIGNMENT_INDEX_BAI,REFERENCE_GENOME_FASTA,TARGET_INTERVAL_LIST,DNA_GENOMIC_ALIGNMENT_BAM |
-| `gatk_germline_cohort` | **队列级胚系**变异检测（HaplotypeCaller→GenomicsDB→联合分型→VQSR）。与 `gatk`（原子、走 Mutect2 **体细胞**）分工不同：**要胚系、要队列联合分型**就用它；单病人配对体细胞走 `wes_somatic_pair`。 | WGS,WES,Clinical | DNA_GENOMIC_ALIGNMENT_BAM,TARGET_INTERVAL_LIST,REFERENCE_GENOME_FASTA |
+| `gatk_germline_cohort` | **队列级胚系**变异检测（HaplotypeCaller→GenomicsDB→联合分型→VQSR）。与 `gatk`（原子、走 Mutect2 **体细胞**）分工不同：**要胚系、要队列联合分型**就用它；单病人配对体细胞走 `wes_somatic_pair`。`analysis_ready_bams`/`bais`/`sample_metadata`/`clinical_metadata` 由服务端按队列补齐（只给代表性 BAM 即可），`sample_ids` 与 BAM 数组按位平行 | WGS,WES,Clinical | DNA_GENOMIC_ALIGNMENT_BAM,TARGET_INTERVAL_LIST,REFERENCE_GENOME_FASTA |
 | `gene_boxplot` | **bulk10**：基因表达**箱线图**可视化；**仅 HRA003107** | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填）＋case/control 标签 |
 | `gsea_pathway_enrichment` | **不先筛差异基因**，全基因排序做预排序 GSEA（fgsea） | bulk_RNA | TABULAR_BIO_DATA |
 | `her2_pfs_survival` | 按**基因表达高低分组**做生存/PFS 的**默认流程**（基因不限 HER2/ERBB2，问句点名任何基因都算）；要 TPM+临床+元信息。问 **OS/多因素 Cox** 且队列在 §3.1 七队列内 → 改 km_survival / cox_model | Clinical,bulk_RNA | INDIVIDUAL_META,SAMPLE_META,T1_META,TABULAR_BIO_DATA |
@@ -245,7 +245,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `ipf_trajectory_regulon` | 对特发性肺纤维化(IPF)单细胞RNA-seq数据进 | bulk_RNA,sc-RNA | SCRNA_OBJECT_RDS,METADATA_SAMPLE_INFO,REFERENCE_GENOME_FASTA |
 | `km_survival` | **bulk10**：Kaplan-Meier 总生存（OS），生存数据直接读 individual.csv；仅 HRA003107/000073/000074/002693/006117 | bulk_RNA,Clinical | TABULAR_BIO_DATA（counts，唯一必填） |
 | `lung_tme_annotation_cnv` | 基于单细胞RNA-seq数据对肺癌肿瘤微环境进行细胞 | sc-RNA | SCRNA_OBJECT_RDS,TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA |
-| `manta_structural_variants` | **结构变异**检测（大片段缺失/重复/倒位/易位），闭集内唯一一条。SNV/InDel 不归它管。 | WGS,WES | DNA_GENOMIC_ALIGNMENT_BAM,REFERENCE_GENOME_FASTA |
+| `manta_structural_variants` | **结构变异**检测（大片段缺失/重复/倒位/易位），闭集内唯一一条。SNV/InDel 不归它管。`normal_bam`/`normal_bai` 可选（肿瘤单样本模式）；队列有同个体配对时服务端自动补上配对两侧 | WGS,WES | DNA_GENOMIC_ALIGNMENT_BAM,REFERENCE_GENOME_FASTA |
 | `multiqc` | 接收任意数量的上游质控文件（如 FastQC、fas | bulk_RNA,WES,WGS | - |
 | `paired_fastq_to_unmapped_bam` | 将双端 FASTQ 测序数据转换为未比对的 BAM  | WES | RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM |
 | `preprocess_counts` | 上面整链拆出的**单步**：counts→QC→过滤→logCPM | bulk_RNA | TABULAR_BIO_DATA |
@@ -263,7 +263,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `tcell_intervention` | 该流程用于对单细胞RNA-seq数据进行T细胞干预前 | bulk_RNA,sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,METADATA_SAMPLE_INFO,SCRNA_OBJECT_RDS |
 | `tmb_survival_analysis` | 按 **TMB 中位数**分高低组做 KM 生存（先从 MAF 算病人级 TMB） | WES,Clinical | MUTATION_ANNOTATION_FORMAT_MAF,INDIVIDUAL_META,SAMPLE_META,T1_META
 | `trim_galore` | 基于 Trim Galore 工具的 FASTQ 文 | bulk_RNA | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
-| `tumor_evolution_inference` | **肿瘤演化与克隆推断**，闭集内唯一一条。推的是克隆谱系，**不是因果机制**——问因果仍按 §7 拒绝纪律，别拿它顶。 | sc-RNA,WGS,RNA | DNA_GENOMIC_ALIGNMENT_BAM,TABULAR_BIO_DATA,DNA_VARIANT_VCF_GENERAL |
+| `tumor_evolution_inference` | **肿瘤演化与克隆推断**，闭集内唯一一条。推的是克隆谱系，**不是因果机制**——问因果仍按 §7 拒绝纪律，别拿它顶。`tumor_bams`/`tumor_bam_indexes`/`somatic_small_variant_vcfs`/`allele_specific_cnv_files` 由服务端按队列补齐；**`sample_manifest` 图内没有**（它是 MakeManifest 辅助流程的运行产物），如实报缺 | sc-RNA,WGS,RNA | DNA_GENOMIC_ALIGNMENT_BAM,TABULAR_BIO_DATA,DNA_VARIANT_VCF_GENERAL |
 | `umap` | **bulk10**：表达矩阵 **UMAP** 降维可视化；七个队列全可（§3.1 里唯一一条） | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填） |
 | `wes_somatic_maf_landscape` | 本流程用于全外显子测序（WES）队列的体细胞突变景观 | WES | MUTATION_ANNOTATION_FORMAT_MAF |
 | `wes_somatic_pair` | 用于单个病人配对 tumor-normal WES  | WGS,WES | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
