@@ -69,79 +69,79 @@
         "name": "bootstrap_n",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "retain_fraction",
         "type": "Float",
         "format": "TSV",
-        "required": true
+        "required": false
       },
       {
         "name": "hvg_n",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "pca_n",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "k_min",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "k_max",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "loess_span",
         "type": "Float",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "seed",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "perm_n",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "ari_high_threshold",
         "type": "Float",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "nmi_high_threshold",
         "type": "Float",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "cpu",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "memory",
         "type": "String",
         "format": null,
-        "required": true
+        "required": false
       }
     ],
     "outputs": [
@@ -1835,49 +1835,49 @@
         "name": "hvg_n",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "pca_n",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "k_min",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "k_max",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "loess_span",
         "type": "Float",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "seed",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "cpu",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "memory",
         "type": "String",
         "format": null,
-        "required": true
+        "required": false
       }
     ],
     "outputs": [
@@ -2463,37 +2463,37 @@
         "name": "sample_missing_threshold",
         "type": "Float",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "min_cpm",
         "type": "Float",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "min_sample_fraction",
         "type": "Float",
         "format": "TSV",
-        "required": true
+        "required": false
       },
       {
         "name": "min_samples_after_filter",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "cpu",
         "type": "Int",
         "format": null,
-        "required": true
+        "required": false
       },
       {
         "name": "memory",
         "type": "String",
         "format": null,
-        "required": true
+        "required": false
       }
     ],
     "outputs": [
@@ -3021,7 +3021,13 @@
         "name": "receiver_cell_type",
         "type": "String",
         "format": null,
-        "required": true
+        "required": false
+      },
+      {
+        "name": "hra000087_mode",
+        "type": "Boolean",
+        "format": null,
+        "required": false
       }
     ],
     "outputs": [
@@ -3109,7 +3115,7 @@
         "name": "genome",
         "type": "String",
         "format": null,
-        "required": true
+        "required": false
       }
     ],
     "outputs": [

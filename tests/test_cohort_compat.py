@@ -108,16 +108,20 @@ def test_contract_shape():
     check(bad["candidates"][0]["feasibility_status"] != "ready", "缺路径 → 非 ready",
           bad["candidates"][0]["feasibility_status"])
     check(bad["selection_status"] != "ready", "顶层状态也不是 ready", bad["selection_status"])
-    # ② 分组数组由服务端按图内角色确定性产出（tumor→group_a、normal→group_b，交付样例
-    # 实证 group_a 全是 tumor run），不再是调用方负担。但 tumor-only 队列没有对照组，
-    # 补不出来必须如实报缺、不许猜——HRA000073 图内全是肿瘤样本，group_b 天然为空。
+    # ② 分组数组由服务端确定性产出：配对队列按图内角色（tumor→group_a、normal→group_b，
+    # 交付样例实证 group_a 全是 tumor run）。单臂（全 Tumor）队列角色分不出对照组时按
+    # 性别兜底——交付实跑就是这么分的（HRA000073：group_a=female/group_b=male，图内
+    # sample.gender 有值才算数，性别也缺失的队列仍如实报缺、不许猜）。
     need = C.to_cohort_v2(_plan("diff_expr_go",
                                 ["HRA000073-Genes-FPKM-1.0.tsv"], "HRA000073"), "test", 3)
-    miss = {m["param"] for m in need["candidates"][0]["execution_params_missing"]}
-    ep_need = need["candidates"][0]["execution_params"]
-    check(need["candidates"][0]["feasibility_status"] != "ready", "缺对照组 → 非 ready")
-    check("group_b_samples" in miss, "报缺点名到具体参数", sorted(miss))
-    check(bool(ep_need.get("group_a_samples")), "tumor 组已按角色产出", sorted(miss))
+    cand_need = need["candidates"][0]
+    miss = {m["param"] for m in cand_need["execution_params_missing"]}
+    ep_need = cand_need["execution_params"]
+    ga, gb = ep_need.get("group_a_samples") or [], ep_need.get("group_b_samples") or []
+    check(cand_need["feasibility_status"] == "ready", "单臂队列性别兜底 → ready",
+          cand_need["feasibility_status"])
+    check(bool(ga) and bool(gb), "group_a/group_b 都按性别填上",
+          f"{len(ga)}/{len(gb)} missing={sorted(miss)}")
     # ③ 未注册工具
     ghost = C.to_cohort_v2({"schema_version": "tool-chain/v2", "selection_status": "ok",
                             "recommendations": [{"pipeline_id": "no_such_tool",

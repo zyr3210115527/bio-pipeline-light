@@ -868,6 +868,36 @@ def tool_validate_execution_chain(args):
                         _p = _src[_sn]
                         bindings[_sn] = {"file_path": _p, "file_name": _p.rsplit("/", 1)[-1]}
                         warnings.append(f"{tool_key}.{_sn}: 服务端按队列 {_study} 的同个体配对补齐")
+        # 随文件索引补全（BAI/TBI/FAI/CRAI）：调用方只交数据文件时，索引槽从本步已绑文件
+        # 推导候选名（X.bam.bai 追加 / X.bai 换尾两种写法都试）并在图内验真——hydrate_plan
+        # 的 ⑤ 在计划资产层做过同一件事（_INDEX_SEM），这里是提交层的对应补齐。
+        if card:
+            _all_bound = [fn for fns in _bound_file_names(bindings).values() for fn in fns]
+            for _i in card["inputs"]:
+                _n = str(_i.get("name") or "")
+                if bindings.get(_n) or not _is_file_type(_i.get("type")) \
+                        or _is_reference_resource(card, _n):
+                    continue
+                _ext = next((_e for _e, _k in ((".bai", "BAI"), (".tbi", "TBI"),
+                                               (".fai", "FAI"), (".crai", "CRAI"))
+                             if _k in str(_i.get("format") or "").upper() or _k in _n.lower()), None)
+                if not _ext or not _all_bound:
+                    continue
+                _hit = None
+                for _bf in _all_bound:
+                    for _cand in _index_names(_bf, _ext):
+                        try:
+                            _f = _asset_facts([_cand]).get(_cand) or {}
+                        except Exception:
+                            break                    # 图不通就放弃补索引，原样报缺
+                        if str(_f.get("file_path") or "").startswith("/"):
+                            _hit = _cand
+                            break
+                    if _hit:
+                        break
+                if _hit:
+                    bindings[_n] = {"file_name": _hit}
+                    warnings.append(f"{tool_key}.{_n}: 服务端补随文件索引 {_hit}")
         # wanted 必须在补全之后构造：服务端补上的可选槽（如 manta normal_bam）要在列，
         # 不然补了 bindings 却不解析进 params——补了等于没补（manta 实踩）。
         if card:
@@ -947,6 +977,8 @@ def tool_validate_execution_chain(args):
             _accs = set()
             for _b in list(bindings.values()) + list(params.values()):
                 _accs |= set(_HRA.findall(json.dumps(_b, ensure_ascii=False)))
+            if not _accs and _study:
+                _accs = {_study}      # 绑定里不含队列号（如全补全场景）时回落到调用方给的队列
             # 两族分开查图：XLSX 那对与 CSV 那组同队列各一份，但语义格式不重叠。
             # 一次查全套会把没声明的那族也捞进来，`_clinical_pair_files` 的
             # 「三张齐全的目录胜出」判据随之失真。
@@ -1546,6 +1578,14 @@ def _paired_bam_fill(study, cap=0):
         if d.get("tumor") and d.get("normal"):
             pairs.append((sorted(d["tumor"])[0], sorted(d["normal"])[0]))
     if not pairs:
+        # 同个体配不出对（HRA000071：血液对照与肿瘤不属同一个体）——退回角色组间对齐：
+        # 肿瘤组/正常组各自定序后按位成对。cnvkit 队列批处理只要求两侧等长
+        # （ValidateCnvInputs 的口径），白名单里 HRA000071 的实跑就是组间形态。
+        rl = _study_run_lists(study) or {}
+        ts = [r for r in (rl.get("tumor") or []) if r in good]
+        ns = [r for r in (rl.get("normal") or []) if r in good]
+        pairs = list(zip(ts[:min(len(ts), len(ns))], ns[:min(len(ts), len(ns))]))
+    if not pairs:
         return None
     if cap and cap > 0:
         pairs = pairs[:cap]
@@ -1723,6 +1763,34 @@ def _paired_scalar_fill(study):
     return first, by_run
 
 
+def _study_gender_lists(study, strategy=None):
+    """队列级性别分组枚举：{"female": [run…], "male": [run…]}（定序）。
+    与 _study_run_lists 同走 sample←in_sample←T1 边、同按 strategy 过滤；性别读
+    sample.gender（取值 Female/Male/female/male/missing，大小写归一，missing 丢弃）。
+    用途：diff_expr 族在单臂队列（全 Tumor，角色分不出对照）的分组兜底——
+    实跑记录就是按性别分（HRA000073：group_a=female 122 / group_b=male）。"""
+    if not study or not _SAFE_TOKEN.fullmatch(str(study)):
+        return None
+    if strategy and not _SAFE_TOKEN.fullmatch(str(strategy)):
+        strategy = None
+    q = (f"MATCH (sp:sample) WHERE sp.study_accession = '{study}' "
+         f"OPTIONAL MATCH (t:T1)-[:in_sample]->(sp)" +
+         (f" WHERE t.strategy = '{strategy}'" if strategy else "") +
+         " RETURN sp.gender, collect(DISTINCT t.run_accession)")
+    rows = neo4j_q([q])
+    out = {"female": [], "male": []}
+    for r in (rows[0] if rows else []) or []:
+        if not r or len(r) < 2:
+            continue
+        g = str(r[0] or "").strip().lower()
+        if g not in ("female", "male"):
+            continue
+        for run in (r[1] or []):
+            if run:
+                out[g].append(str(run))
+    return {k: sorted(set(v)) for k, v in out.items()}
+
+
 def _patient_key(t_name, n_name):
     """配对的患者键：剥角色前缀（T_/B_/N_/P_）后，两侧一致就用全名（T_CGGA_1251/B_CGGA_1251
     → CGGA_1251），否则取最长公共前缀截到完整 token（M019_RT1…/M019_LN1… → M019）。
@@ -1791,6 +1859,7 @@ def _resolve_id_params(gid, card, bound_files, study, chain_facts=None):
         return None
 
     run_lists = None                # 惰性：只有数组参数才做队列级枚举
+    gender_lists = None             # 惰性：单臂队列的分组兜底（性别分组）才查
     for i in inputs:
         name, typ = str(i.get("name") or ""), str(i.get("type") or "")
         if _is_file_type(typ) or _is_reference_resource(card, name):
@@ -1866,6 +1935,17 @@ def _resolve_id_params(gid, card, bound_files, study, chain_facts=None):
                         v = grp or None
                     if v and _RUN_LIST_CAP > 0:
                         v = v[:_RUN_LIST_CAP]       # 交付上限：每组取定序后的前 N 个
+                    if v is None and name in _ID_ARRAY_GROUP:
+                        # 单臂队列（全 Tumor）角色分不出对照组：按性别分组兜底——
+                        # 实跑记录就是这么分的（HRA000073 diff_expr：group_a=female/
+                        # group_b=male）。调用方显式给了的仍以调用方为准（外层跳过逻辑）。
+                        if gender_lists is None:
+                            gender_lists = _study_gender_lists(study, strategy=strat)
+                        if gender_lists:
+                            v = gender_lists[{"group_a_samples": "female",
+                                              "group_b_samples": "male"}[name]] or None
+                            if v and _RUN_LIST_CAP > 0:
+                                v = v[:_RUN_LIST_CAP]
         if v is not None and v != []:
             out[name] = v
         elif i.get("required", True) and name in _ID_RESOLVABLE and evidence:
