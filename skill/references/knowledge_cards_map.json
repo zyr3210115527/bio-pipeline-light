@@ -312,13 +312,19 @@
         "name": "fastq_file1",
         "type": "File",
         "format": "FASTQ",
-        "required": true
+        "required": false
       },
       {
         "name": "fastq_file2",
         "type": "File",
         "format": "FASTQ",
-        "required": true
+        "required": false
+      },
+      {
+        "name": "fastq_dir",
+        "type": "String",
+        "format": null,
+        "required": false
       }
     ],
     "outputs": [
@@ -357,6 +363,12 @@
         "type": "File",
         "format": "CSV"
       }
+    ],
+    "require_any": [
+      [
+        "fastq_dir",
+        "fastq_file1"
+      ]
     ]
   },
   "celltype_case_control_de": {
@@ -446,6 +458,42 @@
         "type": "Array[File]+",
         "format": "BAM",
         "required": true
+      },
+      {
+        "name": "assay_type",
+        "type": "String",
+        "format": null,
+        "required": false
+      },
+      {
+        "name": "run_clinical_association",
+        "type": "Boolean",
+        "format": null,
+        "required": false
+      },
+      {
+        "name": "clinical_metadata",
+        "type": "File",
+        "format": "CSV",
+        "required": false
+      },
+      {
+        "name": "tumor_purities",
+        "type": "Array[Float]",
+        "format": null,
+        "required": false
+      },
+      {
+        "name": "tumor_ploidies",
+        "type": "Array[Float]",
+        "format": null,
+        "required": false
+      },
+      {
+        "name": "targets_bed",
+        "type": "File",
+        "format": "BED",
+        "required": false
       }
     ],
     "outputs": [
@@ -1089,7 +1137,7 @@
     "reusable_for": [],
     "inputs": [
       {
-        "name": "maf",
+        "name": "maf_file",
         "type": "File",
         "format": "MAF",
         "required": true
@@ -1644,6 +1692,18 @@
         "type": "File",
         "format": "CSV",
         "required": true
+      },
+      {
+        "name": "t1_csv",
+        "type": "File",
+        "format": "CSV",
+        "required": true
+      },
+      {
+        "name": "input_scale",
+        "type": "String",
+        "format": null,
+        "required": false
       }
     ],
     "outputs": [
@@ -1703,6 +1763,12 @@
         "type": "File",
         "format": "CSV",
         "required": true
+      },
+      {
+        "name": "gene",
+        "type": "String",
+        "format": null,
+        "required": false
       }
     ],
     "outputs": [
@@ -1890,16 +1956,22 @@
         "required": true
       },
       {
-        "name": "clinical_xls",
+        "name": "individual_csv",
         "type": "File",
-        "format": "XLS",
+        "format": "CSV",
         "required": true
       },
       {
-        "name": "metainfo_xlsx",
+        "name": "sample_csv",
         "type": "File",
-        "format": "XLSX",
+        "format": "CSV",
         "required": true
+      },
+      {
+        "name": "sample_ids",
+        "type": "Array[String]",
+        "format": null,
+        "required": false
       }
     ],
     "outputs": [
@@ -2342,6 +2414,18 @@
         "type": "String?",
         "format": null,
         "required": false
+      },
+      {
+        "name": "fastq_r1",
+        "type": "File",
+        "format": "FASTQ.gz",
+        "required": true
+      },
+      {
+        "name": "fastq_r2",
+        "type": "File",
+        "format": "FASTQ.gz",
+        "required": true
       }
     ],
     "outputs": [
@@ -2457,6 +2541,37 @@
         "type": "Array[File]+",
         "format": "BAM",
         "required": true
+      },
+      {
+        "name": "group1_bais",
+        "type": "Array[File]",
+        "format": "BAI",
+        "required": false
+      },
+      {
+        "name": "group2_bais",
+        "type": "Array[File]",
+        "format": "BAI",
+        "required": false
+      },
+      {
+        "name": "group1_label",
+        "type": "String",
+        "format": null,
+        "required": false
+      },
+      {
+        "name": "group2_label",
+        "type": "String",
+        "format": null,
+        "required": false
+      },
+      {
+        "name": "annotation_gtf",
+        "type": "File",
+        "format": "GTF",
+        "required": false,
+        "reference_resource": true
       }
     ],
     "outputs": [
@@ -2520,13 +2635,13 @@
         "required": true
       },
       {
-        "name": "sample_r1",
+        "name": "fastq_r1",
         "type": "File",
         "format": "FASTQ.gz",
         "required": true
       },
       {
-        "name": "sample_r2",
+        "name": "fastq_r2",
         "type": "File?",
         "format": "FASTQ.gz",
         "required": false
@@ -2611,7 +2726,7 @@
     "reusable_for": [],
     "inputs": [
       {
-        "name": "count_tsv",
+        "name": "counts_tsv",
         "type": "File",
         "format": "TSV",
         "required": true
@@ -3247,7 +3362,7 @@
         "required": true
       },
       {
-        "name": "gene_symbol",
+        "name": "gene",
         "type": "String",
         "format": null,
         "required": true
@@ -3366,6 +3481,12 @@
         "type": "File",
         "format": "CSV",
         "required": true
+      },
+      {
+        "name": "capture_size_mb",
+        "type": "Float",
+        "format": null,
+        "required": false
       }
     ],
     "outputs": [
@@ -3882,6 +4003,12 @@
         "type": "File",
         "format": "CSV",
         "required": true
+      },
+      {
+        "name": "selected_run_accessions",
+        "type": "Array[String]",
+        "format": null,
+        "required": false
       }
     ],
     "outputs": [

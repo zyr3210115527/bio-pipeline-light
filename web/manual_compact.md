@@ -240,7 +240,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `gsea_pathway_enrichment` | **不先筛差异基因**，全基因排序做预排序 GSEA（fgsea） | bulk_RNA | TABULAR_BIO_DATA |
 | `her2_pfs_survival` | 按**基因表达高低分组**做生存/PFS 的**默认流程**（基因不限 HER2/ERBB2，问句点名任何基因都算）；要 TPM+临床+元信息。问 **OS/多因素 Cox** 且队列在 §3.1 七队列内 → 改 km_survival / cox_model | Clinical,bulk_RNA | INDIVIDUAL_META,SAMPLE_META,T1_META,TABULAR_BIO_DATA |
 | `hvg_pca_gmm` | 上面整链拆出的**单步**：logCPM→HVG→PCA→GMM | bulk_RNA,sc-RNA | - |
-| `immune_infiltration_iobr` | 基于 IOBR 包的 CIBERSORT 算法进行免 | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA |
+| `immune_infiltration_iobr` | 基于 IOBR 包的 CIBERSORT 算法进行免疫浸润（输入 TPM 矩阵；`individual_csv`/`sample_csv` 服务端按队列补，另带可选 `sample_ids` run 列表） | bulk_RNA,Clinical | INDIVIDUAL_META,SAMPLE_META,TABULAR_BIO_DATA |
 | `immunotherapy_cellchat` | 基于CellChat的免疫治疗细胞通讯分析流程 | sc-RNA | SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA |
 | `ipf_trajectory_regulon` | 对特发性肺纤维化(IPF)单细胞RNA-seq数据进 | bulk_RNA,sc-RNA | SCRNA_OBJECT_RDS,METADATA_SAMPLE_INFO,REFERENCE_GENOME_FASTA |
 | `km_survival` | **bulk10**：Kaplan-Meier 总生存（OS），生存数据直接读 individual.csv；仅 HRA003107/000073/000074/002693/006117 | bulk_RNA,Clinical | TABULAR_BIO_DATA（counts，唯一必填） |
@@ -642,18 +642,19 @@ rank1 填这条链的**主环节**（比对题填 `bwa`/`star` 而不是 `fastp`
 `survival_analysis` `tmb_survival_analysis` 六条，**这六条只给主数据一条 asset 即可，
 表和它们的 `execution_params` 由服务端填**。
 
-**其中五条走的是三张 CSV 元信息表**：`driver_gene_gender_analysis` `her2_pfs_survival`
-`survival_analysis` `tmb_survival_analysis` `wgcna` 声明的是 `individual_csv` +
-`sample_csv` + `t1_csv`，对应图内 `INDIVIDUAL_META` / `SAMPLE_META` / `T1_META` 三个标签，
+**六条都走 CSV 元信息表**：`driver_gene_gender_analysis` `her2_pfs_survival`
+`survival_analysis` `tmb_survival_analysis` `wgcna` 声明 `individual_csv` +
+`sample_csv` + `t1_csv` 三张；`immune_infiltration_iobr` 声明 `individual_csv` + `sample_csv`
+两张（另带可选 `sample_ids` run 列表）。对应图内 `INDIVIDUAL_META` / `SAMPLE_META` / `T1_META` 三个标签，
 路径统一是 `/cbb-data/gsa/agent/<ACC>/` 下的 `individual.csv` / `sample.csv` / `T1.csv`，
-每队列一套。服务端按队列号取齐三张，和上面两张 XLSX 表一样，**不用写进 assets、也不用查**。
-给这五条塞旧版 `.xlsx` 临床表是无效的：服务端会摘掉——同一份提交不会同时带 XLSX 与 CSV
+每队列一套。服务端按队列号取齐，和上面两张 XLSX 表一样，**不用写进 assets、也不用查**。
+给这六条塞旧版 `.xlsx` 临床表是无效的：服务端会摘掉——同一份提交不会同时带 XLSX 与 CSV
 两族元信息，卡片只读 CSV 那一套。
 
 MAF 与表达矩阵这两类主数据不受影响——它们的图内路径与实跑记录完全一致（含 HRA001272
 多一层 `/RNAseq/`），照常从图里查。
 **`HRA000001` 是全图唯一没有 XLSX 对的队列**（`CLINICAL_DATA_EXCEL`、`METADATA_SAMPLE_INFO`
-各 0 份——它是健康人群队列）。它的三张 CSV 元信息表是齐的，所以上面那五条走 CSV 三表的流程
+各 0 份——它是健康人群队列）。它的三张 CSV 元信息表是齐的，所以上面那六条走 CSV 表的流程
 在它身上照常可跑；吃 XLSX 的那几条不要给它选，这个空缺也不是"再查一次就能查到"的抖动。
 **有两个队列的临床表各存了两份**——`HRA001748` 和 `HRA005191` 在
 `/hpcdisk1/cbb_group/data/<ACC>/`（两张都是 `.xlsx`）和

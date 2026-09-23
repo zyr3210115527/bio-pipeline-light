@@ -768,7 +768,7 @@ expression matrix, the MAF, or the FASTQ pair. `hydrate_plan` completes the rest
   spelling is `clinical_file`+`metainfo_file`) as required params" — that covers
   `driver_gene_gender_analysis`, `wgcna`, `her2_pfs_survival`, `immune_infiltration_iobr`,
   `survival_analysis` and `tmb_survival_analysis`, whose graph-side io declarations do *not* mention
-  `CLINICAL_DATA_EXCEL` at all. (Five of those six take the CSV trio instead — see the next bullet.)
+  `CLINICAL_DATA_EXCEL` at all. (All six now take the CSV metadata tables instead — see the next bullet.)
   For all six, give the primary datum as the only asset; the tables
   and their `execution_params` entries are filled server-side. **So do not write them — and do not
   query for them either.** The
@@ -776,13 +776,15 @@ expression matrix, the MAF, or the FASTQ pair. `hydrate_plan` completes the rest
   they live on `T1` or `T2`. **Hunting for them is the single largest waste of wall-clock in this
   project** — probing `T2` by `format`, coming back empty, then re-probing `T1` by `strategy`, at tens of
   seconds a round.
-- **Five of those six read three CSV metadata tables instead**: `driver_gene_gender_analysis`,
+- **All six read CSV metadata tables instead**: `driver_gene_gender_analysis`,
   `her2_pfs_survival`, `survival_analysis`, `tmb_survival_analysis` and `wgcna` declare
-  `individual_csv` + `sample_csv` + `t1_csv`. Those are the graph's `INDIVIDUAL_META`,
+  `individual_csv` + `sample_csv` + `t1_csv`; `immune_infiltration_iobr` declares the pair
+  `individual_csv` + `sample_csv` (no `t1_csv`; plus an optional `sample_ids` run list).
+  Those are the graph's `INDIVIDUAL_META`,
   `SAMPLE_META` and `T1_META` nodes at `/cbb-data/gsa/agent/<ACC>/`, one set per study, and the
-  server derives all three from the study accession exactly like the two XLSX tables above —
+  server derives them from the study accession exactly like the two XLSX tables above —
   **do not write them into `assets` and do not query for them.** Any old `.xlsx` clinical pair you
-  supply for these five is dropped server-side: the same submission cannot carry both the XLSX and
+  supply for these six is dropped server-side: the same submission cannot carry both the XLSX and
   the CSV metadata, and the card only reads the CSV set.
   The primary data — MAF and expression matrices — are unaffected: their graph paths match the
   proven runs exactly (including HRA001272's extra `/RNAseq/` level), so query those normally.
@@ -1114,7 +1116,7 @@ get confused in practice:
 | `gsea_pathway_enrichment` | 本流程基于limma moderated t统计量构建全基因排序，使用fgseaMultilevel执行预排序GSEA。 输入为表达矩阵和样本元数据，输出包括通路富集结果、显著通路、排序基因列表及可视化图表。 适用于病例-对照转录组比较分析，支持协变量校正和配对设计。 | bulk_RNA | TABULAR_BIO_DATA | VISUALIZATION_RESULT,TABULAR_BIO_DATA,QC_STATS_REPORT |
 | `her2_pfs_survival` | 基于 TPM 表达矩阵、临床信息及样本元信息，分析特定基因（默认 HER2）表达水平与无进展生存期（PFS）的关联。 流程自动匹配样本 accession，执行 Winsorizing 处理，生成 KM 生存曲线、Logrank 统计量及质量控制报告。 | Clinical,bulk_RNA | INDIVIDUAL_META,SAMPLE_META,T1_META,TABULAR_BIO_DATA | VISUALIZATION_RESULT,QC_STATS_REPORT,TABULAR_BIO_DATA |
 | `hvg_pca_gmm` | 从logCPM表达矩阵中筛选高变基因，执行PCA降维，并在候选K范围内拟合高斯混合模型（GMM），最终依据BIC选择最佳聚类数。输入为预处理后的logCPM矩阵，输出包括高变基因统计、PCA结果、GMM聚类指标及可视化图表。 | bulk_RNA,sc-RNA | - | TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
-| `immune_infiltration_iobr` | 基于 IOBR 包的 CIBERSORT 算法进行免疫细胞浸润分析流程。 输入基因表达 TPM 矩阵、临床信息和样本元数据，输出免疫细胞比例估计、可靠性评估及可视化图表。 适用于批量 RNA-seq 数据的肿瘤微环境免疫细胞组成分析。 | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA | TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
+| `immune_infiltration_iobr` | 基于 IOBR 包的 CIBERSORT 算法进行免疫细胞浸润分析流程。 输入基因表达 TPM 矩阵、临床信息和样本元数据（`individual_csv`/`sample_csv` 服务端按队列补，另带可选 `sample_ids` run 列表），输出免疫细胞比例估计、可靠性评估及可视化图表。 适用于批量 RNA-seq 数据的肿瘤微环境免疫细胞组成分析。 | bulk_RNA,Clinical | INDIVIDUAL_META,SAMPLE_META,TABULAR_BIO_DATA | TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
 | `immunotherapy_cellchat` | 基于CellChat的免疫治疗细胞通讯分析流程。输入Seurat格式的单细胞RNA-seq数据，通过比较响应者与非响应者之间的细胞通讯网络差异，揭示免疫治疗相关的细胞间相互作用机制。输出包括通讯网络分析结果、质控报告和运行日志。 | sc-RNA | SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA | VISUALIZATION_RESULT,QC_STATS_REPORT |
 | `ipf_trajectory_regulon` | 对特发性肺纤维化(IPF)单细胞RNA-seq数据进行轨迹推断和调控子分析。输入为Seurat RDS对象，输出包括分析结果压缩包、运行摘要、质控报告和文件清单等。 | bulk_RNA,sc-RNA | SCRNA_OBJECT_RDS,METADATA_SAMPLE_INFO,REFERENCE_GENOME_FASTA | QC_STATS_REPORT |
 | `km_survival` | 整合基因表达矩阵与临床元数据，执行 Kaplan-Meier 生存分析和 Cox 比例风险模型。 支持样本分组、肿瘤分期过滤和生存数据验证，输出生存曲线及统计结果。 | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |

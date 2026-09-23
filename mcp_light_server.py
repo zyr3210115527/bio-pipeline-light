@@ -925,6 +925,14 @@ def tool_validate_execution_chain(args):
         for _n in _ID_RESOLVABLE:
             if _n in bindings and _n not in params and bindings[_n] is not None:
                 params[_n] = bindings[_n]
+        # 其它调用方给的**卡内**标量字面量（gene 这类问题语义参数：图里推不出来、也不该推）
+        # 同样原样进 params——不搬就是 silent drop：以前 survival 的 gene_symbol 就是这么丢的，
+        # 合同绿灯而执行端拿不到基因。卡外的标量保持不动（stage-2 已对它们告警）。
+        _card_names = {i["name"] for i in card["inputs"]} if card else None
+        for _n, _b in bindings.items():
+            if _n not in params and isinstance(_b, (str, int, float, bool)) \
+                    and (_card_names is None or _n in _card_names):
+                params[_n] = _b
         for _n in _id_missing:
             if _n not in bindings:
                 exec_missing.append({"param": _n, "tool_id": tool_key, "step": idx,
@@ -1358,7 +1366,7 @@ _ID_ROLE = {"tumor_id": "tumor", "normal_id": "normal"}
 _ID_STUDY = ("dataset_id", "report_id", "output_prefix")     # 队列号本身就是稳定标识
 # 交付样例实测：diff_expr_go 的 group_a_samples 全是 tumor run（HRA000074），group_b 即对照组
 _ID_ARRAY_GROUP = {"group_a_samples": "tumor", "group_b_samples": "normal"}
-_ID_ARRAY_ALL = ("sample_ids", "input_samples")     # 队列级工具的整队列 run（gatk_germline / cnvkit / driver 性别分层，交付样例均为 run 号列表）
+_ID_ARRAY_ALL = ("sample_ids", "input_samples", "selected_run_accessions")     # 队列级工具的整队列 run（gatk_germline / cnvkit / driver 性别分层 / wgcna run 选择，交付样例均为 run 号列表）
 # 队列级 run 列表的交付上限：全量枚举（HRA001272 摊平后 899 个 tumor run）会把执行合同
 # 撑到没法读，交付样例本来就是精选小组。默认每组取定序后的前 48 个（同一队列两次规划
 # 给同一份）；0 = 不截断。
@@ -1367,7 +1375,7 @@ _RUN_LIST_CAP = int(os.environ.get("BIO_RUN_LIST_CAP", "48"))
 # 补不出来时由执行参数阶段报 literal_required。
 _ID_RESOLVABLE = (frozenset(_ID_SINGLE) | frozenset(_ID_ROLE) | frozenset(_ID_STUDY)
                   | frozenset(_ID_ARRAY_GROUP) | frozenset(_ID_ARRAY_ALL)
-                  | frozenset({"pair_id", "quant_type"}))
+                  | frozenset({"pair_id", "quant_type", "assay_type", "input_scale"}))
 
 
 def _file_sample_facts(names):
@@ -1820,6 +1828,15 @@ def _resolve_id_params(gid, card, bound_files, study, chain_facts=None):
         elif name in _ID_STUDY:
             v = study
         elif name == "quant_type":
+            v = next((m.group(1) for fn in names
+                      for m in [_FLAVOR_PAT.search(str(fn))] if m), None)
+        elif name == "assay_type":
+            # cnvkit 的 assay_type（wgs/wes）：取绑定文件的测序策略（图内事实），小写化
+            v = next((str(f.get("strategy")).lower() for fn in names
+                      for f in [facts.get(fn)]
+                      if f and str(f.get("strategy") or "").lower() in ("wes", "wgs")), None)
+        elif name == "input_scale":
+            # gsea 的 input_scale（counts/tpm/fpkm）：与 quant_type 同口径，从文件名推
             v = next((m.group(1) for fn in names
                       for m in [_FLAVOR_PAT.search(str(fn))] if m), None)
         elif name in _ID_ARRAY_GROUP or name in _ID_ARRAY_ALL:
