@@ -607,6 +607,24 @@ def _strip(assets):
     return [{k: v for k, v in a.items() if not k.startswith("_")} for a in assets]
 
 
+# 问句里的目标基因识别（单基因表达问题判定用）：ENSG 号或全大写基因符号
+# （MIR503HG/TP53/BRCA1…）。HRA 队列号与常见缩写不算基因。
+_GENE_TOKEN = re.compile(r"(?<![A-Za-z0-9])(ENSG\d{5,}|[A-Z][A-Z0-9\-]{2,9})(?![A-Za-z0-9])")
+_GENE_STOP = {"GO", "KEGG", "TPM", "FPKM", "CNV", "OS", "PFS", "TMB", "WES", "WGS",
+              "RNA", "DNA", "GSEA", "UMAP", "WGCNA", "KM", "MAF", "VCF", "BAM", "BAI",
+              "BED", "TSV", "CSV", "CNCB", "HER2", "ERBB2", "QC", "DE", "GTF", "RDS"}
+
+
+def _query_gene(q):
+    """从问句里取第一个像基因名的 token；取不到返回 None。"""
+    for m in _GENE_TOKEN.finditer(str(q or "")):
+        t = m.group(1)
+        if t.startswith("HRA") or t in _GENE_STOP:
+            continue
+        return t
+    return None
+
+
 def _alt_gids(srv, assets, taken, n):
     """补位候选：挑「同一批数据还喂得进去」的闭集流程，按能吃下的必填槽位数排序。
 
@@ -885,6 +903,52 @@ def to_cohort_v2(plan, query, top_k=3):
                     candidates.insert(_de_i, _box)
                     for _i, _c in enumerate(candidates, 1):
                         _c["rank"] = _i
+
+    # 单基因表达高低问题（「X 在肿瘤里升高还是降低」）：top1 提到 gene_boxplot——
+    # 箱线图是这个问法最直观的答案形态（20260928 演示要求：食管癌 gene_boxplot 置顶）。
+    # 生效条件：boxplot 补位候选已在最前且 ready、问句里点得出基因（_query_gene）。
+    # 原模型的 diff_expr_go 顺位降为候选；合同参数保持补全后的完整形态（不缺东西）。
+    _box0 = candidates[0] if candidates else None
+    if (_box0 and _box0.get("pipeline_id") == "gene_boxplot"
+            and _box0.get("feasibility_status") == "ready"
+            and _query_gene(query)):
+        _acc = _box0.get("study_accession")
+        _gene = _query_gene(query)
+        _skel = {"schema_version": "tool-chain/v2", "selection_status": "ok",
+                 "intent": dict(out.get("intent") or {"query_text": query}),
+                 "recommendations": [{
+                     "pipeline_id": "gene_boxplot",
+                     "match_note": (f"单基因表达高低问题：{_gene or '目标基因'}在肿瘤 vs 正常组织的"
+                                    "表达差异用同队列单基因箱线图（bulk10 gene_boxplot，counts 矩阵）"
+                                    "直观呈现；limma 两组差异的完整结果见候选 diff_expr_go。"),
+                     "tool": {"tool_id": "gene_boxplot"},
+                     "data": {"status": "available",
+                              "study_accessions": [_acc] if _acc else [],
+                              "assets": [{"file_name": a.get("file_name"),
+                                          "match_reason": a.get("match_reason") or "t"}
+                                         for a in (_box0.get("assets") or [])]}}]}
+        try:
+            _hrec = (srv.tool_hydrate_plan({"plan": _skel}).get("plan") or {}) \
+                        .get("recommendations") or []
+        except Exception:
+            _hrec = []
+        if _hrec:
+            _rec = _hrec[0]
+            # tool 块对齐 Dingent 过滤条件（catalog_status / builder_param，与常轨同一套）
+            _card_b = srv.KC_MAP.get("gene_boxplot") or {}
+            _tool = dict(_rec.get("tool") or {})
+            _tool["tool_id"] = _card_b.get("meta_id") or "gene_boxplot"
+            _tool["catalog_status"] = "registered" if srv.CATALOG.get("gene_boxplot") else "unregistered"
+            _slots = _tool.get("inputs")
+            if not _slots:
+                _slots = srv._card_slots(_card_b)[0] if _card_b else \
+                    srv._graph_tool_io("gene_boxplot")[0]
+            _tool["inputs"] = [dict(s, builder_param=s.get("name")) for s in _slots]
+            _rec["tool"] = _tool
+            _rec["execution_params"] = _box0.get("execution_params") or {}
+            _rec["execution_params_missing"] = _box0.get("execution_params_missing") or []
+            recs[:] = [_rec]
+            out["recommendations"] = recs
 
     # candidates 的上限**不跟 top_k 走**。top_k 限的是推荐条数（light 严格 top-1，
     # 实际就 1 条），而 candidates 是「同一个请求的另几种拆法」——一站式流程 + 原子链。
