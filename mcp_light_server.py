@@ -713,6 +713,11 @@ def tool_validate_execution_chain(args):
                         bad_bind.append(f"{i['name']} binding 必须为对象或非空对象数组")
                 elif not isinstance(b, dict):
                     bad_bind.append(f"{i['name']} binding 必须为对象")
+            elif gid == "cnvkit_cnv_clinical" and i["name"] in ("tumor_purities", "tumor_ploidies"):
+                # CNVkit 的数值数组不是标量；整数倍性不能接受 Float 或 Boolean。
+                scalar_types = (int,) if i["name"] == "tumor_ploidies" else (int, float)
+                if not isinstance(b, list) or any(isinstance(x, bool) or not isinstance(x, scalar_types) for x in b):
+                    bad_bind.append(f"{i['name']} binding 类型应为 {i['type']}")
             elif _base_type(i.get("type")) in ("Boolean", "Int", "Float"):
                 if not isinstance(b, (bool, int, float)):
                     bad_bind.append(f"{i['name']} binding 类型应为 {i['type']}")
@@ -955,7 +960,8 @@ def tool_validate_execution_chain(args):
         for _n, _v in _id_vals.items():
             # 分组/样本清单是「意图」不是「事实」：调用方（或前端用户）显式给了就照用，
             # 不让服务端的角色默认覆盖用户选择。事实型标识仍以图为准覆盖。
-            if _n in bindings and (_n in _ID_ARRAY_GROUP or _n in _ID_ARRAY_ALL):
+            if _n in bindings and (_n in _ID_ARRAY_GROUP or _n in _ID_ARRAY_ALL
+                                   or (gid == "cnvkit_cnv_clinical" and _n == "assay_type")):
                 continue
             params[_n] = _v
         # 调用方显式给了值、服务端没覆盖的标识参数，原值搬进 params（不留空）
@@ -970,6 +976,13 @@ def tool_validate_execution_chain(args):
             if _n not in params and isinstance(_b, (str, int, float, bool)) \
                     and (_card_names is None or _n in _card_names):
                 params[_n] = _b
+        if gid == "cnvkit_cnv_clinical":
+            # 卡内非文件数组必须保留到执行参数，不能落入上面的「仅标量」过滤。
+            for _n in ("tumor_purities", "tumor_ploidies"):
+                if _n in bindings:
+                    params[_n] = bindings[_n]
+            for _issue in _cnvkit_contract_issues(params):
+                exec_missing.append(dict(_issue, tool_id=tool_key, step=idx))
         for _n in _id_missing:
             if _n not in bindings:
                 exec_missing.append({"param": _n, "tool_id": tool_key, "step": idx,
@@ -1729,6 +1742,46 @@ _CANONICAL_DEFAULTS = {
 }
 
 
+def _cnvkit_contract_issues(params, deferred_inputs=()):
+    """对齐交付 CnvkitCnvClinical 的输入与 ValidateCnvInputs；仅 CNVkit 两个入口调用。"""
+    issues = []
+    def issue(name, reason, detail):
+        issues.append({"param": name, "reason": reason, "detail": detail})
+
+    # 旧卡片遗留字段在当前交付 WDL 中不存在。
+    for name in ("clinical_metadata", "run_clinical_association"):
+        params.pop(name, None)
+    mode = params.get("assay_type", "wgs")
+    if isinstance(mode, str):
+        mode = {"wes": "hybrid"}.get(mode.lower(), mode.lower())
+    params["assay_type"] = mode
+    if mode not in ("wgs", "hybrid", "amplicon"):
+        issue("assay_type", "invalid_value", "WDL 仅接受 wgs、hybrid、amplicon")
+    elif mode != "wgs" and not params.get("targets_bed") and "targets_bed" not in deferred_inputs:
+        issue("targets_bed", "conditional_required", f"assay_type={mode} 必须提供真实靶区 BED；不能按 WGS 提交")
+
+    ids = params.get("sample_ids")
+    n = len(ids) if isinstance(ids, list) else None
+    if ids is not None and (not isinstance(ids, list) or not ids or
+            any(not isinstance(x, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", x) for x in ids)):
+        issue("sample_ids", "invalid_value", "WDL 要求非空且格式合法的样本 ID 数组")
+    for name in ("tumor_bams", "tumor_bais", "normal_bams", "normal_bais"):
+        if name in params and (not isinstance(params[name], list) or (n is not None and len(params[name]) != n)):
+            issue(name, "array_length_mismatch", "BAM/BAI 数组必须与 sample_ids 按位等长")
+    valid_arrays = {}
+    for name, types in (("tumor_purities", (int, float)), ("tumor_ploidies", (int,))):
+        values = params.get(name, [])
+        if not isinstance(values, list) or any(isinstance(x, bool) or not isinstance(x, types) for x in values):
+            issue(name, "invalid_type", "要求数值数组" if name == "tumor_purities" else "要求整数数组 Array[Int]")
+        else:
+            valid_arrays[name] = values
+    if len(valid_arrays) == 2 and any(valid_arrays.values()):
+        for name, values in valid_arrays.items():
+            if not values or (n is not None and len(values) != n):
+                issue(name, "array_length_mismatch", "纯度和倍性数组必须同时省略，或同时与 sample_ids 等长")
+    return issues
+
+
 def _canonical_default(gid, name):
     """交付包 canonical 默认值（见 _CANONICAL_DEFAULTS）；没有返回 None。"""
     return (_CANONICAL_DEFAULTS.get(gid) or {}).get(name)
@@ -1955,10 +2008,12 @@ def _resolve_id_params(gid, card, bound_files, study, chain_facts=None):
             v = next((m.group(1) for fn in names
                       for m in [_FLAVOR_PAT.search(str(fn))] if m), None)
         elif name == "assay_type":
-            # cnvkit 的 assay_type（wgs/wes）：取绑定文件的测序策略（图内事实），小写化
+            # CnvkitCnvClinical 接受 wgs/hybrid/amplicon；WES 对应 hybrid，且必须有靶区 BED。
             v = next((str(f.get("strategy")).lower() for fn in names
                       for f in [facts.get(fn)]
                       if f and str(f.get("strategy") or "").lower() in ("wes", "wgs")), None)
+            if gid == "cnvkit_cnv_clinical" and v == "wes":
+                v = "hybrid"
         elif name == "input_scale":
             # gsea 的 input_scale（counts/tpm/fpkm）：与 quant_type 同口径，从文件名推
             v = next((m.group(1) for fn in names

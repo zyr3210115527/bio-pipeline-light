@@ -352,7 +352,7 @@ def _asset_roles(srv, assets, chain_facts=None):
     return {aid: (facts.get(fn) or {}).get("role") for fn, aid in fns.items()}
 
 
-def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None, chain_facts=None):
+def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None, chain_facts=None, explicit_inputs=None):
     """把资产/上游产物绑到卡片参数上，返回 (inputs 绑定对象, missing[])。
 
     绑定优先级：上游步骤的同格式输出 > 尚未用掉的同格式资产 > 卡片默认值/可推字面量。
@@ -544,6 +544,14 @@ def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None, chain
         for _n in _id_missing:
             missing.append({"param": _n, "tool_id": card.get("meta_id") or gid,
                             "step_id": step_id, "reason": "literal_required"})
+    if gid == "cnvkit_cnv_clinical" and isinstance(explicit_inputs, dict):
+        # 仅 CNVkit 的卡内模式/数值数组允许显式覆盖；文件仍通过资产绑定与查证。
+        for name in ("assay_type", "tumor_purities", "tumor_ploidies"):
+            if name in explicit_inputs:
+                value = explicit_inputs[name]
+                if isinstance(value, dict) and "value" in value:
+                    value = value["value"]
+                inputs[name] = {"value": value}
     # 二选一约束：组内参数各自 required=false，只看必填查不出「一个都没给」。
     # bulk10 的两张 CNCB 元数据表由 server 按队列号推，含它们的组不算调用方欠的。
     for grp in (card or {}).get("require_any") or []:
@@ -718,7 +726,7 @@ def to_cohort_v2(plan, query, top_k=3):
         tool = dict(rec.get("tool") or {})
         tool["tool_id"] = (card or {}).get("meta_id") or pid
         tool["catalog_status"] = "registered" if cat else "unregistered"
-        slots = tool.get("inputs")
+        slots = srv._card_slots(card)[0] if gid == "cnvkit_cnv_clinical" and card else tool.get("inputs")
         if not slots:
             slots = srv._card_slots(card)[0] if card else srv._graph_tool_io(gid)[0]
         # builder_param 就是卡片参数名——execution_params 的键与它必须逐字一致，
@@ -731,7 +739,8 @@ def to_cohort_v2(plan, query, top_k=3):
         # 少了这一步，模型说「HRA016026 做 wgcna」而没给资产时，三张表全报
         # study_not_resolved，读起来像"缺数据"，其实只差把队列号交给补全。
         inputs, missing = _bind_step(srv, gid, card, assets, [], "step-1",
-                                     next(iter(accs)) if len(accs) == 1 else None)
+                                     next(iter(accs)) if len(accs) == 1 else None,
+                                     explicit_inputs=rec.get("execution_params"))
         # 路径解析：绑定对象里只有 asset_id，执行合同还要给出扁平的 execution_params
         params, pmiss = _flat_params(srv, gid, inputs,
                                      {a["asset_id"]: a for a in assets},
@@ -1024,6 +1033,14 @@ def _flat_params(srv, gid, inputs, by_id, tool_id, step_id):
     if gid in srv._BULK10:
         # 十条 bulk10 的 sample_csv/individual_csv 由队列号推，路径不在图里
         params.update(srv._bulk10_params(gid, params.get("expr", ""), {}, []))
+    if gid == "cnvkit_cnv_clinical":
+        deferred = {name for name, binding in inputs.items()
+                    if isinstance(binding, dict) and binding.get("from")}
+        missing.extend(dict(issue, tool_id=tool_id, step_id=step_id)
+                       for issue in srv._cnvkit_contract_issues(params, deferred))
+        # 归一后的模式同时写回步骤绑定，两个提交视图必须一致。
+        if "assay_type" in params:
+            inputs["assay_type"] = {"value": params["assay_type"]}
     return params, missing
 
 
@@ -1107,7 +1124,8 @@ def _convert_atomic(srv, cand, meta_to_graph, rank, fallback=None, study_hint=No
         # sample_accession/study_accession 推的——不给资产就每步都 literal_required，
         # 一条六步的链能凭空多报四五条缺失。
         inputs, miss = _bind_step(srv, gid, card, assets, upstream, sid, study,
-                                  chain_facts=chain_facts)
+                                  chain_facts=chain_facts,
+                                  explicit_inputs=s.get("inputs") if isinstance(s, dict) else None)
         tool_id = (card or {}).get("meta_id") or gid
         # 绑定对象里只有 asset_id，执行端要的是扁平路径——与 rank1 同一套解析。
         # 顺带堵一个洞：没有这一步，path 为空的资产也能安静绑上槽位，

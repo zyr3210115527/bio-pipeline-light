@@ -1097,7 +1097,7 @@ get confused in practice:
 | `bwa` | 基于 BWA-MEM 算法的双端测序比对流程。输入为 R1/R2 FASTQ 文件和样本 ID， 输出为未排序的 SAM 文件及 BWA 运行日志。适用于全外显子组测序数据的比对步骤， 后续需配合 SAMtools 完成排序和索引。 | WES | REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | DNA_GENOMIC_ALIGNMENT_BAM |
 | `cellranger_workflow` | 基于 10x Genomics CellRanger 的单细胞 RNA 测序数据分析流程。 包含 FASTQ 质控、序列比对、基因表达定量及结果可视化，适用于 10x Chromium 平台产生的单细胞转录组数据。 | sc-RNA,bulk_RNA | RAW_SINGLE_END_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM | TABULAR_BIO_DATA,DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT |
 | `celltype_case_control_de` | 对单细胞RNA-seq数据中指定的细胞类型进行病例-对照差异表达分析。输入为Seurat RDS文件，输出包括差异表达结果、分析摘要、质控报告等。适用于配对或非配对的病例-对照研究设计。 | sc-RNA,bulk_RNA | SCRNA_OBJECT_RDS,TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA | QC_STATS_REPORT |
-| `cnvkit_cnv_clinical` | 对肿瘤队列的配对肿瘤/正常 WGS 或 WES BAM 运行 CNVkit，生成样本级分段、离散拷贝数、scatter/diagram 图，并可选汇总高频基因 CNV 与临床分期及总生存的探索性关联。输入为样本ID、肿瘤/正常BAM/BAI数组，输出包括CNV分段文件、BED文件、可视化图以及临床关联分析结果。 | Clinical,WES,WGS | DNA_GENOMIC_ALIGNMENT_BAM,CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA | VISUALIZATION_RESULT,TABULAR_BIO_DATA |
+| `cnvkit_cnv_clinical` | 对肿瘤队列的配对肿瘤/正常 WGS 或 WES BAM 运行 CNVkit，生成样本级分段、离散拷贝数、BED文件和scatter/diagram图。输入为按位对应的样本ID与肿瘤/正常BAM/BAI数组；WES使用hybrid模式且必须提供targets_bed。当前交付WDL不接收临床表，不执行临床关联分析。 | WES,WGS | DNA_GENOMIC_ALIGNMENT_BAM | VISUALIZATION_RESULT,TABULAR_BIO_DATA |
 | `cox_model` | 整合基因表达矩阵与临床元数据，执行 Cox 比例风险回归分析和 Kaplan-Meier 生存曲线绘制。 支持自定义样本分组、生存时间/状态列映射，输出风险比、P 值及前 N 个显著基因。 适用于癌症预后标志物筛选和临床亚组生存差异分析场景。 | Clinical,bulk_RNA| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `dataset_downstream` | 对单细胞RNA-seq数据集进行标准化下游分析，包括基因排序、细胞类型注释和恶性细胞标记。 输入为Seurat RDS文件和基因排序文件，输出包括压缩的结果文件、运行摘要和质量控制报告。 | sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,SCRNA_OBJECT_RDS | QC_STATS_REPORT |
 | `dataset_matrix_annotation` | 该流程用于对单细胞RNA-seq数据集进行矩阵注释和细胞类型标注。输入为Seurat RDS格式的整合数据文件，输出包括注释结果压缩包、运行摘要、输入质量控制报告和分析清单等文件。 | sc-RNA | TABULAR_BIO_DATA,SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA | QC_STATS_REPORT |
@@ -1262,3 +1262,5 @@ needed, but `Blood` still means this is **not** a clean Tumor/Normal binary.
 **HRA000071's `tissue_type` was genuinely fixed in 0821**:
 `Blood`/`Normal` 286 plus `Patient_Solid_Tissue`/`Tumor` 286, matching the 286 `B_` and 286 `T_`
 sample-name prefixes exactly (the old data was the wrong one). That cohort can be trusted directly.
+
+CNVkit contract: `assay_type` is `wgs`, `hybrid`, or `amplicon`; WES maps to `hybrid`. For hybrid/amplicon a confirmed `targets_bed` is required; without it report missing input, never ready. `tumor_ploidies` is `Array[Int]`; purity and ploidy arrays must both be omitted or both match `sample_ids`. Do not supply `clinical_metadata` or `run_clinical_association`: the delivered WDL does not implement them.

@@ -454,18 +454,6 @@
         "required": false
       },
       {
-        "name": "run_clinical_association",
-        "type": "Boolean",
-        "format": null,
-        "required": false
-      },
-      {
-        "name": "clinical_metadata",
-        "type": "File",
-        "format": "CSV",
-        "required": false
-      },
-      {
         "name": "tumor_purities",
         "type": "Array[Float]",
         "format": null,
@@ -473,13 +461,13 @@
       },
       {
         "name": "tumor_ploidies",
-        "type": "Array[Float]",
+        "type": "Array[Int]",
         "format": null,
         "required": false
       },
       {
         "name": "targets_bed",
-        "type": "File",
+        "type": "File?",
         "format": "BED",
         "required": false
       }
@@ -487,32 +475,32 @@
     "outputs": [
       {
         "name": "cnr_files",
-        "type": "File",
+        "type": "Array[File]",
         "format": null
       },
       {
         "name": "cns_files",
-        "type": "File",
+        "type": "Array[File]",
         "format": null
       },
       {
         "name": "called_segments",
-        "type": "File",
+        "type": "Array[File]",
         "format": null
       },
       {
         "name": "cnv_beds",
-        "type": "File",
+        "type": "Array[File]",
         "format": "BED"
       },
       {
         "name": "scatter_plots",
-        "type": "File",
+        "type": "Array[File]",
         "format": "PDF"
       },
       {
         "name": "diagram_plots",
-        "type": "File",
+        "type": "Array[File]",
         "format": "PDF"
       }
     ]

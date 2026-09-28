@@ -221,7 +221,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `bwa` | 基于 BWA-MEM 算法的双端测序比对流程 | WES | REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
 | `cellranger_workflow` | 基于 10x Genomics CellRanger | sc-RNA,bulk_RNA | RAW_SINGLE_END_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM |
 | `celltype_case_control_de` | 对单细胞RNA-seq数据中指定的细胞类型进行病例- | sc-RNA,bulk_RNA | SCRNA_OBJECT_RDS,TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA |
-| `cnvkit_cnv_clinical` | 对肿瘤队列的配对肿瘤/正常 WGS 或 WES BA | Clinical,WES,WGS | DNA_GENOMIC_ALIGNMENT_BAM,CLINICAL_DATA_EXCEL,TABULAR_BIO_DATA |
+| `cnvkit_cnv_clinical` | 配对 CNVkit：WES 使用 hybrid 且需 targets_bed；不执行临床关联 | WES,WGS | DNA_GENOMIC_ALIGNMENT_BAM |
 | `cox_model` | **bulk10**：多因素 Cox 比例风险 + KM，生存时间/状态直接读 individual.csv；仅 HRA003107/000073/000074/002693/006117 | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填） |
 | `dataset_downstream` | 对单细胞RNA-seq数据集进行标准化下游分析，包括 | sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,SCRNA_OBJECT_RDS |
 | `dataset_matrix_annotation` | 该流程用于对单细胞RNA-seq数据集进行矩阵注释和 | sc-RNA | TABULAR_BIO_DATA,SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA |
@@ -737,3 +737,5 @@ schema 示例（**这就是你该输出的完整长度**）：
 - 「能做哪些分析」：先给图谱覆盖的分析族，再对感兴趣族给链路
 - plan 里 file_path 是图谱记录（可能指向另一台服务器），如实说明来源
 - 全程只读；写意图先说方案再执行
+
+CNVkit contract: `assay_type` is `wgs`, `hybrid`, or `amplicon`; WES maps to `hybrid`. For hybrid/amplicon a confirmed `targets_bed` is required; without it report missing input, never ready. `tumor_ploidies` is `Array[Int]`; purity and ploidy arrays must both be omitted or both match `sample_ids`. Do not supply `clinical_metadata` or `run_clinical_association`: the delivered WDL does not implement them.
