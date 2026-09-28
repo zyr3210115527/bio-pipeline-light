@@ -2635,13 +2635,13 @@
         "required": true
       },
       {
-        "name": "fastq_r1",
+        "name": "sample_r1",
         "type": "File",
         "format": "FASTQ.gz",
         "required": true
       },
       {
-        "name": "fastq_r2",
+        "name": "sample_r2",
         "type": "File?",
         "format": "FASTQ.gz",
         "required": false
@@ -2726,7 +2726,7 @@
     "reusable_for": [],
     "inputs": [
       {
-        "name": "counts_tsv",
+        "name": "count_tsv",
         "type": "File",
         "format": "TSV",
         "required": true
