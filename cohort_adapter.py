@@ -502,6 +502,12 @@ def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None, chain
                                               else "server_fill_missed"})
                 continue
             if required:
+                # 交付包 canonical 参考路径兜底（rnaseq_singletask 的索引/GTF：
+                # WDL 必填、交付实跑就用这套，以字面量 path 进合同）
+                _canon = srv._canonical_default(gid, name) if hasattr(srv, "_canonical_default") else None
+                if isinstance(_canon, str) and _canon.startswith("/"):
+                    inputs[name] = {"value": _canon}
+                    continue
                 # 到这里是真正的主数据槽（表达矩阵/MAF/FASTQ）：绑不上就是数据侧的事，
                 # 要补的是 `file_path`，no_confirmed_path 名副其实。
                 missing.append({"param": name, "tool_id": (card or {}).get("meta_id") or gid,

@@ -312,19 +312,13 @@
         "name": "fastq_file1",
         "type": "File",
         "format": "FASTQ",
-        "required": false
+        "required": true
       },
       {
         "name": "fastq_file2",
         "type": "File",
         "format": "FASTQ",
-        "required": false
-      },
-      {
-        "name": "fastq_dir",
-        "type": "String",
-        "format": null,
-        "required": false
+        "required": true
       }
     ],
     "outputs": [
@@ -363,12 +357,6 @@
         "type": "File",
         "format": "CSV"
       }
-    ],
-    "require_any": [
-      [
-        "fastq_dir",
-        "fastq_file1"
-      ]
     ]
   },
   "celltype_case_control_de": {
@@ -1137,7 +1125,7 @@
     "reusable_for": [],
     "inputs": [
       {
-        "name": "maf_file",
+        "name": "maf",
         "type": "File",
         "format": "MAF",
         "required": true
@@ -1505,19 +1493,19 @@
         "name": "analysis_ready_bais",
         "type": "Array[File]+",
         "format": "BAI",
-        "required": true
+        "required": false
       },
       {
         "name": "sample_metadata",
         "type": "File",
         "format": "CSV",
-        "required": true
+        "required": false
       },
       {
         "name": "clinical_metadata",
         "type": "File",
         "format": "CSV",
-        "required": true
+        "required": false
       },
       {
         "name": "run_group_report",
@@ -1694,15 +1682,21 @@
         "required": true
       },
       {
-        "name": "t1_csv",
-        "type": "File",
-        "format": "CSV",
-        "required": true
-      },
-      {
         "name": "input_scale",
         "type": "String",
         "format": null,
+        "required": false
+      },
+      {
+        "name": "file_metadata",
+        "type": "File",
+        "format": "CSV",
+        "required": false
+      },
+      {
+        "name": "gene_sets_gmt",
+        "type": "File",
+        "format": "GMT",
         "required": false
       }
     ],
@@ -1956,22 +1950,22 @@
         "required": true
       },
       {
-        "name": "individual_csv",
-        "type": "File",
-        "format": "CSV",
-        "required": true
-      },
-      {
-        "name": "sample_csv",
-        "type": "File",
-        "format": "CSV",
-        "required": true
-      },
-      {
         "name": "sample_ids",
         "type": "Array[String]",
         "format": null,
         "required": false
+      },
+      {
+        "name": "clinical_xls",
+        "type": "File",
+        "format": "XLS",
+        "required": true
+      },
+      {
+        "name": "metainfo_xlsx",
+        "type": "File",
+        "format": "XLSX",
+        "required": true
       }
     ],
     "outputs": [
@@ -2730,6 +2724,12 @@
         "type": "File",
         "format": "TSV",
         "required": true
+      },
+      {
+        "name": "docker_image",
+        "type": "String",
+        "format": null,
+        "required": false
       }
     ],
     "outputs": [
@@ -3021,7 +3021,7 @@
         "name": "receiver_cell_type",
         "type": "String",
         "format": null,
-        "required": false
+        "required": true
       },
       {
         "name": "hra000087_mode",
@@ -3368,7 +3368,7 @@
         "required": true
       },
       {
-        "name": "gene",
+        "name": "gene_symbol",
         "type": "String",
         "format": null,
         "required": true
@@ -3637,25 +3637,25 @@
         "name": "somatic_small_variant_vcfs",
         "type": "Array[File]+",
         "format": "VCF",
-        "required": true
+        "required": false
       },
       {
         "name": "tumor_bams",
         "type": "Array[File]+",
         "format": "BAM",
-        "required": true
+        "required": false
       },
       {
         "name": "tumor_bam_indexes",
         "type": "Array[File]+",
         "format": "BAI",
-        "required": true
+        "required": false
       },
       {
         "name": "allele_specific_cnv_files",
         "type": "Array[File]+",
         "format": "TSV",
-        "required": true
+        "required": false
       }
     ],
     "outputs": [

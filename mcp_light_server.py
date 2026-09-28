@@ -924,6 +924,13 @@ def tool_validate_execution_chain(args):
             if val:
                 params[name] = val
             else:
+                # 交付包 canonical 参考路径兜底（rnaseq_singletask 的索引/GTF：
+                # WDL 必填、交付实跑就用这套参考路径，不算调用方欠的）
+                _canon = _canonical_default(gid, name)
+                if isinstance(_canon, str) and _canon.startswith("/"):
+                    params[name] = _canon
+                    warnings.append(f"{tool_key}.{name}: 服务端按交付包默认参考路径补齐")
+                    continue
                 # reason 有处置含义：no_confirmed_path = 绑定正确但图里没有该资产的确认路径
                 # （数据侧补 file_path）。light 走 Knowledge Card 而非槽表，没有 slot_not_bound。
                 exec_missing.append({"param": name, "tool_id": tool_key, "step": idx,
@@ -987,8 +994,19 @@ def tool_validate_execution_chain(args):
                          {v for v in _clin.values() if v in _CSV_META_PARAM_FMT.values()}):
                 if _fam and len(_accs) == 1:
                     _pairs.update(_clinical_pair_files(next(iter(_accs)), gid, fmts=_fam))
+            _csv_fb = None                 # 惰性：XLSX 族填不上才查的 CSV 回落
             for _n, _fmt in _clin.items():
                 _hit = _pairs.get(_fmt)
+                if not _hit and _n in ("clinical_xls", "metainfo_xlsx",
+                                       "clinical_file", "metainfo_file") and len(_accs) == 1:
+                    # 图内 XLSX 节点没有有效路径（HRA000122：节点在但 file_path 为空）时，
+                    # 按交付实跑口径回落到 CNCB CSV——immune 的 9 月实跑喂的就是
+                    # individual.csv/sample.csv（运行测试表 input_path 实证）。
+                    if _csv_fb is None:
+                        _csv_fb = _clinical_pair_files(next(iter(_accs)), gid,
+                                                       fmts={"INDIVIDUAL_META", "SAMPLE_META"})
+                    _hit = _csv_fb.get("INDIVIDUAL_META" if "clinical" in _n
+                                     else "SAMPLE_META")
                 if _hit:
                     params[_n] = _hit[1]
                 else:
@@ -1679,6 +1697,43 @@ def _tei_fill(study, cap=0):
             "allele_specific_cnv_files": cnv[:1]}
 
 
+# 交付包 canonical 默认值（archive_inspect/<tool>/example_inputs.json 与 WDL 原文）：
+# WDL 无默认但交付实跑就用的值。调用方显式给了的以调用方为准。
+_CANONICAL_DEFAULTS = {
+    "bootstrap_stability": {
+        "bootstrap_n": 100, "retain_fraction": 0.8, "hvg_n": 1000, "pca_n": 20,
+        "k_min": 1, "k_max": 15, "loess_span": 0.5, "seed": 20260329, "perm_n": 100,
+        "ari_high_threshold": 0.8, "nmi_high_threshold": 0.8,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/rnaseqcluster:1.0",
+        "cpu": 4, "memory": "16 GB"},
+    "hvg_pca_gmm": {
+        "hvg_n": 1000, "pca_n": 20, "k_min": 1, "k_max": 15, "loess_span": 0.5,
+        "seed": 20260329,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/rnaseqcluster:1.0",
+        "cpu": 4, "memory": "16 GB"},
+    "preprocess_counts": {
+        "sample_missing_threshold": 0.9, "min_cpm": 1.0, "min_sample_fraction": 0.2,
+        "min_samples_after_filter": 3,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/rnaseqcluster:1.0",
+        "cpu": 4, "memory": "16 GB"},
+    "rnaseq_unsupervised_cluster": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/rnaseqcluster:1.0"},
+    "rnaseq_singletask": {
+        "rrna_star_index": "/cromwell-share/cromwell_building_group/wenx/testdata/reference/reference_data/rRNA_reference/star_rrna_reference",
+        "star_genome_index": "/cromwell-share/cromwell_building_group/wenx/testdata/reference/reference_data/star_reference",
+        "rsem_index": "/cromwell-share/cromwell_building_group/wenx/testdata/reference/reference_data/rsem_index",
+        "gtf_file": "/cromwell-share/cromwell_building_group/wenx/testdata/reference/reference_data/annotation.gtf",
+        "threads": 8, "trim_adapter": "AGATCGGAAGAGC", "featurecounts_strandedness": 0,
+        "docker_image": "image.cncb.ac.cn/cncb-cohort-agent/rnaseq:latest",
+        "memory_gb": 64, "disk_size_gb": 500},
+}
+
+
+def _canonical_default(gid, name):
+    """交付包 canonical 默认值（见 _CANONICAL_DEFAULTS）；没有返回 None。"""
+    return (_CANONICAL_DEFAULTS.get(gid) or {}).get(name)
+
+
 # 队列级数组槽的三族补全口径（槽位名 → fill 返回里的键）：
 # 配对角色槽走 _paired_bam_fill（同个体）；这两族走 _cohort_bam_fill / _tei_fill。
 _GERMLINE_FILL = {"analysis_ready_bams": "bams", "analysis_ready_bais": "bais"}
@@ -1946,6 +2001,9 @@ def _resolve_id_params(gid, card, bound_files, study, chain_facts=None):
                                               "group_b_samples": "male"}[name]] or None
                             if v and _RUN_LIST_CAP > 0:
                                 v = v[:_RUN_LIST_CAP]
+        if v is None:
+            # 交付包 canonical 默认值兜底（docker_image/调参/参考路径，交付实跑就用这些值）
+            v = _canonical_default(gid, name)
         if v is not None and v != []:
             out[name] = v
         elif i.get("required", True) and name in _ID_RESOLVABLE and evidence:
@@ -2132,7 +2190,9 @@ _CSV_META_PARAM_FMT = {"individual_csv": "INDIVIDUAL_META",
                        # gatk_germline_cohort 的交付口径（运行测试表）：同一套 CNCB 原生 CSV，
                        # 只是槽位名不同——sample_metadata=sample.csv、clinical_metadata=individual.csv
                        "sample_metadata": "SAMPLE_META",
-                       "clinical_metadata": "INDIVIDUAL_META"}
+                       "clinical_metadata": "INDIVIDUAL_META",
+                       # gsea 的 file_metadata 就是 T1.csv 那个角色（run 级元信息）
+                       "file_metadata": "T1_META"}
 
 def _needs_clinical(gid):
     """该流程按卡片声明需要哪几个「由服务端按队列补」的元数据参数：{参数名: 语义格式}。
