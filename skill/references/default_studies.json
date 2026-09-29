@@ -1,0 +1,336 @@
+{
+  "cnvkit_cnv_clinical": [
+    "HRA001272",
+    "HRA000021",
+    "HRA000071",
+    "HRA000873",
+    "HRA001749",
+    "HRA006499",
+    "HRA007169"
+  ],
+  "gsea_pathway_enrichment": [
+    "HRA001272"
+  ],
+  "scrna_cell_communication": [
+    "HRA000087"
+  ],
+  "gatk_germline_cohort": [
+    "HRA001749",
+    "HRA000021",
+    "HRA000071",
+    "HRA000087",
+    "HRA000873",
+    "HRA001272",
+    "HRA006499",
+    "HRA007169",
+    "HRA016026"
+  ],
+  "rmats_alternative_splicing": [
+    "HRA001272",
+    "HRA003107",
+    "HRA000073",
+    "HRA007167",
+    "HRA000074",
+    "HRA016026",
+    "HRA006117",
+    "HRA002693"
+  ],
+  "manta_structural_variants": [
+    "HRA000021",
+    "HRA001749",
+    "HRA000071",
+    "HRA000873",
+    "HRA001272",
+    "HRA006499",
+    "HRA007169",
+    "HRA016026"
+  ],
+  "star_fusion": [
+    "HRA000073",
+    "HRA000071",
+    "HRA000074",
+    "HRA000087",
+    "HRA000127",
+    "HRA000321",
+    "HRA000873",
+    "HRA001749",
+    "HRA002693",
+    "HRA006117",
+    "HRA006499",
+    "HRA007167",
+    "HRA007169",
+    "HRA003533",
+    "HRA005191",
+    "HRA008283",
+    "HRA016026"
+  ],
+  "tumor_evolution_inference": [
+    "HRA001272"
+  ],
+  "breast_cellchat": [
+    "HRA000087",
+    "HRA000321"
+  ],
+  "lung_tme_annotation_cnv": [
+    "HRA000087",
+    "HRA000321"
+  ],
+  "immunotherapy_cellchat": [
+    "HRA000087",
+    "HRA000321"
+  ],
+  "dataset_matrix_annotation": [
+    "HRA000087",
+    "HRA000321"
+  ],
+  "dataset_downstream": [
+    "HRA000087",
+    "HRA000321"
+  ],
+  "celltype_case_control_de": [
+    "HRA000087",
+    "HRA000321"
+  ],
+  "tcell_intervention": [
+    "HRA000087",
+    "HRA000321"
+  ],
+  "ipf_trajectory_regulon": [
+    "HRA000087"
+  ],
+  "de_enrichment": [
+    "HRA003107"
+  ],
+  "wgcna_module_trait": [
+    "HRA003107",
+    "HRA007167"
+  ],
+  "gene_boxplot": [
+    "HRA003107"
+  ],
+  "stage_heatmap": [
+    "HRA003107"
+  ],
+  "cox_model": [
+    "HRA003107",
+    "HRA000073",
+    "HRA000074",
+    "HRA002693",
+    "HRA006117"
+  ],
+  "wgcna_hub": [
+    "HRA003107",
+    "HRA007167"
+  ],
+  "umap": [
+    "HRA003107",
+    "HRA000073",
+    "HRA000074",
+    "HRA000122",
+    "HRA002693",
+    "HRA006117",
+    "HRA007167"
+  ],
+  "deg_enrichment": [
+    "HRA003107"
+  ],
+  "deg_trend": [
+    "HRA003107"
+  ],
+  "km_survival": [
+    "HRA003107",
+    "HRA000073",
+    "HRA000074",
+    "HRA002693",
+    "HRA006117"
+  ],
+  "cellranger_workflow": [],
+  "diff_expr_go": [
+    "HRA000073",
+    "HRA000074",
+    "HRA000122",
+    "HRA002693",
+    "HRA003107",
+    "HRA006117",
+    "HRA007167"
+  ],
+  "diff_expr_kegg": [
+    "HRA000073",
+    "HRA000074",
+    "HRA000122",
+    "HRA002693",
+    "HRA003107",
+    "HRA006117",
+    "HRA007167"
+  ],
+  "driver_gene_gender_analysis": [
+    "HRA000071",
+    "HRA000873",
+    "HRA001272",
+    "HRA001749",
+    "HRA007169",
+    "HRA016026"
+  ],
+  "her2_pfs_survival": [
+    "HRA000073",
+    "HRA000074",
+    "HRA000122",
+    "HRA001272",
+    "HRA002693",
+    "HRA003107",
+    "HRA006117",
+    "HRA007167",
+    "HRA007413"
+  ],
+  "immune_infiltration_iobr": [
+    "HRA000073",
+    "HRA000074",
+    "HRA000122",
+    "HRA001272",
+    "HRA002693",
+    "HRA003107",
+    "HRA006117",
+    "HRA007167",
+    "HRA007413"
+  ],
+  "paired_fastq_to_unmapped_bam": [
+    "HRA000073",
+    "HRA000071",
+    "HRA000074",
+    "HRA000087",
+    "HRA000127"
+  ],
+  "rnaseq_singletask": [],
+  "rnaseq_unsupervised_cluster": [
+    "HRA003107",
+    "HRA000073",
+    "HRA000074",
+    "HRA000122",
+    "HRA002693",
+    "HRA006117",
+    "HRA007167"
+  ],
+  "survival_analysis": [
+    "HRA001272",
+    "HRA001749",
+    "HRA007169",
+    "HRA016026"
+  ],
+  "tmb_survival_analysis": [
+    "HRA000071",
+    "HRA000873",
+    "HRA001272",
+    "HRA001749",
+    "HRA006499",
+    "HRA007169",
+    "HRA016026"
+  ],
+  "wes_somatic_maf_landscape": [
+    "HRA000071",
+    "HRA000873",
+    "HRA001272",
+    "HRA001749",
+    "HRA006499",
+    "HRA007169",
+    "HRA016026"
+  ],
+  "wes_somatic_pair": [
+    "HRA001749",
+    "HRA007169"
+  ],
+  "wgcna": [
+    "HRA000073",
+    "HRA000074"
+  ],
+  "bcftools": [
+    "HRA001749",
+    "HRA007169"
+  ],
+  "bootstrap_stability": [
+    "HRA003107",
+    "HRA000073",
+    "HRA000074",
+    "HRA000122",
+    "HRA002693",
+    "HRA006117"
+  ],
+  "bwa": [
+    "HRA000073",
+    "HRA000071",
+    "HRA000074",
+    "HRA000087",
+    "HRA000127",
+    "HRA000321",
+    "HRA000873"
+  ],
+  "fastp": [
+    "HRA000073",
+    "HRA000071",
+    "HRA000074",
+    "HRA000087",
+    "HRA000127",
+    "HRA000321",
+    "HRA000873",
+    "HRA001748",
+    "HRA001749",
+    "HRA002693",
+    "HRA003107",
+    "HRA003533",
+    "HRA005191",
+    "HRA006117",
+    "HRA006499",
+    "HRA007167",
+    "HRA007169",
+    "HRA008283",
+    "HRA016026"
+  ],
+  "fastqc": [
+    "HRA000073",
+    "HRA000071",
+    "HRA000074",
+    "HRA000087",
+    "HRA000127",
+    "HRA000321"
+  ],
+  "featurecounts": [],
+  "gatk": [],
+  "hvg_pca_gmm": [
+    "HRA003107",
+    "HRA000073",
+    "HRA000074",
+    "HRA000122",
+    "HRA002693",
+    "HRA006117"
+  ],
+  "multiqc": [],
+  "preprocess_counts": [
+    "HRA003107",
+    "HRA000073",
+    "HRA000074",
+    "HRA000122",
+    "HRA002693",
+    "HRA006117",
+    "HRA007167",
+    "HRA007413"
+  ],
+  "rsem": [],
+  "samtools": [],
+  "snpeff": [
+    "HRA001749",
+    "HRA007169"
+  ],
+  "star": [
+    "HRA000073",
+    "HRA000071",
+    "HRA000074",
+    "HRA000087",
+    "HRA000127",
+    "HRA000321",
+    "HRA002693"
+  ],
+  "trim_galore": [
+    "HRA000073",
+    "HRA000071",
+    "HRA000074"
+  ]
+}

@@ -30,6 +30,43 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
+
+# 用户确认的运行测试表(1).xlsx：仅用于未指定数据时的队列选择。
+with open(os.path.join(HERE, "skill", "references", "default_studies.json"), encoding="utf-8") as _f:
+    _DEFAULT_STUDIES = json.load(_f)
+_STUDY_ID = re.compile(r"\b(?:HRA\d{6}|TCGA-[A-Z0-9]+)\b", re.I)
+
+
+def _has_explicit_data(query):
+    return bool(_STUDY_ID.search(query) or re.search(r"\b(?:HRR|HRS)\d+\b|(?:^|\s)/(?:hpcdisk|cbb-data|cromwell)[^\s]*", query, re.I))
+
+
+def _default_study_prompt(query):
+    if _has_explicit_data(query):
+        return ""
+    return ("\n用户未指定数据集。以下为运行测试表指定的流程→可选 study，必须先在对应列表内取数，"
+            "再检查实际必需输入；不得从其他队列凑文件。保留用户指定的癌种约束和流程，不能换成另一个流程。"
+            "空列表表示没有确认的默认队列，须说明无法自动选数。"
+            "多个可选队列优先选择必需输入齐全者；CNVkit 未给 BED 时优先 HRA000021 的 WGS。"
+            "表内队列也必须通过现有黑名单、合同和文件存在记录校验。\n"
+            + json.dumps(_DEFAULT_STUDIES, ensure_ascii=False))
+
+
+def _default_study_allowed(srv, item):
+    pid = item.get("pipeline_id") or (item.get("tool") or {}).get("tool_id")
+    reverse = {c.get("meta_id"): gid for gid, c in srv.KC_MAP.items() if gid != c.get("meta_id")}
+    gid = reverse.get(pid, re.sub(r"^task\d+_", "", str(pid or "")))
+    allowed = set(_DEFAULT_STUDIES.get(gid, []))
+    data = item.get("data") or {}
+    values = [item.get("study_accession", ""), *data.get("study_accessions", [])]
+    for asset in [*(item.get("assets") or []), *(data.get("assets") or [])]:
+        if isinstance(asset, dict):
+            values.extend(asset.get(k, "") for k in ("study_accession", "file_name", "file_path", "path"))
+    studies = {s.upper() for v in values for s in _STUDY_ID.findall(str(v or ""))}
+    return bool(studies and studies <= allowed and
+                all(not srv._failed_run(gid, s) and not srv._unproven_combo(gid, s) for s in studies))
+
+
 _web = None
 _web_ctx = None      # (system_prompt, fc_tools)，进程内只算一次
 
@@ -126,6 +163,7 @@ def run_query(query, session_id=None):
     web = _load_web()
     import mcp_light_server as srv
     system_prompt, fc_tools = _ctx()
+    system_prompt += _default_study_prompt(query)
     sid = session_id or f"route-{os.getpid()}-{time.time_ns()}"
     runner = _CapturingRunner(web, _LocalMcp(srv), fc_tools, system_prompt, sid, lambda ev: None)
     runner.final_text = ""
@@ -958,6 +996,19 @@ def to_cohort_v2(plan, query, top_k=3):
             _rec["execution_params_missing"] = _box0.get("execution_params_missing") or []
             recs[:] = [_rec]
             out["recommendations"] = recs
+
+    # 自动选数同时约束 recommendations 和 candidates，防止主推荐绕过候选过滤。
+    if not _has_explicit_data(query):
+        candidates = [c for c in candidates if _default_study_allowed(srv, c)]
+        recs[:] = [r for r in recs if _default_study_allowed(srv, r)]
+        if not recs:
+            out["unsupported_reason"] = "运行测试表中没有与本次方案匹配的已确认默认队列；请指定数据或选择表内可用队列。"
+    # 无论用户是否指定数据，已经命中黑/白名单的主推荐均不可返回。
+    recs[:] = [r for r in recs if not any(m.get("reason") == "proven_run_blocked"
+                                        for m in r.get("execution_params_missing", []))]
+    out["recommendations"] = recs
+    for rank, candidate in enumerate(candidates, 1):
+        candidate["rank"] = rank
 
     # candidates 的上限**不跟 top_k 走**。top_k 限的是推荐条数（light 严格 top-1，
     # 实际就 1 条），而 candidates 是「同一个请求的另几种拆法」——一站式流程 + 原子链。
