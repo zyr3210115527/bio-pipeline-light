@@ -1553,6 +1553,41 @@ def _study_run_lists(study, strategy=None):
     return out
 
 
+def _rmats_group_bams(study):
+    """按图内 bulk RNA 样本角色构造独立两组：group1 正常，group2 肿瘤。
+
+    只用基因组坐标排序 RNA BAM，排除 DNA BQSR 和转录本比对；不将两组按 run
+    交集过滤，它们本来就来自不同 run。索引保持 WDL 的空数组默认值，执行端生成。
+    """
+    if not study or not _SAFE_TOKEN.fullmatch(str(study)):
+        return {}
+    roles = _study_run_lists(study, strategy="bulk_RNA") or {}
+    normal, tumor = set(roles.get("normal", [])), set(roles.get("tumor", []))
+    ambiguous = normal & tumor
+    normal -= ambiguous
+    tumor -= ambiguous
+    rows = neo4j_q([f"MATCH (f) WHERE (f:T1 OR f:T2) AND f.study_accession = '{study}' "
+                    "AND f.file_name ENDS WITH 'Aligned.sortedByCoord.out.bam' "
+                    "AND f.file_path IS NOT NULL RETURN f.file_name, f.file_path, f.run_accession"])
+    by_run = {}
+    for row in (rows[0] if rows else []):
+        name, path, run = row
+        path = str(path or "")
+        match = re.search(r"HRR\d+|HRS\d+", str(run or name or ""))
+        if not match or not path.startswith("/") or "NOT_FOUND" in path:
+            continue
+        run = match.group(0)
+        rank = ("bak" in path.lower() or "backup" in path.lower(), path)
+        if run not in by_run or rank < by_run[run][0]:
+            by_run[run] = (rank, path)
+    result = {}
+    for slot, runs in (("group1_bams", normal), ("group2_bams", tumor)):
+        paths = list(dict.fromkeys(by_run[r][1] for r in sorted(runs) if r in by_run))
+        result[slot] = paths[:_RUN_LIST_CAP] if _RUN_LIST_CAP > 0 else paths
+    overlap = set(result["group1_bams"]) & set(result["group2_bams"])
+    return {k: [p for p in paths if p not in overlap] for k, paths in result.items()}
+
+
 def _paired_bam_fill(study, cap=0):
     """队列级配对角色数组槽（tumor_bams/tumor_bais/normal_bams/normal_bais）的服务端补全。
 
@@ -1794,7 +1829,8 @@ _TEI_FILL_SLOTS = {"tumor_bams": "tumor_bams", "tumor_bam_indexes": "tumor_bam_i
                    "somatic_small_variant_vcfs": "somatic_small_variant_vcfs",
                    "allele_specific_cnv_files": "allele_specific_cnv_files"}
 # 槽位表是按工具分的——直接拿 gid 查平铺表永远查不中（实踩）
-_GID_FILL = {"gatk_germline_cohort": _GERMLINE_FILL,
+_GID_FILL = {"rmats_alternative_splicing": {"group1_bams": "group1_bams", "group2_bams": "group2_bams"},
+             "gatk_germline_cohort": _GERMLINE_FILL,
              "tumor_evolution_inference": _TEI_FILL_SLOTS}
 
 
@@ -1816,6 +1852,9 @@ def _cohort_fill_entries(gid, study, bound_runs, cap=0):
     out = {}
     if not study or not _SAFE_TOKEN.fullmatch(str(study)):
         return out
+    if gid == "rmats_alternative_splicing":
+        return {slot: [(frozenset(), path) for path in paths]
+                for slot, paths in _rmats_group_bams(study).items()}
     card = KC_MAP.get(gid) or {}
 
     def _keep(es):
