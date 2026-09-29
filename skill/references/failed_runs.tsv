@@ -15,3 +15,5 @@ wgcna	HRA006117	grade/gender 列存在但值为空，关联后 n=0
 wgcna	HRA007167	grade/gender 列存在但值为空，关联后 n=0
 wgcna	HRA007413	6 个 run 在 counts 矩阵列名中零匹配
 wgcna	HRA001272	tumor_grade 图内全空（0/206），模块-性状关联无性状可关联
+wgcna_hub	HRA003107	演示期屏蔽：共表达模块类问题统一走 wgcna_module_trait（解禁删本行）
+wgcna_hub	HRA007167	演示期屏蔽：共表达模块类问题统一走 wgcna_module_trait（解禁删本行）
