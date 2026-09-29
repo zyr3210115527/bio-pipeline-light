@@ -398,6 +398,7 @@ def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None, chain
     会覆盖掉正确的路径。bulk10 的两张 CNCB 元数据表由 server 按队列号推，同理不绑。
     """
     inputs, missing, used, used_up = {}, [], set(), set()
+    _rmats_fill = None
     _role_map = None               # 惰性：只在遇到 tumor_*/normal_* 槽位时查一次图
     _fill_entries = None           # 惰性：队列级数组槽补全（_cohort_fill_entries）
     _scalar_fill = None            # 惰性：标量角色槽配对补全（_paired_scalar_fill）
@@ -452,6 +453,16 @@ def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None, chain
             else:
                 pool_assets = assets
             cand = _pick_assets(pool_assets, used, p, is_arr)
+            if gid == "rmats_alternative_splicing" and name in ("group1_bams", "group2_bams") and (explicit_inputs or {}).get(name):
+                raw = explicit_inputs[name]
+                raw = raw.get("value", raw) if isinstance(raw, dict) else raw
+                raw = raw if isinstance(raw, list) else [raw]
+                wanted = {str(v.get("file_name") or v.get("file_path") or v.get("path") or v.get("asset_id") or "")
+                          if isinstance(v, dict) else str(v) for v in raw}
+                wanted.discard("")
+                cand = [a for a in pool_assets if any(str(a.get(k) or "") in wanted
+                        for k in ("file_name", "file_path", "path", "asset_id"))]
+
             _meta_fmt = _meta_param_fmt(srv, name) if gid not in srv._BULK10 else None
             if not cand and _meta_fmt:
                 cand = _add_clinical(srv, assets, study, _meta_fmt)
@@ -475,6 +486,15 @@ def _bind_step(srv, gid, card, assets, upstream, step_id, study_hint=None, chain
                          "_fmt": _asset_artifact({"file_name": _fn})}
                 assets.append(_item)
                 return _item
+
+            if (gid == "rmats_alternative_splicing" and name in ("group1_bams", "group2_bams")
+                    and study and not any((explicit_inputs or {}).get(k)
+                                          for k in ("group1_bams", "group2_bams"))):
+                # 模型给的是代表文件，不是分组；按角色同时补足两组，不能让第一槽抢走所有 BAM。
+                if _rmats_fill is None:
+                    _rmats_fill = srv._rmats_group_bams(study)
+                cand = [_append_fill_asset(path, f"rMATS 按 {study} 正常/肿瘤角色分组")
+                        for path in _rmats_fill.get(name, [])]
 
             if not cand and study and srv._cohort_fillable_slot(gid, name, typ, p.get("format")):
                 # 队列级数组槽补全（三族：cnvkit 配对角色槽 / gatk_germline 的
@@ -669,6 +689,14 @@ def _query_gene(q):
             continue
         return t
     return None
+
+
+def _prefer_gene_boxplot(query):
+    """单基因表达高低优先箱线图；共表达模块/功能问题保留 WGCNA。"""
+    text = str(query or "")
+    if re.search(r"共表达|模块|co[ -]?expression|module|WGCNA", text, re.I):
+        return False
+    return bool(_query_gene(text) and re.search(r"表达|expression", text, re.I))
 
 
 def _alt_gids(srv, assets, taken, n):
@@ -928,7 +956,9 @@ def to_cohort_v2(plan, query, top_k=3):
     # 把它插到差异表达候选**前面**（bulk10 口径锁定 counts 矩阵，路径按 §3.1 定拼）。
     if candidates and not any(c.get("pipeline_id") == "gene_boxplot" for c in candidates):
         _de_i = next((i for i, c in enumerate(candidates)
-                      if c.get("pipeline_id") in ("diff_expr_go", "diff_expr_kegg")), None)
+                      if (c.get("pipeline_id") in ("diff_expr_go", "diff_expr_kegg")
+                          or (_prefer_gene_boxplot(query)
+                              and c.get("study_accession") in srv._SUCCEEDED_RUNS.get("gene_boxplot", {})))), None)
         _de_acc = (candidates[_de_i].get("study_accession") if _de_i is not None else None)
         if _de_i is not None and _de_acc:
             _fn = f"{_de_acc}-Genes-counts-1.0.tsv"
@@ -947,7 +977,7 @@ def to_cohort_v2(plan, query, top_k=3):
                      "_fmt": "tsv"}], _de_i + 1)
                 # 只在真可跑时插入（白名单/绑定/路径任一不过就不塞演示候选）
                 if _box.get("feasibility_status") == "ready":
-                    candidates.insert(_de_i, _box)
+                    candidates.insert(0 if _prefer_gene_boxplot(query) else _de_i, _box)
                     for _i, _c in enumerate(candidates, 1):
                         _c["rank"] = _i
 
@@ -955,10 +985,17 @@ def to_cohort_v2(plan, query, top_k=3):
     # 箱线图是这个问法最直观的答案形态（20260928 演示要求：食管癌 gene_boxplot 置顶）。
     # 生效条件：boxplot 补位候选已在最前且 ready、问句里点得出基因（_query_gene）。
     # 原模型的 diff_expr_go 顺位降为候选；合同参数保持补全后的完整形态（不缺东西）。
+    if _prefer_gene_boxplot(query):
+        _box_index = next((i for i, c in enumerate(candidates)
+                           if c.get("pipeline_id") == "gene_boxplot"
+                           and c.get("feasibility_status") == "ready"), None)
+        if _box_index is not None:
+            candidates.insert(0, candidates.pop(_box_index))
     _box0 = candidates[0] if candidates else None
     if (_box0 and _box0.get("pipeline_id") == "gene_boxplot"
             and _box0.get("feasibility_status") == "ready"
-            and _query_gene(query)):
+            and _prefer_gene_boxplot(query)):
+        _box0["selection_source"] = "gene_expression_priority"
         _acc = _box0.get("study_accession")
         _gene = _query_gene(query)
         _skel = {"schema_version": "tool-chain/v2", "selection_status": "ok",
@@ -967,7 +1004,7 @@ def to_cohort_v2(plan, query, top_k=3):
                      "pipeline_id": "gene_boxplot",
                      "match_note": (f"单基因表达高低问题：{_gene or '目标基因'}在肿瘤 vs 正常组织的"
                                     "表达差异用同队列单基因箱线图（bulk10 gene_boxplot，counts 矩阵）"
-                                    "直观呈现；limma 两组差异的完整结果见候选 diff_expr_go。"),
+                                    "优先呈现表达差异；共表达模块稳定性及功能解释仍需后续相关分析。"),
                      "tool": {"tool_id": "gene_boxplot"},
                      "data": {"status": "available",
                               "study_accessions": [_acc] if _acc else [],
@@ -996,6 +1033,11 @@ def to_cohort_v2(plan, query, top_k=3):
             _rec["execution_params_missing"] = _box0.get("execution_params_missing") or []
             recs[:] = [_rec]
             out["recommendations"] = recs
+            out["answer"] = "优先推荐 gene_boxplot 查看表达分布；共表达模块稳定性及生物学功能需由相关后续流程分析。"
+
+    # 自动补位只有完整可提交才展示；真实主方案仍可如实请求用户补参数。
+    candidates = [c for c in candidates if c.get("selection_source") != "server_fill"
+                  or c.get("feasibility_status") == "ready"]
 
     # 自动选数同时约束 recommendations 和 candidates，防止主推荐绕过候选过滤。
     if not _has_explicit_data(query):
