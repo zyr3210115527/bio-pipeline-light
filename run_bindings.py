@@ -111,6 +111,19 @@ DISPLAY_ALIASES = {
     "STAR-Fusion": "star_fusion",
 }
 
+# 用户口头常用的软件名（「用 manta 做结构变异」「跑一下 CNVkit」）。只收专有软件名，
+# 不收 Cox / KM / TMB 这类多个流程共用的方法名——那种问法交给模型判断。
+SOFTWARE_ALIASES = {
+    "manta": "manta_structural_variants",
+    "cnvkit": "cnvkit_cnv_clinical",
+    "gsea": "gsea_pathway_enrichment",
+    "rmats": "rmats_alternative_splicing",
+    "iobr": "immune_infiltration_iobr",
+    "cibersort": "immune_infiltration_iobr",
+    "cellranger": "cellranger_workflow",
+    "starfusion": "star_fusion",
+}
+
 # 平台上有、本系统没有对应流程（没有知识卡片）的名字：点名时如实说不支持，
 # 不许落到「意思相近」的别的流程上（09-28 测试里 WGS 单样本就被换成了 Manta）。
 PLATFORM_ONLY = {
@@ -146,8 +159,8 @@ _IDENT = re.compile(r"(?<![a-z0-9_])[a-z][a-z0-9]*(?:_[a-z][a-z0-9]*)+(?![a-z0-9
 _CARDS: dict = {}          # graph tool_id -> card（knowledge_cards_map.json 原样 + card_id）
 _REGISTRY: dict = {}       # graph tool_id -> bindings/<tool_id>.json
 _STUDIES: dict = {}        # study -> {"tumor_type", "labels"}
-_ALIASES: list = []        # [(规范化别名, tool_id 或 None, 是否纯 ASCII)]，长的在前
-_DISEASE_TERMS: list = []  # [(规范化词, {study})]，长的在前
+_ALIASES: list = []        # [(编译后的匹配式, tool_id 或 ("platform_only", 展示名))]，长的在前
+_DISEASE_TERMS: list = []  # [(编译后的匹配式, {study})]，长的在前
 
 
 # ------------------------------------------------------------------ 加载 ----
@@ -161,6 +174,20 @@ def _load_json(path, default):
 
 def _norm(s):
     return re.sub(r"\s+", "", str(s or "")).lower()
+
+
+def _pattern(term):
+    """别名 → 匹配式。字符之间允许任意空白（「CNVkit 拷贝数变异」「CNVkit拷贝数变异」都认），
+    - 与 _ 互通；以英文字母/数字开头或结尾时加词边界，免得 star 命中 start、gsea 命中 gsea_xxx。
+    在原句上匹配而不是先删空白：删了空白英文会粘成一串（use STAR for → usestarfor）。"""
+    chars = [c for c in str(term) if not c.isspace()]
+    parts = [r"[-_\s]?" if c in "-_" else re.escape(c) for c in chars]
+    body = r"\s*".join(parts)
+    if chars and re.match(r"[A-Za-z0-9]", chars[0]):
+        body = r"(?<![A-Za-z0-9_])" + body
+    if chars and re.match(r"[A-Za-z0-9]", chars[-1]):
+        body += r"(?![A-Za-z0-9_])"
+    return re.compile(body, re.I)
 
 
 def load(bindings_dir=None):
@@ -192,20 +219,19 @@ def load(bindings_dir=None):
                 names.setdefault(_norm(a), gid)
     for wf, gid in WORKFLOW_TOOLS.items():
         names.setdefault(_norm(wf), gid)
-    for a, gid in DISPLAY_ALIASES.items():
+    for a, gid in list(DISPLAY_ALIASES.items()) + list(SOFTWARE_ALIASES.items()):
         names[_norm(a)] = gid
     for a, label in PLATFORM_ONLY.items():
-        names[_norm(a)] = None
-        names[_norm(label)] = None
-    _ALIASES[:] = sorted(((a, g, a.isascii()) for a, g in names.items()),
-                         key=lambda x: -len(x[0]))
+        names[_norm(a)] = ("platform_only", label)
+        names[_norm(label)] = ("platform_only", label)
+    _ALIASES[:] = [(_pattern(a), g) for a, g in sorted(names.items(), key=lambda x: -len(x[0]))]
 
     terms = {}
     for study, info in _STUDIES.items():
         for t in [info.get("tumor_type")] + list(info.get("labels") or []):
             if t:
                 terms.setdefault(_norm(t), set()).add(study)
-    _DISEASE_TERMS[:] = sorted(terms.items(), key=lambda x: -len(x[0]))
+    _DISEASE_TERMS[:] = [(_pattern(t), ss) for t, ss in sorted(terms.items(), key=lambda x: -len(x[0]))]
 
 
 def card(gid):
@@ -302,20 +328,9 @@ def block_reason(gid, study):
 # ------------------------------------------------------------- 问句解析 ----
 
 def _spans(text, items):
-    """在规范化文本里找全部命中，丢掉被更长命中整个盖住的短命中。"""
-    hits = []
-    for term, val, ascii_only in items:
-        start = 0
-        while True:
-            i = text.find(term, start)
-            if i < 0:
-                break
-            j = i + len(term)
-            if not ascii_only or (
-                    (i == 0 or not re.match(r"[a-z0-9_]", text[i - 1]))
-                    and (j == len(text) or not re.match(r"[a-z0-9_]", text[j]))):
-                hits.append((i, j, val))
-            start = i + 1
+    """在原句里找全部命中，丢掉被更长命中整个盖住的短命中。items = [(匹配式, 值)]。"""
+    hits = [(m.start(), m.end(), val) for pat, val in items for m in pat.finditer(text)
+            if m.end() > m.start()]
     keep = [h for h in hits
             if not any(o[0] <= h[0] and h[1] <= o[1] and (o[1] - o[0]) > (h[1] - h[0]) for o in hits)]
     return sorted(keep)
@@ -331,21 +346,28 @@ def resolve_tool(query):
       (None, None)          没点名，交给模型判断意图
     多个流程同时被点名时取最先出现的那个。
     """
-    text = _norm(query)
-    hits = _spans(text, [(a, g, asc) for a, g, asc in _ALIASES])
+    text = str(query or "")
+    hits = _spans(text, _ALIASES)
     if hits:
         val = hits[0][2]
-        if val is None:
-            name = next((PLATFORM_ONLY.get(k, k) for k in PLATFORM_ONLY
-                         if _norm(k) in text or _norm(PLATFORM_ONLY[k]) in text), "")
-            return "platform_only", name
+        if isinstance(val, tuple):
+            return val
         return "tool", val
     params = {i["name"] for c in _CARDS.values() for i in c.get("inputs") or []}
-    for m in _IDENT.finditer(str(query or "").lower()):
+    for m in _IDENT.finditer(text.lower()):
         tok = m.group(0)
         if tok not in params and not tok.startswith(("hra", "hrr")):
             return "unknown", tok
     return None, None
+
+
+def _strip_tool_names(gid, query):
+    """把问句里该流程自己的名字抹掉。流程中文名常带癌种（「肺癌肿瘤微环境注释与CNV分析」），
+    不抹掉就会被当成用户指定了肺癌数据，而这个流程绑定的其实是鼻咽癌队列。"""
+    text = str(query or "")
+    for i, j, _ in _spans(text, [(p, g) for p, g in _ALIASES if g == gid]):
+        text = text[:i] + " " * (j - i) + text[j:]
+    return text
 
 
 def mentioned_studies(query):
@@ -354,8 +376,8 @@ def mentioned_studies(query):
 
 def disease_studies(query):
     """问句里的癌种 → 队列集合，以及命中的词（用于说明）。没提癌种返回 (set(), [])。"""
-    text = _norm(query)
-    hits = _spans(text, [(t, ss, False) for t, ss in _DISEASE_TERMS])
+    text = str(query or "")
+    hits = _spans(text, _DISEASE_TERMS)
     found, words = set(), []
     for i, j, ss in hits:
         found |= ss
@@ -393,7 +415,7 @@ def select(gid, query, hint_studies=()):
         return None, [], (f"{name_cn(gid)}（{gid}）在 {'、'.join(explicit)} 上没有已验证可运行的数据；"
                           f"可用队列：{avail}")
 
-    want, words = disease_studies(query)
+    want, words = disease_studies(_strip_tool_names(gid, query))
     if want:
         hit = [b for b in ranked if b["study"] in want]
         if hit:
