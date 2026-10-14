@@ -1,9 +1,9 @@
 {
   "schema_version": "run-bindings/v1",
-  "generated_at": "2026-10-14T08:16:50+00:00",
+  "generated_at": "2026-10-14T08:36:41+00:00",
   "source": {
     "cromwell": "http://192.168.121.231:8088",
-    "succeeded_runs_considered": 603
+    "succeeded_runs_considered": 605
   },
   "bound_tools": {
     "bootstrap_stability": {
@@ -85,12 +85,6 @@
         "HRA003107"
       ],
       "default_study": "HRA003107"
-    },
-    "diff_expr_kegg": {
-      "bound_studies": [
-        "HRA000074"
-      ],
-      "default_study": "HRA000074"
     },
     "driver_gene_gender_analysis": {
       "bound_studies": [
@@ -303,6 +297,7 @@
     "breast_cellchat": "成功运行均不合格：冒烟测试运行（smoke_test=true，抽样），不代表完整分析能跑通",
     "cellranger_workflow": "Cromwell 上没有该流程的成功运行",
     "celltype_case_control_de": "成功运行均不合格：冒烟测试运行（smoke_test=true，抽样），不代表完整分析能跑通",
+    "diff_expr_kegg": "成功运行均不合格：group_a_samples 与 group_b_samples 有 25 个相同样本，两组比较无意义；输入里没有真实队列数据路径（测试数据或参考文件）",
     "featurecounts": "Cromwell 上没有该流程的成功运行",
     "gatk": "Cromwell 上没有该流程的成功运行",
     "gatk_germline_cohort": "Cromwell 上没有该流程的成功运行",
@@ -476,6 +471,13 @@
     },
     {
       "tool_id": "diff_expr_go",
+      "cromwell_id": "295d6064-1570-46ff-ada1-e1771dfa4ed0",
+      "workflow_name": "DiffExprGoWorkflow",
+      "submitted_at": "2026-09-28T11:00:56.684Z",
+      "reason": "group_a_samples 与 group_b_samples 有 25 个相同样本，两组比较无意义"
+    },
+    {
+      "tool_id": "diff_expr_go",
       "cromwell_id": "b864dae0-1955-4d0a-b3c3-cb6b6056929d",
       "workflow_name": "DiffExprGoWorkflow",
       "submitted_at": "2026-10-13T08:00:51.671Z",
@@ -487,6 +489,13 @@
       "workflow_name": "DiffExprGoWorkflow",
       "submitted_at": "2026-10-13T08:49:32.723Z",
       "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "diff_expr_kegg",
+      "cromwell_id": "e075121b-5b92-4095-8f34-47c406e028d3",
+      "workflow_name": "DiffExprKeggWorkflow",
+      "submitted_at": "2026-09-28T11:04:14.738Z",
+      "reason": "group_a_samples 与 group_b_samples 有 25 个相同样本，两组比较无意义"
     },
     {
       "tool_id": "diff_expr_kegg",
@@ -668,6 +677,13 @@
       "cromwell_id": "80d5f51f-5430-46e9-b738-cbd4a5302a0f",
       "workflow_name": "km_survival",
       "submitted_at": "2026-10-14T07:57:59.093Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "km_survival",
+      "cromwell_id": "21f83169-1f35-4200-a081-e107a8f9e866",
+      "workflow_name": "km_survival",
+      "submitted_at": "2026-10-14T08:16:14.953Z",
       "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
     },
     {
@@ -1046,6 +1062,13 @@
       "cromwell_id": "ce7e99fe-6c47-4d1b-9477-b3c1044f5145",
       "workflow_name": "wgcna_module_trait",
       "submitted_at": "2026-10-14T06:00:33.952Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_module_trait",
+      "cromwell_id": "3b087163-ad4a-4f38-8b66-00cc4d5d1fe7",
+      "workflow_name": "wgcna_module_trait",
+      "submitted_at": "2026-10-14T08:22:35.479Z",
       "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
     }
   ]

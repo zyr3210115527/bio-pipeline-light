@@ -52,6 +52,16 @@ class RegistryIntegrityTests(unittest.TestCase):
                     self.assertTrue(paths, "绑定里没有任何真实数据路径")
                     self.assertEqual(others, set())
 
+    def test_usable_groups_do_not_overlap(self):
+        """同一个样本出现在两组里：运行照样 Succeeded，但比较没有意义，不能放行。"""
+        for gid in rb.bound_tools():
+            for b in rb.bindings_for(gid):
+                p = b["execution_params"]
+                for a, c in rb.GROUP_PAIRS:
+                    if isinstance(p.get(a), list) and isinstance(p.get(c), list):
+                        with self.subTest(tool=gid, study=b["study"], pair=a):
+                            self.assertEqual(set(p[a]) & set(p[c]), set())
+
     def test_default_study_is_usable(self):
         for gid, doc in rb.registry().items():
             if not rb.bindings_for(gid):
@@ -96,8 +106,10 @@ DECK = [
     ("我想用食管鳞癌数据进行rnaseq_unsupervised_cluster分析", "rnaseq_unsupervised_cluster", "ready"),
     ("我想用食管鳞癌数据进行hvg_pca_gmm分析", "hvg_pca_gmm", "ready"),
     ("我想用肝细胞癌数据进行rmats_alternative_splicing分析", "rmats_alternative_splicing", "unsupported"),
-    ("我想用恶性胶质瘤数据进行diff_expr_go分析", "diff_expr_go", "ready"),
-    ("我想用恶性胶质瘤数据进行diff_expr_kegg分析", "diff_expr_kegg", "ready"),
+    # 09-28 这两条标的是「成功」，但那次运行两组样本重叠（48 vs 48 有 25 个相同），比较无意义；
+    # 胶质瘤上的这两个绑定已停用 / 不收，问到要如实说做不了
+    ("我想用恶性胶质瘤数据进行diff_expr_go分析", "diff_expr_go", "unsupported"),
+    ("我想用恶性胶质瘤数据进行diff_expr_kegg分析", "diff_expr_kegg", "unsupported"),
 ]
 
 
@@ -124,7 +136,7 @@ class DeckRegressionTests(unittest.TestCase):
     def test_disease_words_pick_matching_cohort(self):
         r = self.route("我想用食管鳞癌数据进行hvg_pca_gmm分析")
         self.assertEqual(rb.studies()[r["candidates"][0]["study_accession"]]["tumor_type"], "esophageal cancer")
-        r = self.route("我想用恶性胶质瘤数据进行diff_expr_go分析")
+        r = self.route("我想用恶性胶质瘤数据进行wgcna分析")
         self.assertEqual(rb.studies()[r["candidates"][0]["study_accession"]]["tumor_type"], "malignant glioma")
 
     def test_unbound_disease_is_not_substituted(self):
@@ -183,6 +195,8 @@ class ContractShapeTests(unittest.TestCase):
                     builder = {s["builder_param"] for s in rec["tool"]["inputs"]}
                     card_keys = {i["name"] for i in rb.card(gid)["inputs"]}
                     self.assertLessEqual(set(rec["execution_params"]) & card_keys, builder)
+                    self.assertFalse([a["path"] for a in cand["assets"] if a["path"].startswith("/opt/")],
+                                     "容器内路径不是数据资产")
                     by_id = {a["asset_id"]: a for a in cand["assets"]}
                     for name, v in cand["tool_chain"][0]["inputs"].items():
                         refs = v if isinstance(v, list) else [v]

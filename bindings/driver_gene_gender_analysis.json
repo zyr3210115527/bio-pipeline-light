@@ -3265,7 +3265,14 @@
         ]
       },
       "tumor_type": "liver cancer",
-      "verification": null
+      "verification": {
+        "status": "passed",
+        "workflow_id": "b8929f0a-190a-4291-8478-233ca5495b73",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:26:35+00:00",
+        "ended_at": "2026-10-14T08:28:36+00:00",
+        "duration_s": 121
+      }
     },
     {
       "study": "HRA007169",
@@ -3470,7 +3477,14 @@
         ]
       },
       "tumor_type": "melanoma",
-      "verification": null
+      "verification": {
+        "status": "passed",
+        "workflow_id": "0a38d77f-2bbc-4e1e-bb3e-ef77442c4c87",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:29:37+00:00",
+        "ended_at": "2026-10-14T08:31:38+00:00",
+        "duration_s": 121
+      }
     },
     {
       "study": "HRA016026",

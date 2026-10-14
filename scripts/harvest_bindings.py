@@ -115,6 +115,11 @@ def classify(gid, meta):
         # 单细胞那几条的 9 月记录是冒烟测试（每类细胞抽 150 个），只证明流程能起来，
         # 不证明整套数据跑得完；按它绑定，用户拿到的是抽样结果
         return None, "冒烟测试运行（smoke_test=true，抽样），不代表完整分析能跑通"
+    for a, c in rb.GROUP_PAIRS:
+        both = set(params.get(a) or []) & set(params.get(c) or []) if isinstance(params.get(a), list)             and isinstance(params.get(c), list) else set()
+        if both:
+            # 09-28 测试里 HRA000074 的 GO/KEGG 就是这样「跑通」的：两组 48 个样本有 25 个相同
+            return None, f"{a} 与 {c} 有 {len(both)} 个相同样本，两组比较无意义"
     data_paths = [s for s in _strings(params) if rb.is_data_path(s)]
     if not data_paths:
         return None, "输入里没有真实队列数据路径（测试数据或参考文件）"
@@ -154,6 +159,19 @@ def _rank(b):
     return (s["via"] == "platform", s.get("submitted_at") or "")
 
 
+def _verification_ids(out_dir):
+    """scripts/verify_bindings.py 提交过的复跑 id。复跑是对源运行的重放，不算新的成功证据。"""
+    ids = set()
+    vdir = os.path.join(out_dir, "verification")
+    if os.path.isdir(vdir):
+        for fn in os.listdir(vdir):
+            if fn.endswith(".json"):
+                with open(os.path.join(vdir, fn), encoding="utf-8") as f:
+                    ids |= {r.get("workflow_id") for r in json.load(f).get("results") or []}
+    ids.discard(None)
+    return ids
+
+
 def _load_existing(out_dir):
     old = {}
     for gid in rb.all_tool_ids():
@@ -167,7 +185,9 @@ def _load_existing(out_dir):
 def harvest(base, out_dir, cache_dir, workers=6):
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(cache_dir, exist_ok=True)
-    runs = [r for r in list_succeeded(base) if r.get("name") in rb.WORKFLOW_TOOLS]
+    replays = _verification_ids(out_dir)
+    runs = [r for r in list_succeeded(base)
+            if r.get("name") in rb.WORKFLOW_TOOLS and r.get("id") not in replays]
     with cf.ThreadPoolExecutor(workers) as ex:
         metas = list(ex.map(lambda r: fetch_meta(base, r["id"], cache_dir), runs))
 

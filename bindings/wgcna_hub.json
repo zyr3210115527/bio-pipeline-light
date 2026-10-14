@@ -63,7 +63,14 @@
         ]
       },
       "tumor_type": "melanoma",
-      "verification": null,
+      "verification": {
+        "status": "passed",
+        "workflow_id": "eca27b61-4da8-4dee-8809-c60b90f3187a",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:24:34+00:00",
+        "ended_at": "2026-10-14T08:26:35+00:00",
+        "duration_s": 121
+      },
       "disabled": {
         "reason": "演示期屏蔽：共表达模块类问题统一走 wgcna_module_trait（删掉本字段即解禁）",
         "since": "2026-09-29"

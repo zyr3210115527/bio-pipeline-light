@@ -39,7 +39,14 @@
         ]
       },
       "tumor_type": "acute myeloid leukemia",
-      "verification": null
+      "verification": {
+        "status": "passed",
+        "workflow_id": "ef7a0bea-39d0-4cbd-8514-61c7a8df6d50",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:31:38+00:00",
+        "ended_at": "2026-10-14T08:34:40+00:00",
+        "duration_s": 182
+      }
     }
   ]
 }
