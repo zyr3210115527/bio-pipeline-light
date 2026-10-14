@@ -263,7 +263,7 @@ def load_system_prompt():
         "③ 逐个查队列的 `d.semantic_format`，**缺任何一个就是不齐备**，answer 里逐个点名。"
         "**「有数据」不等于「有这条流程要的那几样数据」。**\n"
         "  · 「项目 X 是否具备为**生存分析**推荐数据和工具的条件？」——判据是 **`project.tumor_type` 为空**"
-        "（18 个项目里 7 个为空）；**别拿 `study.tumor_type` 顶替**，那个 20 个队列 19 个有值，必然误判成「具备」。\n"
+        "（19 个项目里 7 个为空）；**别拿 `study.tumor_type` 顶替**，那个 53 个 study 里 52 个有值，必然误判成「具备」。\n"
         "  · 「工具 X 可以处理哪些数据？」——属性写进 answer、rank1 照给 X，但图内**没有任何**文件能喂给 X 时"
         "（multiqc、bootstrap_stability、hvg_pca_gmm），状态写 `missing_from_graph`。\n"
         "【接地校验由服务端自动执行】本会话**不提供** validate_plan 工具，也不要等它："
