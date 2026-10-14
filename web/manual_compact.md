@@ -19,7 +19,10 @@ Neo4j 图谱（库 `neo4j`）是唯一事实源。只读：禁止 CREATE/MERGE/D
 **`hydrate_plan` 与 `validate_plan` 不在本会话工具列表里**：你输出终答后，服务端自动依次跑
 「确定性补全 → 接地校验」。所以样板字段不用你写（见 §9），也不要为了自检多花一轮。
 
-## 2. 图谱模型（0826 交付）
+## 2. 图谱模型（2026-10-14 在线图谱实测：127,989 节点 / 478,007 关系）
+
+比 0826 交付多了 **TCGA 的 33 个项目**（`TCGA-ACC` … `TCGA-UVM`，挂在一个 `project` 节点 `TCGA` 下）。20 个 HRA 队列的样本数、加工产物、样本字段分布逐项重测都没变（只是每个 HRA 队列在 T1 多了 6 张 CNCB 元数据 CSV，HRA000001 多出 762 个挂不上样本的 FASTQ，见 §8.3）；工具层（55 工具 / 30 功能词 / 89 条 `has_function` / 22 条 `next_tool`）也没变。
+
 
 - `tool`(55)：`tool_name`、`function`（**受控词**，见下）、`semantic_output`（`;` 分隔）、**`tool_id`**——`T001`…`T055` 这个号就存在这个属性上（55/55 全形如 `T[0-9]+`）。**图节点上没有 `catalog_id` 属性**（0/55），`catalog_id` 是闭集对同一个值的叫法，所以闭集接图一律 `catalog_id` → `t.tool_id`；写 `t.catalog_id` 不报错、静默返回一整列 null
 - `function`(30)：**0826 起是受控词表，不再是自由文本**。55 个工具全部挂了 `has_function`（共 89 条边），
@@ -35,26 +38,26 @@ Neo4j 图谱（库 `neo4j`）是唯一事实源。只读：禁止 CREATE/MERGE/D
 - `format`(42) / `modal`(6) / `datalevel`(4)
 - **modal 只有 6 个**：`WES`/`WGS`/`bulk_RNA`/`sc-RNA`/`Clinical`/`Meta`，别编 `RNA-seq`。**节点属性叫 `modal` 不是 `name`**（写 `(:modal {name:'sc-RNA'})` 静默 0 行）；找某模态的文件直接用 `T1.strategy='sc-RNA'`，别绕 `in_modal`
 - **datalevel 节点属性是 `level`/`name`/`description`，不是 data_level**（1 原始→4 知识）；文件侧的 `T1.data_level`/`T2.data_level` 才叫 data_level
-- `study`(20)/`project`(18)：`study_accession`、`tumor_type`（英文，toLower+CONTAINS 查）、`individual_count`、`sample_count`（**6 队列无值**：HRA000073/HRA000087/HRA002693/HRA006117/HRA007413/HRA016026——按它过滤会静默漏，要规模就数 sample 节点）
-- `individual`(7131)：**id 是 `00_individual_accession`，这个标签上没有裸的 `individual_accession`**（那个名字只在 T1/T2 上有；在 individual 上写它不报错，整列返回 null）。**只有 `00_*` 是操作性标识**（00_individual_accession/00_sample_accession/00_platform/00_strategy…）；**`01_`–`13_` 全是患者级敏感**：01_ 人口学、02_ 家族史、03_ 生活史、04_ 血液学、09_ 病理、10_ 侵犯、11_ 分子（`11_tmb`/`11_msi_score`）、12_ 治疗、**13_ 生存（`13_survival_days`/`13_survival_status`/`13_pfs_time`…生存分析用这里）**——只许聚合，个体取值被服务端拒
-- `sample`(10465)：`sample_accession`、`sample_name`、`tissue_type`（**不是干净二值**：0826 为 Tumor 7045 / Normal 2863 / Blood 557，null 已在 0826 补齐、多值单元也没有了，但 `Blood` 仍会让等值匹配漏样本；判角色一律用 resolve_sample_roles）、`specimen_type`（仍有分号多值，486 个 `Organoid;Patient_Solid_Tissue`）、`gender`
-- `T1` 原始文件：`t1_id`/`file_name`/`file_format`/`semantic_format`/`data_level`/`study_accession`（全量有值）；`strategy`/`platform`/`sample_accession`/`sample_name` 28,184；`file_path` 26,879。**缺值的 45 个是 Clinical/`*_META` 聚合文件**（本就跨样本），别据此判「无样本信息」
-- `T2` 结果文件：`t2_id`/`file_name`/`format`/`strategy`/`data_level`/`study_accession`（全量）；`file_path` 35,566。**T2 无 platform/sample_accession**——样本归属走 `(T2)-[:generated_from]->(T1)-[:in_sample]->(sample)`
+- `study`(53 = 20 HRA + 33 TCGA)/`project`(19)：`study_accession`、`tumor_type`、`title`、`individual_count`、`sample_count`（**6 队列无值**：HRA000073/HRA000087/HRA002693/HRA006117/HRA007413/HRA016026——按它过滤会静默漏，要规模就数 sample 节点）。**`tumor_type` 在两类 study 上意思不同**：HRA 上是英文病名（toLower+CONTAINS 查）；TCGA 上是 GDC 组织学大类、多个用 `;` 拼（`TCGA-LIHC` 只写 `Adenomas and Adenocarcinomas`），**TCGA 的癌种只在 `title` 和项目号里**（`The Cancer Genome Atlas - Liver Hepatocellular Carcinoma`）
+- `individual`(18559 = HRA 7131 + TCGA 11428)：**id 是 `00_individual_accession`，这个标签上没有裸的 `individual_accession`**（那个名字只在 T1/T2 上有；在 individual 上写它不报错，整列返回 null）。**只有 `00_*` 是操作性标识**（00_individual_accession/00_sample_accession/00_platform/00_strategy…）；**`01_`–`13_` 全是患者级敏感**：01_ 人口学、02_ 家族史、03_ 生活史、04_ 血液学、09_ 病理、10_ 侵犯、11_ 分子（`11_tmb`/`11_msi_score`）、12_ 治疗、**13_ 生存（`13_survival_days`/`13_survival_status`/`13_pfs_time`…生存分析用这里）**——只许聚合，个体取值被服务端拒
+- `sample`(44404 = HRA 10465 + TCGA 33939)：`sample_accession`、`sample_name`、`tissue_type`（**不是干净二值**：HRA 为 Tumor 7045 / Normal 2863 / Blood 557，与 0826 相同，`Blood` 仍会让等值匹配漏样本；TCGA 只有 Tumor 21513 / Normal 12426，但**其中 9713 个 Normal 是 `Blood Derived Normal` 胚系血样**，不是癌旁；判角色一律用 resolve_sample_roles）、`specimen_type`（两套词表：HRA 下划线写法，仍有分号多值 486 个 `Organoid;Patient_Solid_Tissue`；TCGA 用 GDC 带空格的样本类型，如 `Primary Tumor`/`Solid Tissue Normal`）、`gender`
+- `T1` 原始文件（29,111）：`t1_id`/`file_name`/`file_format`/`semantic_format`/`data_level`/`study_accession`（全量有值）；`strategy` 28,984；`platform`/`sample_name` 28,946；`sample_accession` 28,184；`file_path` 27,761。没有 `sample_accession` 的 927 个里，**165 个是 Clinical/`*_META` 聚合文件**（本就跨样本），**762 个是 HRA000001 挂不上样本的 FASTQ**（§8.3），别据此判「无样本信息」。**TCGA 没有任何 T1 数据文件**，只有 6 个共用元数据 CSV，其 `study_accession` 是 33 个项目号用 `;` 拼成的一串（`= 'TCGA-LIHC'` 查不到）
+- `T2` 结果文件（35,706）：`t2_id`/`file_name`/`format`/`strategy`/`data_level`/`study_accession`（全量）；`file_path` 35,699。**T2 无 platform/sample_accession**——HRA 文件的样本归属走 `(T2)-[:generated_from]->(T1)-[:in_sample]->(sample)`；只有 133 个 TCGA 表格直接挂了 `(T2)-[:in_sample]->(sample)` / `(T2)-[:in_individual]->(individual)`
 
 关系：`(tool)-[:next_tool]->(tool)` 链；`(tool)-[:input|output]->(format)` I/O；`(tool)-[:suitable_for]->(modal)`；
 `(tool)-[:has_function]->(function)`；`(T1|T2)-[:in_sample|in_format|in_modal|in_level|in_study]`；
-`(T2)-[:generated_from]->(T1)`；`(sample)-[:in_individual]->(individual)`；`(individual)-[:in_study]->(study)`；
+`(T2)-[:generated_from]->(T1)`；`(sample)-[:in_individual]->(individual)`；`(T2)-[:in_individual]->(individual)`（仅 TCGA 表格）；`(individual)-[:in_study]->(study)`；
 `(format)-[:subclass_of]->(format)`（按语义格式找工具可沿边向上）。
 
-**看着像数字的字段全是 STRING（0826 重测未变），比大小/排序前必须 `toInteger()`/`toFloat()`**（`valueType()`
+**看着像数字的字段全是 STRING（2026-10-14 重测），比大小/排序前必须 `toInteger()`/`toFloat()`**（`valueType()`
 实测）：`data_level`/`size`/`01_age`/`11_tmb`/`11_msi_score`/`13_*`。**只有 `study.sample_count` 和
-`study.individual_count` 是真 INTEGER**（且只有 14 个 study 有值）。写 `f.data_level = '1'`、
+`study.individual_count` 是真 INTEGER**（且 53 个 study 里只有 47 个有值）。写 `f.data_level = '1'`、
 `toInteger(i.\`13_survival_days\`) > 365`、`ORDER BY s.sample_count DESC`。
 
 两种错法都不报错、都返回像模像样的结果：
-- 不加引号做等值 → **0 行**：`f.data_level = 1` 查不到，`= '1'` 才有 28,228。
-- 不加引号比大小 → 也是 **0 行**：`13_survival_days > 365` 得 0，`toInteger(...) > 365` 得 2,465。
-- 加了引号比大小 → 走词典序：`> '365'` 得 2,110，但 `> '99'` 只有 **27**（文本比较里 `'99' > '365'`）；
+- 不加引号做等值 → **0 行**：`f.data_level = 1` 查不到，`= '1'` 才有 29,110。
+- 不加引号比大小 → 也是 **0 行**：`13_survival_days > 365` 得 0，`toInteger(...) > 365` 得 11,059。
+- 加了引号比大小 → 走词典序：`> '365'` 得 7,397，但 `> '99'` 只有 **70**（文本比较里 `'99' > '365'`）；
   `ORDER BY` 不转换会把 `'995'` 排在 `'7061'` 前面。
 
 计数低得离谱或最大值明显偏小时，先 `valueType()` 查类型，别把异常直接写进结论。
@@ -82,8 +85,9 @@ atomic 闭集：`bwa` `fastp` `fastqc` `featurecounts` `gatk` `bcftools` `snpeff
   手册末尾的「运行绑定（硬约束）」清单）。并集是七个队列，但**不许按并集选**——`de_enrichment`+`HRA007167`
   这种组合从没跑过，服务端会拒。用户点名的组合不在清单内，直说该流程支持哪几个队列、改荐其一，别静默替换。
 - `sample_csv`/`individual_csv`（CNCB 原生元数据）**不写进 inputs 也不查图**——服务端按队列号推，
-  与临床表/样本元信息表同一处置（都不用你管）。但这两张 CSV 与临床表不同——**它们不在图内**，
-  写进 assets 会被判 `file_path 与图内记录不符`；临床表/样本元信息表在图内，只是不用你去找（见 §9）。
+  与临床表/样本元信息表同一处置（都不用你管）。2026-10-14 起每个 HRA 队列都在图里有这两张表
+  （T1 的 `SAMPLE_META`/`INDIVIDUAL_META`，路径正是服务端推的那个；0826 时只有 HRA000001 有），
+  但规矩不变：同名 `sample.csv` 有 21 个节点、`individual.csv` 也是 21 个，没什么可查的，服务端会补。
 - **`taskNNN_` 只是 docker 作业名前缀，不是 tool_id**：写 `cox_model`，不是 `task310_cox_model`。
 
 其余（镜像标签、产出三件套、按队列的 `native_status_source_col`）由运行绑定或执行端补，规划时不用管。
@@ -116,9 +120,9 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
    - **先过闸：数据是不是已经定死了**。bulk10 那十条流程（§3.1）不用查——队列由流程本身决定（见 §3.1 实跑表），
      文件恒为 `{STUDY}-Genes-counts-1.0.tsv`。**不查 `tumor_type`、不查 `find_t1_*`、不叫 `resolve_sample_roles`**；
      去图里搜只可能搜出一个从没跑通过的队列，服务端会驳回。下面这些只对另外 41 个工具有效。
-   - `tumor_type` 用英文 toLower+CONTAINS；**肝癌必须 `'liver' OR 'hepatocell'`**（只写 liver 漏 HRA001272=Hepatocellular Carcinoma）；肺癌写 `'lung'` 即可。拿不准就用 §8.2 队列表直接选
+   - `tumor_type` 用英文 toLower+CONTAINS；**肝癌必须 `'liver' OR 'hepatocell'`**（只写 liver 漏 HRA001272=Hepatocellular Carcinoma）；肺癌写 `'lung'` 即可。**TCGA 的 33 个项目按 `tumor_type` 永远查不到癌种**（存的是 `Adenomas and Adenocarcinomas` 这类组织学大类），癌种只在 `title`/项目号里；而且 TCGA 上**没有任何流程有运行绑定**，不当默认队列（§8.2）。拿不准就用 §8.2 队列表直接选
    - **现成表达矩阵在 T2**（文件名含 `Genes`，如 HRA001272-Genes-TPM-1.0.tsv），T1 是原始 FASTQ；`semantic_format`≠`format`/`file_format`
-   - T2 有现成 VCF/MAF/BAM 就标「复用」跳过上游；配对发现先聚合哪些 study 有同个体 Tumor+Normal（HRA016026 0826 仍是 350 `Tumor` + 350 `Normal`，但**全图 `tissue_type` 并不是干净二值**——还有 `Blood` 557、`Organoid` 30，见 §8.4；下面的写法同时兼容名称后缀兜底）：
+   - T2 有现成 VCF/MAF/BAM 就标「复用」跳过上游；配对发现先聚合哪些 study 有同个体 Tumor+Normal（HRA016026 2026-10-14 重测仍是 350 `Tumor` + 350 `Normal`，但**全图 `tissue_type` 并不是干净二值**——还有 `Blood` 557、`Organoid` 30，见 §8.4；下面的写法同时兼容名称后缀兜底）：
      ```cypher
      MATCH (sp:sample)-[:in_individual]->(i:individual)
      WITH sp.study_accession AS study, i,
@@ -128,10 +132,10 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
        AND (any(t IN tts WHERE t CONTAINS 'normal') OR any(n IN nms WHERE n ENDS WITH '_normal'))
      RETURN study, count(i) AS pairable_individuals ORDER BY pairable_individuals DESC
      ```
-   - **可配对队列（0826 实测个体数）**：HRA000873 1015、HRA000021 508、HRA016026 350、HRA001272 206、HRA003107 155、HRA007169 76、HRA006499 72、HRA001749 56、HRA000122 42、HRA001748 30。比 0821 两处变化：HRA001749 从 84 降到 56；**HRA000122 变成可配对**（0821 还在"判不出角色"那张表里，0826 是 245 Tumor / 42 Normal）——bulk10 里它仍只能走 `umap`，但 §3.2 白名单里 `diff_expr_go`/`diff_expr_kegg`/`bootstrap_stability`/`hvg_pca_gmm`/`rnaseq_unsupervised_cluster` 也跑过它；可配对不等于随便用。全部配对都是 Tumor+Normal，**没有任何队列靠 Blood 配对**。陷阱：**HRA000071 血液对照与肿瘤不属同一个体**——能分组不能同个体配对；要现成配对优先 HRA016026（350 个体各 2 样本）
-   - **判不出角色的队列（0826 重测，别浪费轮数）**：HRA000001（557 全 `Blood`）、HRA000074（693 全 `Tumor`）、HRA002693（655 全 `Tumor`）、HRA006117（835 全 `Tumor`）、HRA005191（243 全 `Tumor`）。**0821 写的理由「大量缺 tissue_type」现在是错的，已删**：0826 把全图空值补齐了，这些样本都有 `tissue_type`，只是整个队列只有一条臂、没有对照——事实变了，结论没变。HRA000122 **已从这张表移走**。别再拿"是不是空值没查到"重查一遍，就是只有一条臂。如实告知或换队列。**这只卡「逐样本配对」这一件事**：这些队列的队列级矩阵/MAF 分析（差异、富集、聚类、免疫浸润、生存）照常可做，不要因为角色判不出就报 `no_candidate`
+   - **可配对 HRA 队列（2026-10-14 实测个体数）**：HRA000873 1015、HRA000021 508、HRA016026 350、HRA001272 206、HRA003107 155、HRA001749 84、HRA007169 76、HRA006499 72、HRA000122 42、HRA001748 14。与 0826 版写的有两处不同（两个队列的样本数和 tissue_type 分布都没变，所以要么样本→个体的挂法变了，要么 0826 的数不准）：**HRA001749 是 84**（原写 56；84 个个体全部两臂齐全），**HRA001748 是 14**（原写 30）。HRA000122 仍可配对（245 Tumor / 42 Normal）——bulk10 里它仍只能走 `umap`，但 §3.2 白名单里 `diff_expr_go`/`diff_expr_kegg`/`bootstrap_stability`/`hvg_pca_gmm`/`rnaseq_unsupervised_cluster` 也跑过它；可配对不等于随便用。HRA 的配对全部是 Tumor+Normal，**没有任何 HRA 队列靠 Blood 配对**。同一条查询现在还会返回全部 33 个 TCGA 项目（TCGA-BRCA 1098 排第一），但 TCGA 的配对只停留在元数据：Normal 大多是 `Blood Derived Normal`，而且 TCGA 没有任何逐样本文件（无 FASTQ/BAM/VCF），`wes_somatic_pair`/`gatk`/`cnvkit_cnv_clinical` 没东西可绑。陷阱：**HRA000071 血液对照与肿瘤不属同一个体**——能分组不能同个体配对；要现成配对优先 HRA016026（350 个体各 2 样本）
+   - **判不出角色的队列（2026-10-14 用 `resolve_sample_roles` 重测，别浪费轮数）**：HRA000001（557 全 `Blood`）、HRA000073（325 全 `Tumor`）、HRA000074（693 全 `Tumor`）、HRA002693（655 全 `Tumor`）、HRA005191（243 全 `Tumor`）、HRA006117（835 全 `Tumor`）、HRA007167（81 全 `Tumor`）、HRA007413（373 全 `Tumor`）。HRA000073/HRA007167/HRA007413 是旧表漏列的（HRA 全体的 tissue_type 分布与 0826 相同）。TCGA 33 个项目都判得出（`role_resolved=true`），但照样没有文件可配。**0821 写的理由「大量缺 tissue_type」现在是错的，已删**：0826 把全图空值补齐了，这些样本都有 `tissue_type`，只是整个队列只有一条臂、没有对照——事实变了，结论没变。HRA000122 **已从这张表移走**。别再拿"是不是空值没查到"重查一遍，就是只有一条臂。如实告知或换队列。**这只卡「逐样本配对」这一件事**：这些队列的队列级矩阵/MAF 分析（差异、富集、聚类、免疫浸润、生存）照常可做，不要因为角色判不出就报 `no_candidate`
    - **队列样本清单以 sample 节点为准**（`MATCH (sp:sample) WHERE sp.study_accession='HRA*'`）；别用 `(T1)-[:in_sample]->(sample)` 数样本（漏无文件样本）
-   - 文件缺口判定只看 `resolve_sample_roles` 的 `file_coverage.t1_files_unlinked`（真无 in_sample 边的文件数，正常是聚合文件个位数）；`runs_without_sample_node` 是诊断字段不是缺口，拿它判队列会误杀。真缺口如实 `missing_from_graph`，绝不按文件名/顺序猜样本归属
+   - 文件缺口判定只看 `resolve_sample_roles` 的 `file_coverage.t1_files_unlinked`（真无 in_sample 边的文件数，2026-10 起每个 HRA 队列正常是 8 个聚合文件；唯一真缺口是 HRA000001 的 769/1883）；`runs_without_sample_node` 是诊断字段不是缺口，拿它判队列会误杀。真缺口如实 `missing_from_graph`，绝不按文件名/顺序猜样本归属
 
 ## 5. 效率纪律（硬约束：≤3 轮、≤6 条查询；取数轮预算由服务端强制）
 
@@ -186,7 +190,11 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 
 ## 8. 实测快照（白名单来源；图谱更新后需重测）
 
+最近一次重推：**2026-10-14** 在线图谱（127,989 节点 / 478,007 关系 = 0826 的 20 个 HRA 队列 + 33 个 TCGA 项目）。
+
 ### 8.1 工具目录快照（55）
+
+2026-10-14 复核：工具层没变（55 工具、89 条 `has_function`、22 条 `next_tool`）。modal 列取图内 `suitable_for` 边；输入列取交付卡片，不是图内的 `input` 边（卡片里两个图内无节点的名字见 §8.3）。
 
 | tool | 功能摘要（**加粗处是同族流程的判别点**，按用户问句里出现的那个词选） | modal | 需要的输入语义格式 |
 |---|---|---|---|
@@ -196,7 +204,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `bwa` | 基于 BWA-MEM 算法的双端测序比对流程 | WES | REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
 | `cellranger_workflow` | 基于 10x Genomics CellRanger | sc-RNA,bulk_RNA | RAW_SINGLE_END_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM |
 | `celltype_case_control_de` | 对单细胞RNA-seq数据中指定的细胞类型进行病例- | sc-RNA,bulk_RNA | SCRNA_OBJECT_RDS,TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA |
-| `cnvkit_cnv_clinical` | 配对 CNVkit：WES 使用 hybrid 且需 targets_bed；不执行临床关联 | WES,WGS | DNA_GENOMIC_ALIGNMENT_BAM |
+| `cnvkit_cnv_clinical` | 配对 CNVkit：WES 使用 hybrid 且需 targets_bed；不执行临床关联 | WES,WGS,Clinical | DNA_GENOMIC_ALIGNMENT_BAM |
 | `cox_model` | **bulk10**：多因素 Cox 比例风险 + KM，生存时间/状态直接读 individual.csv；仅 HRA003107/000073/000074/002693/006117 | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填） |
 | `dataset_downstream` | 对单细胞RNA-seq数据集进行标准化下游分析，包括 | sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,SCRNA_OBJECT_RDS |
 | `dataset_matrix_annotation` | 该流程用于对单细胞RNA-seq数据集进行矩阵注释和 | sc-RNA | TABULAR_BIO_DATA,SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA |
@@ -212,7 +220,7 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `gatk` | 基于 GATK 最佳实践的全外显子组（WES）肿瘤- | WES | DNA_ALIGNMENT_INDEX_BAI,REFERENCE_GENOME_FASTA,TARGET_INTERVAL_LIST,DNA_GENOMIC_ALIGNMENT_BAM |
 | `gatk_germline_cohort` | **队列级胚系**变异检测（HaplotypeCaller→GenomicsDB→联合分型→VQSR）。与 `gatk`（原子、走 Mutect2 **体细胞**）分工不同：**要胚系、要队列联合分型**就用它；单病人配对体细胞走 `wes_somatic_pair`。`analysis_ready_bams`/`bais`/`sample_metadata`/`clinical_metadata` 由服务端按队列补齐（只给代表性 BAM 即可），`sample_ids` 与 BAM 数组按位平行 | WGS,WES,Clinical | DNA_GENOMIC_ALIGNMENT_BAM,TARGET_INTERVAL_LIST,REFERENCE_GENOME_FASTA |
 | `gene_boxplot` | **bulk10**：基因表达**箱线图**可视化；**仅 HRA003107** | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填）＋case/control 标签 |
-| `gsea_pathway_enrichment` | **不先筛差异基因**，全基因排序做预排序 GSEA（fgsea） | bulk_RNA | TABULAR_BIO_DATA |
+| `gsea_pathway_enrichment` | **不先筛差异基因**，全基因排序做预排序 GSEA（fgsea） | bulk_RNA,Clinical | TABULAR_BIO_DATA |
 | `her2_pfs_survival` | 按**基因表达高低分组**做生存/PFS 的**默认流程**（基因不限 HER2/ERBB2，问句点名任何基因都算）；要 TPM+临床+元信息。问 **OS/多因素 Cox** 且队列在 §3.1 七队列内 → 改 km_survival / cox_model | Clinical,bulk_RNA | INDIVIDUAL_META,SAMPLE_META,T1_META,TABULAR_BIO_DATA |
 | `hvg_pca_gmm` | 上面整链拆出的**单步**：logCPM→HVG→PCA→GMM | bulk_RNA,sc-RNA | - |
 | `immune_infiltration_iobr` | 基于 IOBR 包的 CIBERSORT 算法进行免疫浸润（输入 TPM 矩阵 + XLSX 临床对，服务端按队列补；XLSX 无有效路径的队列按实跑口径回落 individual.csv/sample.csv；另带可选 `sample_ids` run 列表） | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,METADATA_SAMPLE_INFO,TABULAR_BIO_DATA |
@@ -233,12 +241,12 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `snpeff` | 基于 SnpEff 工具对 VCF 文件进行变异效应 | WES,WGS | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA |
 | `stage_heatmap` | **bulk10**：按**肿瘤分期**的表达热图；**仅 HRA003107** | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填） |
 | `star` | 该流程使用 STAR 比对工具对 RNA-seq 数 | bulk_RNA | REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ |
-| `star_fusion` | **基因融合**检测，闭集内唯一一条。**从双端 FASTQ 起步**，只有 counts 矩阵时做不了——那是缺数据不是缺工具，按 §7 照样给 rank1。与原子工具 `star` 不是一回事。 | RNA,Clinical | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ,METADATA_SAMPLE_INFO |
+| `star_fusion` | **基因融合**检测，闭集内唯一一条。**从双端 FASTQ 起步**，只有 counts 矩阵时做不了——那是缺数据不是缺工具，按 §7 照样给 rank1。与原子工具 `star` 不是一回事。 | bulk_RNA,Clinical | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ,METADATA_SAMPLE_INFO |
 | `survival_analysis` | 按**指定基因的突变状态**（MAF）分组做 PFS：KM+log-rank+Cox | WES,Clinical | INDIVIDUAL_META,SAMPLE_META,T1_META,MUTATION_ANNOTATION_FORMAT_MAF |
 | `tcell_intervention` | 该流程用于对单细胞RNA-seq数据进行T细胞干预前 | bulk_RNA,sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,METADATA_SAMPLE_INFO,SCRNA_OBJECT_RDS |
 | `tmb_survival_analysis` | 按 **TMB 中位数**分高低组做 KM 生存（先从 MAF 算病人级 TMB） | WES,Clinical | MUTATION_ANNOTATION_FORMAT_MAF,INDIVIDUAL_META,SAMPLE_META,T1_META
 | `trim_galore` | 基于 Trim Galore 工具的 FASTQ 文 | bulk_RNA | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
-| `tumor_evolution_inference` | **肿瘤演化与克隆推断**，闭集内唯一一条。推的是克隆谱系，**不是因果机制**——问因果仍按 §7 拒绝纪律，别拿它顶。`tumor_bams`/`tumor_bam_indexes`/`somatic_small_variant_vcfs`/`allele_specific_cnv_files` 由服务端按队列补齐；**`sample_manifest` 图内没有**（它是 MakeManifest 辅助流程的运行产物），如实报缺 | sc-RNA,WGS,RNA | DNA_GENOMIC_ALIGNMENT_BAM,TABULAR_BIO_DATA,DNA_VARIANT_VCF_GENERAL |
+| `tumor_evolution_inference` | **肿瘤演化与克隆推断**，闭集内唯一一条。推的是克隆谱系，**不是因果机制**——问因果仍按 §7 拒绝纪律，别拿它顶。`tumor_bams`/`tumor_bam_indexes`/`somatic_small_variant_vcfs`/`allele_specific_cnv_files` 由服务端按队列补齐；**`sample_manifest` 图内没有**（它是 MakeManifest 辅助流程的运行产物），如实报缺 | sc-RNA,WGS,bulk_RNA | DNA_GENOMIC_ALIGNMENT_BAM,TABULAR_BIO_DATA,DNA_VARIANT_VCF_GENERAL |
 | `umap` | **bulk10**：表达矩阵 **UMAP** 降维可视化；七个队列全可（§3.1 里唯一一条） | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填） |
 | `wes_somatic_maf_landscape` | 本流程用于全外显子测序（WES）队列的体细胞突变景观 | WES | MUTATION_ANNOTATION_FORMAT_MAF |
 | `wes_somatic_pair` | 用于单个病人配对 tumor-normal WES  | WGS,WES | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ |
@@ -246,11 +254,14 @@ count_data_by_study / count_by_semantic_format / find_paired_tumor_normal_sample
 | `wgcna_hub` | **bulk10**：WGCNA **枢纽基因**；仅 HRA003107/HRA007167，在这两个队列上优先于 wgcna | Clinical,bulk_RNA | TABULAR_BIO_DATA（counts，唯一必填） |
 | `wgcna_module_trait` | **bulk10**：WGCNA **模块-性状**关联；仅 HRA003107/HRA007167，在这两个队列上优先于 wgcna | bulk_RNA,Clinical | TABULAR_BIO_DATA（counts，唯一必填） |
 
-### 8.2 队列快照（20；**样本数一律以 sample 节点数为准**，下表第三列即是）
+### 8.2 队列快照（53 = 20 个 HRA 队列 + 33 个 TCGA 项目；**样本数一律以 sample 节点数为准**，下表第三列即是）
 
 `sample_count` 属性不可信：6 个队列为 null（HRA000073/HRA000087/HRA002693/HRA006117/
-HRA007413/HRA016026），另有 2 个数值是错的（HRA000074 写 572 实为 693、HRA006499 写 482
-实为 523）。要样本数就 `count` sample 节点，别读这个属性。
+HRA007413/HRA016026），另有 3 个数值是错的（HRA000074 写 572 实为 693、HRA006499 写 482
+实为 523；**2026-10-14 起 HRA000001 写 1876 实为 557**——1876 是它的 FASTQ 文件数）。
+要样本数就 `count` sample 节点，别读这个属性。TCGA 33 个项目的属性值与 sample 节点数一致。
+
+HRA 队列（与 0826 相同）：
 
 | study_accession | tumor_type | sample nodes |
 |---|---|---|
@@ -275,6 +286,48 @@ HRA007413/HRA016026），另有 2 个数值是错的（HRA000074 写 572 实为 
 | HRA007413 | acute myeloid leukemia | 373 |
 | HRA016026 | lung cancer | 700 |
 
+TCGA 项目（2026-10-14 新增）：33 个都有 `tumor_type`，但存的是 GDC 组织学大类（如 `Adenomas and
+Adenocarcinomas`），**癌种看下表第二列（取自 `title`）**，按 `tumor_type` CONTAINS 病名一个都查不到。
+**任何流程都还没有 TCGA 上的运行绑定**，数据也只有每项目 4 张队列级表格（§8.3），所以**不进默认队列**；
+用户点名 TCGA、或问的癌种只有 TCGA 有（乳腺、肾、前列腺……）时，在 `match_note`/`answer` 里点名该项目，
+并说明它还没有跑通的记录。
+
+| 项目 | 癌种 | sample 节点 | 个体 |
+|---|---|---|---|
+| TCGA-ACC | 肾上腺皮质癌 | 243 | 92 |
+| TCGA-BLCA | 膀胱尿路上皮癌 | 1240 | 412 |
+| TCGA-BRCA | 浸润性乳腺癌 | 3397 | 1098 |
+| TCGA-CESC | 宫颈鳞癌及宫颈腺癌 | 888 | 307 |
+| TCGA-CHOL | 胆管癌 | 154 | 51 |
+| TCGA-COAD | 结肠腺癌 | 1490 | 461 |
+| TCGA-DLBC | 弥漫大 B 细胞淋巴瘤 | 161 | 58 |
+| TCGA-ESCA | 食管癌 | 536 | 185 |
+| TCGA-GBM | 多形性胶质母细胞瘤 | 1582 | 617 |
+| TCGA-HNSC | 头颈鳞癌 | 1578 | 528 |
+| TCGA-KICH | 肾嫌色细胞癌 | 347 | 113 |
+| TCGA-KIRC | 肾透明细胞癌 | 1618 | 537 |
+| TCGA-KIRP | 肾乳头状细胞癌 | 893 | 291 |
+| TCGA-LAML | 急性髓系白血病 | 697 | 200 |
+| TCGA-LGG | 低级别胶质瘤 | 1553 | 516 |
+| TCGA-LIHC | 肝细胞癌 | 1168 | 377 |
+| TCGA-LUAD | 肺腺癌 | 1781 | 585 |
+| TCGA-LUSC | 肺鳞癌 | 1562 | 504 |
+| TCGA-MESO | 间皮瘤 | 249 | 87 |
+| TCGA-OV | 卵巢浆液性囊腺癌 | 1329 | 608 |
+| TCGA-PAAD | 胰腺癌 | 566 | 185 |
+| TCGA-PCPG | 嗜铬细胞瘤和副神经节瘤 | 546 | 179 |
+| TCGA-PRAD | 前列腺癌 | 1470 | 500 |
+| TCGA-READ | 直肠腺癌 | 547 | 172 |
+| TCGA-SARC | 肉瘤 | 795 | 261 |
+| TCGA-SKCM | 皮肤黑色素瘤 | 1384 | 470 |
+| TCGA-STAD | 胃腺癌 | 1359 | 443 |
+| TCGA-TGCT | 睾丸生殖细胞肿瘤 | 803 | 263 |
+| TCGA-THCA | 甲状腺癌 | 1562 | 507 |
+| TCGA-THYM | 胸腺瘤 | 373 | 124 |
+| TCGA-UCEC | 子宫内膜癌 | 1641 | 560 |
+| TCGA-UCS | 子宫癌肉瘤 | 171 | 57 |
+| TCGA-UVM | 葡萄膜黑色素瘤 | 256 | 80 |
+
 **同癌种多队列、用户没点名时选样本数最多的那个**（覆盖面最广，且两次问同一问题给同一队列）：
 
 | 癌种 | 表达/原始 | 突变（MAF） |
@@ -285,8 +338,13 @@ HRA007413/HRA016026），另有 2 个数值是错的（HRA000074 写 572 实为 
 | 食管癌 | HRA003107 | — |
 | 白血病 | HRA006117 | — |
 
-**全图带 MAF 的队列只有 7 个**：HRA000873、HRA016026、HRA001272、HRA006499、HRA001749、
-HRA007169、HRA000071（最后一个只有队列级汇总，其余还各带逐 run 的 `HRR*.maf`）。
+上表只在 HRA 队列里选，**TCGA 不参与**：TCGA-GBM（1582）/TCGA-LGG（1553）、TCGA-LIHC（1168）、TCGA-SKCM（1384）、
+TCGA-LAML（697）虽然样本更多，但没有运行绑定、没有 counts 矩阵、突变表也不是 MAF 语义（§8.3），选了也提交不了。
+
+**全图带 MAF 的队列只有 7 个**（2026-10-14 重测未变）：HRA000873、HRA016026、HRA001272、HRA006499、
+HRA001749、HRA007169、HRA000071（最后一个只有队列级汇总 `HRA000071-SomaticSNV-1.0.maf`；其余 6 个既有队列级汇总，
+也有逐份的 maf——HRA006499 的逐份文件按样本号命名 `HRS*.maf`，另外 5 个按 run 号 `HRR*.maf`）。TCGA 的突变表（`*.somaticmutation_wxs.tsv`、`mc3%2F*_mc3.txt`）
+语义格式是 `TABULAR_BIO_DATA`，**不算 MAF**，吃 MAF 的四条流程看不到它们。
 **这张表是硬门槛，和上面的 WGCNA / 癌种表不是一回事——后两张看的是"哪个队列最大"，
 这张看的是"哪个队列有数据"。** 突变问句里最容易被顺手选中的恰恰是两个没有 MAF 的：
 `HRA007167`（黑色素瘤）出现在 WGCNA 表和癌种表里，但只有 RNA、MAF 节点数为 0，
@@ -315,38 +373,60 @@ T1 捞到 HRA005191 484 + HRA001748 320，T2 捞到 HRA005191 289 + HRA001748 23
 
 **`sample.strategy` 是分号多值且顺序不定**（`WES;bulk_RNA` 与 `bulk_RNA;WES` 两种写法并存，
 单细胞样本写作 `bulk_RNA;sc-RNA`）——**一律用 `CONTAINS` 不许用 `=`**，用等号会把 242 个
-HRA005191 单细胞样本整片漏掉。T1/T2 的 `strategy` 才是单值（只有 bulk_RNA/WES/WGS/sc-RNA/
-Clinical/Meta 六种，0821 起 WXS 已并入 WES，Targeted-Capture/TCR-Seq/Unknow 已取消）。
+HRA005191 单细胞样本整片漏掉。TCGA 样本另有 22071 个 `strategy` 为空、9755 个 `bulk_RNA;WES`。
+T1/T2 的 `strategy` 才是单值（bulk_RNA/WES/WGS/sc-RNA/Clinical/Meta，0821 起 WXS 已并入 WES，
+Targeted-Capture/TCR-Seq/Unknow 已取消；2026-10-14 例外两处：T1 的 127 个元数据文件 strategy 为空，
+T2 有 1 个 HRA000001 临床表写成 `ClinicalTest`）。
 
 **再按该队列有没有你要的语义格式复核一遍**——HRA000073/74 只有 RNA，
 拿它做 MAF 分析会落空。
 
 ### 8.3 加工产物快照（T2；**这张表就是答案，别再开轮次去发现它**）
 
-**T1 只有原始下机数据**：`RAW_PAIRED_END_R1_FASTQ`/`R2` 各 14092 个，外加每队列一份
-`CLINICAL_DATA_EXCEL`/`METADATA_SAMPLE_INFO`（各 19 个）——**T1 里没有任何 BAM/VCF/MAF/矩阵**。
+2026-10-14 重测：下面 HRA 的数字与 0826 完全相同，T2 只多了 133 个 TCGA 表格（见 `TABULAR_BIO_DATA` 行和表后的 TCGA 段）。
+
+**T1 只有原始下机数据**：`RAW_PAIRED_END_R1_FASTQ`/`R2` 各 14473 个（0826 为 14092，多出的 381 对全在
+HRA000001，见下），外加元数据：每队列一份 `CLINICAL_DATA_EXCEL`/`METADATA_SAMPLE_INFO`（各 19 个），
+2026-10 起每个 HRA 队列还有六张 CNCB CSV（`study.csv`/`project.csv`/`individual.csv`/`sample.csv`/
+`T1.csv`/`T2.csv`，即 `STUDY_META`…`T2_META`，各 21 个，含 TCGA 共用的一套）——**T1 里没有任何 BAM/VCF/MAF/矩阵**。
 一切比对、变异、定量的成品都在 **T2**。查 BAM 却写 `MATCH (t:T1)` 必然 0 行，别据此判
 `no_candidate`。
 
+**HRA000001 的缺口（2026-10-14 新出现）**：新增的 762 个 FASTQ（381 对，`sample_name` 形如 `10420844`，
+没有 `sample_accession`/`run_accession`）对不上它 557 个 sample 节点（名字是 `CAS########`），挂不到任何样本上，
+`resolve_sample_roles` 报 `t1_files_unlinked` 769/1883。没有绑定用 HRA000001；被问到就如实报缺，别猜归属。
+
 **T2 的 `format` 是小写扩展名**（`bam` 9465、`vcf.gz` 7291、`bai` 6177、`gz.tbi` 5788、
-`maf` 2355、`vcf` 1301、`tab` 430、`h5` 403），**`semantic_format` 才是语义名（全大写）**。
+`maf` 2355、`vcf` 1301、`tab` 430、`h5` 403；TCGA 表格是 `tsv`/`tsv.gz`/`txt`），**`semantic_format` 才是语义名（全大写）**。
 `WHERE t.format CONTAINS 'BAM'` 这种大写匹配小写扩展名的写法永远查空——要语义就查
 `semantic_format`，要扩展名就用小写。
 
 | T2 semantic_format | 数量 | 队列分布（file_name 形如） |
 |---|---|---|
-| `DNA_VARIANT_VCF_GENERAL` | 8310 | HRA000873(3045)、HRA001272(1909)、HRA016026(1050)、HRA006499(1014)、HRA000071(572)、HRA007169(380)、HRA001749(336) |
+| `DNA_VARIANT_VCF_GENERAL` | 8310 | HRA000873(3045)、HRA001272(1909)、HRA016026(1050)、HRA006499(1014)、HRA000071(572)、HRA007169(380)、HRA001749(336)、HRA000001(4，队列级、无 `file_path`) |
 | `DNA_ALIGNMENT_BQSR_BAM` | 6177 | HRA000873(2030)、HRA000021(1016)、HRA006499(763)、HRA001272(750)、HRA016026(700)、HRA000071(572)、HRA001749(178)、HRA007169(168) |
 | `DNA_ALIGNMENT_INDEX_BAI` | 6177 | 同上，配套索引 |
 | `DNA_VARIANT_INDEX_TBI` | 5788 | 同 VCF，配套索引 |
-| `RNA_TRANSCRIPTOME_ALIGNMENT_BAM` | 3288 | HRA000074(693)、HRA006117(570)、HRA002693(442)、HRA001272(430)、HRA007167(391)、HRA000073(325)、HRA003107(310)、HRA000122(124)（`HRR025534Aligned.sortedByCoord.out.bam`） |
-| `MUTATION_ANNOTATION_FORMAT_MAF` | 2355 | 见上文 7 队列白名单 |
-| `TABULAR_BIO_DATA` | 592 | 表达矩阵（含 `Genes` 的 9 队列各 3 份：FPKM/TPM/counts） |
+| `RNA_TRANSCRIPTOME_ALIGNMENT_BAM` | 3288 | HRA000074(693)、HRA006117(570)、HRA002693(442)、HRA001272(430)、HRA007167(391)、HRA000073(325)、HRA003107(310)、HRA000122(124)、HRA007413(3)（`HRR025534Aligned.sortedByCoord.out.bam`） |
+| `MUTATION_ANNOTATION_FORMAT_MAF` | 2355 | 见上文 7 队列：HRA000873(1016)、HRA001272(486)、HRA016026(351)、HRA006499(339)、HRA001749(85)、HRA007169(77)、HRA000071(1) |
+| `TABULAR_BIO_DATA` | 725 | HRA 592（不变）：表达矩阵（含 `Genes` 的 9 队列各 3 份：FPKM/TPM/counts——HRA000073/000074/000122/001272/002693/003107/006117/007167/007413）及逐 run 表格；TCGA 133：每项目 4 张队列级表格（见下） |
 | `RNA_SPLICEJUNCTION_TAB` | 430 | **只有 HRA001272**（`HRR1402797SJ.out.tab`，STAR 剪接位点） |
 | `SCRNA_MATRIX_H5` | 403 | HRA005191(243)、HRA001748(160) —— 单细胞现成矩阵 |
 | `DNA_SOMATIC_SV_VCF` | 286 | 结构变异 |
 | `BIO_DATA_CONTAINER_OBJECT` | 18 | **Seurat RDS 对象**：HRA001748(10)、HRA005191(6)、HRA000087(2) |
 | `SOMATIC_CNV_TSV` | 4 | 拷贝数 |
+
+表里没列的（规划用不上）：`OTHER_UNCLASSIFIED_DATA` 1081（HRA001272/HRA007169 的运行脚本、文件清单）、
+`DNA_VARIANT_STATS_REPORT` 603（`*.vcf.gz.stats`）、`VISUALIZATION_RESULT` 52（jpeg）、两个 `SCRNA_MATRIX_H5_ZIP`、
+HRA001748/HRA005191 在 T2 里的一对 Clinical/MetaInfo xlsx，以及 HRA000001 三条没有 `semantic_format` 也没有 `file_path` 的记录。
+
+**TCGA 项目（2026-10-14 新增）只有表格。** 33 个项目各 4 张队列级 T2 表格，都在 `/cbb-data/gsa/agent/TCGA/` 下，
+语义格式全是 `TABULAR_BIO_DATA`：`TCGA-<X>.star_tpm.tsv`（STAR **TPM**，bulk_RNA）、`TCGA.<X>.sampleMap__HiSeqV2.gz`
+（HiSeqV2 表达，bulk_RNA）、`TCGA-<X>.somaticmutation_wxs.tsv`（WES 体细胞突变）、`mc3%2F<X>_mc3.txt`（MC3 突变，
+data_level 3）；TCGA-LAML 是 5 张（没有 mc3，多一张 `TCGA.LAML.sampleMap%2Fmutation_wustl` 和一张单样本
+`….rna_seq.augmented_star_gene_counts.tsv`）。对规划的含义：**没有 counts 矩阵**（bulk10 只吃 counts，§3.1）；
+突变表**不是 MAF 语义**；没有 FASTQ/BAM/VCF；**任何流程都没有 TCGA 上的运行绑定**（§3.2）。
+图里直接挂 `in_sample`/`in_individual` 边的 T2 只有这些表格。
 
 **§9 工具表"输入格式"列里有两个名字在图内一个节点都没有**——它们是交付卡自己写的声明，
 不是图内的语义名。照着它们查必然 0 行，别据此判 `no_candidate`：
@@ -369,33 +449,40 @@ Clinical/Meta 六种，0821 起 WXS 已并入 WES，Targeted-Capture/TCR-Seq/Unk
 **可变剪接**：rMATS 类分析要 RNA 比对 BAM，取 `RNA_TRANSCRIPTOME_ALIGNMENT_BAM`（上表第 5 行）；
 `RNA_SPLICEJUNCTION_TAB` 是 STAR 已算好的剪接位点，只有 HRA001272 有。
 
-### 8.4 sample 上这几个字段不可信（0826 实测，**别拿它们做筛选条件**）
+### 8.4 sample 上这几个字段不可信（2026-10-14 重测，HRA 与 0826 完全相同；**别拿它们做筛选条件**）
 
 交付把一批**研究级别的默认值覆盖到了样本级别的事实**上（0821 引入，0826 仍在）。坏值不是空、也不是乱码——每格都
 填满了、单看都合理，所以查回来不会报错，只会静默选错样本。以下四条一律照办：
 
-1. **`tumor_descriptor` 不能用来分原发/转移/复发。** 全库只剩 `Primary` 8551、`Metastasis` 12、
+1. **HRA 队列的 `tumor_descriptor` 不能用来分原发/转移/复发。** HRA 样本只剩 `Primary` 8551、`Metastasis` 12、
    空 1902——`Metastatic`(旧 210) 和 `Recurrent`(旧 407) 被整片压平成 `Primary`，另有 **1512 个
    `tissue_type='Normal'` 的样本也被标了 `Primary`**（正常血样写"原发肿瘤"，自相矛盾）。
-   要分原发/转移/复发**看 `sample_name` 后缀**，HRA001272 的编码是：`PT`原发 143、`NC`癌旁对照 85、
-   `LM`肺转移 65、`PM`腹膜转移 31、`RT`复发 28、`BM`骨转移 20、`AGM`肾上腺转移 19、`LNM`淋巴结转移 19、
-   `BRM`脑转移 5、`KM`肾转移 2（形如 `M019_LM1_S2010-10889_2`）。
+   要分原发/转移/复发**看 `sample_name` 第二段的编码**（可能带病灶序号，如 `LM1`/`LM2`），HRA001272 是：
+   `PT`原发 281、`NC`癌旁对照 213、`LM`肺转移 70、`PM`腹膜转移 38、`RT`复发 28、`BM`骨转移 20、`AGM`肾上腺转移 19、
+   `LNM`淋巴结转移 19、`BRM`脑转移 5、`KM`肾转移 2，另有 `SpM` 2、`DM` 1（图内没写含义），合计 698
+   （形如 `M019_LM1_S2010-10889_2`）。0826 版写的 PT 143/NC 85/LM 65/PM 31 复现不出来；NC 213 正好等于该队列 213 个 `Normal`。
+   TCGA 样本不一样：GDC 值（`Primary` 20869、`Metastatic` 544、`Recurrence` 70、`New Primary` 20、空 12436）与其 `specimen_type` 一致。
 
 2. **`biospecimen_anatomic_site` 是研究级原发部位，不是该样本的取材部位。** HRA001272 全部 698 个
    样本都写成 `Liver And Intrahepatic Bile Ducts`，而样本名摆明有 10 种转移灶（见上）。
-   **拿它筛转移部位必然全错**；HRA006499 同样被压成单值。
+   **拿它筛转移部位必然全错**；HRA006499 同样被压成单值（482 个，另 41 个为空）。TCGA 样本没有这个属性。
 
-3. **`gender` 大小写不统一**：`Male` 6474 / `Female` 3931 / `male` 56 / `female` 3 / 字面量
-   `missing` 1。**一律 `toLower(s.gender)` 比较**，用 `= 'Male'` 会漏 56 个样本。
+3. **`gender` 大小写不统一**：HRA `Male` 6474 / `Female` 3931 / `male` 56 / `female` 3 / 字面量
+   `missing` 1；TCGA `Female` 17202 / `Male` 16506 / 空 231。**一律 `toLower(s.gender)` 比较**，用 `= 'Male'` 会漏 56 个样本。
 
-4. **`specimen_type` 各队列口径不一**：癌旁 `Peritumoral` 只在 **HRA000021**（508）保留，
-   HRA001272/HRA003107/HRA001749/HRA007169/HRA001748/HRA006499 的 525 个癌旁样本被并进了
-   `Patient_Solid_Tissue`。另有新的分号多值 `Organoid;Patient_Solid_Tissue`（486）——**用
-   `CONTAINS` 不许用 `=`**。好消息：这 525 个的 `tissue_type` 仍是 `Normal`，**配对分析照常走
-   `tissue_type`，不受影响**。
+4. **`specimen_type` 各队列口径不一**：癌旁 `Peritumoral` 只在 **HRA000021**（508）保留，其余队列的癌旁
+   都记成 `Patient_Solid_Tissue`——`Normal` 样本里：HRA001272 213、HRA003107 155、HRA001749 94、HRA007169 76、
+   HRA001748 24、HRA006499 3（合计 565；0826 版写的 525 复现不出来），另有 HRA000873 1015、HRA016026 350。
+   分号多值 `Organoid;Patient_Solid_Tissue`（486：HRA006499 432、HRA005191 54）——**用 `CONTAINS` 不许用 `=`**；
+   单独的 `Organoid`（30）全在 HRA006499。好消息：上面这些癌旁样本的 `tissue_type` 都是 `Normal`，
+   **配对分析照常走 `tissue_type`，不受影响**。
+   **TCGA 是另一套词表**（GDC 样本类型，带空格）：`Primary Tumor` 20513、`Blood Derived Normal` 9713、
+   `Solid Tissue Normal` 2702、`Metastatic` 541、`Primary Blood Derived Cancer - Peripheral Blood` 356、
+   `Recurrent Tumor` 70 及几个零头。TCGA 的 `tissue_type='Normal'` 把胚系血样和癌旁混在一起——要比肿瘤与癌旁，
+   判据是 `specimen_type = 'Solid Tissue Normal'`。
 
-**`tissue_type` 已经没有空值了**：0821 那 829 个空样本在 0826 全部补齐，现在是
-Tumor 7045 / Normal 2863 / Blood 557，不必再用 `IS NOT NULL` 兜——但 `Blood` 的存在意味着
+**`tissue_type` 已经没有空值了**：0821 那 829 个空样本在 0826 全部补齐，HRA 现在是
+Tumor 7045 / Normal 2863 / Blood 557（2026-10-14 未变），TCGA 是 Tumor 21513 / Normal 12426，不必再用 `IS NOT NULL` 兜——但 `Blood` 的存在意味着
 它**仍不是**干净的肿瘤/正常二值。**HRA000071 的 `tissue_type` 0821 修对了**：`Blood`/`Normal` 286 + `Patient_Solid_Tissue`/
 `Tumor` 286，与样本名 `B_`/`T_` 前缀各 286 完全自洽（旧数据是错的），该队列可直接信任。
 
@@ -502,10 +589,10 @@ Tumor 7045 / Normal 2863 / Blood 557，不必再用 `IS NOT NULL` 兜——但 `
     （注意这跟 §4「查空别判 no_candidate」不冲突：那条管的是**挑流程**——查空照样给 rank1；
     这条管的是**报状态**——缺了就写 `missing_from_graph`。两件事，别混。）
   - 「项目 X 是否具备为**生存分析**推荐数据和工具的条件？」——生存分析要癌种登记，判据是
-    **`project.tumor_type` 为空**（18 个项目里 7 个为空：CGGA-WES、CGGA-RNA-seq(325)、
+    **`project.tumor_type` 为空**（19 个项目里 7 个为空：CGGA-WES、CGGA-RNA-seq(325)、
     Single-cell RNA analysis…、Multi-center RNA sequencing…、Aging and leukemia、
-    Multi-omics research of AML、Multi-omics Landscape of CNS Tumors），为空就是不具备条件。
-    **别拿 `study.tumor_type` 顶替**——那个 20 个队列里 19 个都有值（只有 HRA000001/CASPMI 空），
+    Multi-omics research of AML、Multi-omics Landscape of CNS Tumors；TCGA 项目写的是 `Pan-cancer`），为空就是不具备条件。
+    **别拿 `study.tumor_type` 顶替**——那个 53 个 study 里 52 个都有值（只有 HRA000001/CASPMI 空），
     用它判必然误判成"具备"。
   - 「工具 X 可以处理哪些数据？」——属性照写进 answer、rank1 照给 X，但图内**没有任何**文件能喂
     给 X 时（`multiqc`、`bootstrap_stability`、`hvg_pca_gmm` 就是），状态写 `missing_from_graph`。

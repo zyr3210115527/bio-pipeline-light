@@ -116,7 +116,7 @@
 | 提交判定 | 重版有 `execution_params`/`submittable` / v2.0 没有 | `validate_execution_chain` 补齐：`execution_params` + `execution_params_missing` + `submittable` |
 | 拒绝无关问题 | `rule_baseline_plan` 内置词表相关性门 | 拒绝纪律在 SKILL.md（`off_topic`/`privacy` 两类 reason），由调用方模型执行 |
 | 患者隐私 | 无专门防护 | `read_cypher` 服务端守卫：临床属性（`01_`–`13_` 全部编号前缀，只放行 `00_*`）仅聚合/存在性判断，防整节点导出/别名/动态下标绕过，自动 LIMIT 500 |
-| 图谱 | 0812 交付 | 0826 交付（81,572 节点 / 364,260 关系 / 55 工具 / 30 受控功能词；0819 列名规范 + 0821 数值字段改类型/清洗 + 0824 软件更新补 4 个工具），SKILL.md 与 knowledge cards 已同步 |
+| 图谱 | 0812 交付 | 2026-10-14 在线图谱（127,989 节点 / 478,007 关系 / 53 个 study：0826 的 20 个 HRA 队列 + 33 个 TCGA 项目；工具层仍是 0826 的 55 工具 / 30 受控功能词——0819 列名规范 + 0821 数值字段改类型/清洗 + 0824 软件更新补 4 个工具），SKILL.md 与 manual_compact.md 的实测快照已同步 |
 | 回归手段 | 96 例含水测试集 | `benchmark/system_test.py`（12 场景 101 断言）+ `integration_test.py` + `benchmark/template_audit.py`（15 条官方模板逐条实跑，断言返回行且无整列 null），图谱更新后必跑 |
 
 ## 目录结构
@@ -148,12 +148,14 @@
 ## 准备图谱数据（clone 完第一件事）
 
 **本仓库不含图谱数据，clone 下来是跑不起来的**——`skill/` 和 `web/` 全部依赖一个已经灌好的
-Neo4j。这不是遗漏：`entities/individual.csv` 是 7290 行患者级记录，带 `01_age` / `01_gender` /
+Neo4j。这不是遗漏：单是 0826 版的 `entities/individual.csv` 就有 7290 行患者级记录，带 `01_age` / `01_gender` /
 `01_race` / `01_country` / `09_tumor_stage` / `13_vital_status` / `13_survival_days`，正是
 `read_cypher` 的隐私守卫明令不许模型逐行读的 `01_`–`13_` 列。把它提交进公开仓等于把守卫绕过去，
 所以数据走线下交付。
 
-1. **要数据**：向图谱交付方索取 `import 0826.zip`（约 4.4 MB 压缩 / 64 MB 解压，31 个 CSV）。
+1. **要数据**：向图谱交付方索取最新的导入包。上一版是 `import 0826.zip`（约 4.4 MB 压缩 / 64 MB
+   解压，31 个 CSV）；2026-10-14 实测的在线图谱已经比它新（加入了 TCGA 的 33 个项目，规模见第 4 步），
+   对应导入包的文件名、交付日期和大小以交付方为准——本仓库目前没有拿到这个包。
 2. **解压到 Neo4j 的 import 目录**（`LOAD CSV` 的 `file:///` 只认这里）：
    ```
    $NEO4J_HOME/import/
@@ -178,22 +180,31 @@ Neo4j。这不是遗漏：`entities/individual.csv` 是 7290 行患者级记录�
      python3 scripts/load_graph_http.py /path/to/import
    ```
    本机约 20 秒、跨网段约 60 秒。它自己校验总数，且期望值是从各 CSV 行数推出来的而非写死。
-4. **校验加载没截断**——对上这几个数才算成功（0826 交付）：
+4. **校验加载没截断**——对上这几个数才算成功（2026-10-14 在线图谱实测；括号里是 0826 交付的数）：
    ```cypher
-   MATCH (n) RETURN count(n);                      // 81572
-   MATCH ()-[r]->() RETURN count(r);               // 364260
-   MATCH (n:T1) RETURN count(n);                   // 28229
-   MATCH (n:T2) RETURN count(n);                   // 35572
-   MATCH (n:individual) RETURN count(n);           // 7131（CSV 7290 行，按 accession 去重）
-   MATCH ()-[r:in_sample]->() RETURN count(r);     // 28184
+   MATCH (n) RETURN count(n);                      // 127989（0826：81572）
+   MATCH ()-[r]->() RETURN count(r);               // 478007（364260）
+   MATCH (n:study) RETURN count(n);                // 53 = 20 个 HRA 队列 + 33 个 TCGA 项目（20）
+   MATCH (n:T1) RETURN count(n);                   // 29111（28229）
+   MATCH (n:T2) RETURN count(n);                   // 35706（35572）
+   MATCH (n:sample) RETURN count(n);               // 44404（10465）
+   MATCH (n:individual) RETURN count(n);           // 18559（7131）
+   MATCH ()-[r:in_sample]->() RETURN count(r);     // 52829 = T1 28184 + T2 24645（28184，只有 T1）
    MATCH (n:tool) RETURN count(n);                 // 55  ← 闭集，少一个模型就查不到该工具
    MATCH (n:function) RETURN count(n);             // 30  ← 受控词表，同上
    ```
-   `individual` 少于 CSV 行数是正常的：159 个患者同时进了两个研究，按 accession MERGE 成一个
-   节点，多研究归属由 `in_study` 边承载（7290 条边 > 7131 个节点）。
+   `individual` 少于 `in_study` 边数是正常的：159 个患者同时进了两个 HRA 研究，按 accession MERGE
+   成一个节点，多研究归属由 `in_study` 边承载（18718 条边 > 18559 个节点；0826 是 7290 > 7131）。
+   TCGA 的 11,428 个患者各只属于一个项目，不与 HRA 重叠。
+
+   **新图有两类 0826 没有的边，现有加载脚本建不出来**：`(T2)-[:in_sample]->(sample)` 24,645 条、
+   `(T2)-[:in_individual]->(individual)` 39,567 条，只挂在 TCGA 的队列级表格上。`load_graph.cypher` /
+   `load_graph_http.py` 只读 0826 的 19 个关系文件，里面没有建这两类边的步骤；拿新包重建时总关系数会
+   少 64,212 条。拿到新包后先按它实际的关系文件补脚本，再用上面的数校验。
 
 数据换版本后，`SKILL.md` / `manual_compact.md` 第 8、12 节的实测快照（队列样本数、T2 产物清单、
-脏字段警告）是照当版交付逐条查出来写的，**必须重新推导**，否则模型会拿旧数字做规划。
+脏字段警告、癌种 → 默认队列表）是照当版交付逐条查出来写的，**必须重新推导**，否则模型会拿旧数字做规划。
+最近一次重推：2026-10-14（加入 TCGA 之后的在线图谱）。
 
 ## 快速开始
 

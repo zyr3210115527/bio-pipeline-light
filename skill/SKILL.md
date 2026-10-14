@@ -30,7 +30,13 @@ provides knowledge and deterministic checks — there is **no "one-call Plan" en
 | `validate_plan(plan)` | Grounding check of the final Plan | **Once** before final output; re-call only to verify fixes of listed violations |
 | `health_check()` | Connectivity, graph size, atomic closed set | Diagnostics only |
 
-## 2. Graph model (0826 delivery: 81,572 nodes / 364,260 relations)
+## 2. Graph model (online graph measured 2026-10-14: 127,989 nodes / 478,007 relations)
+
+What changed since the 0826 delivery: **33 TCGA projects were added** (`TCGA-ACC` … `TCGA-UVM`, one
+`project` node `TCGA`). The 20 HRA cohorts are unchanged (per-cohort sample counts, T2 product counts
+and sample-field distributions all re-measured identical), except that every HRA cohort gained six CNCB
+metadata CSVs in T1 and HRA000001 gained 762 FASTQ without sample nodes (§12.3). The tool layer (55 tools, 30 function
+terms, 89 `has_function`, 22 `next_tool`) is unchanged.
 
 | Node | Key properties (caveats) |
 |---|---|
@@ -39,31 +45,31 @@ provides knowledge and deterministic checks — there is **no "one-call Plan" en
 | `format` (42) | e.g. `RAW_PAIRED_END_R1_FASTQ`, `DNA_VARIANT_VCF_GENERAL`, `MUTATION_ANNOTATION_FORMAT_MAF`, plus `CLINICAL` / `*_META` |
 | `modal` (6) | **Only** `WES` / `WGS` / `bulk_RNA` / `sc-RNA` / `Clinical` / `Meta` — never invent spellings like `RNA-seq`. **The node property is `modal`, not `name`** — `(:modal {name:'sc-RNA'})` matches nothing and returns a silent zero. To find a modality's files, filter `T1.strategy = 'sc-RNA'` directly rather than traversing `in_modal` |
 | `datalevel` (4) | Properties are `level` / `name` / `description`, **not** `data_level`; 1 raw → 4 knowledge. (File-side `T1.data_level` / `T2.data_level` ARE called data_level.) |
-| `study` (20) / `project` (18) | `study_accession`, `tumor_type` (Title Case English, e.g. `Liver Cancer`; query with toLower + CONTAINS — one cancer has multiple spellings, see §4 recipe 3), `title`, `study_description`, `individual_count`, `sample_count` (**only 14/20 studies have it**: HRA000073/HRA000087/HRA002693/HRA006117/HRA007413/HRA016026 are null — sorting/filtering by it silently drops those 6; to size a cohort count `sample` nodes) |
-| `individual` (7131) | **`00_individual_accession` is the id — there is NO bare `individual_accession` on this label** (that name exists only on `T1`/`T2`; using it here returns an all-null column, not an error). Other properties are prefix-grouped: **only `00_*` is operational** (`00_individual_accession` / `00_sample_accession` / `00_platform` / `00_strategy` …). **`01_`–`13_` are all patient-level sensitive**: 01_ demographics, 02_ family history, 03_ lifestyle, 04_ hematology, 09_ tumor pathology, 10_ invasion, 11_ molecular (`11_tmb` / `11_msi_score`), 12_ treatment, **13_ survival (`13_survival_days` / `13_survival_status` / `13_pfs_time` … — survival-analysis data lives here)**. Aggregates only (count / avg / IS NOT NULL); per-individual reads are refused by the server guard (§8) |
-| `sample` (10465) | `sample_accession`, `sample_name`, `tissue_type`, `specimen_type` (underscore style, e.g. `Patient_Solid_Tissue`), `gender`. **`tissue_type` is not a clean Tumor/Normal binary** (0826: Tumor 7045, Normal 2863, Blood 557 — nulls are gone, but `Blood` still breaks equality matching); `specimen_type` does still have `;`-separated multi-values (486 `Organoid;Patient_Solid_Tissue`). Always judge roles via `resolve_sample_roles`, never equality-matching |
-| `T1` | Raw files (FASTQ etc.): `t1_id`, `file_name`, `file_format` (literal), `semantic_format`, `data_level`, `study_accession` (all 6 populated for 28,229); `strategy` 28,222; `platform` / `sample_accession` / `individual_accession` / `sample_name` 28,184; `run_accession` / `experiment_accession` 27,070; `file_path` 26,879; `size` 25,417. **The 45 files missing those values are Clinical / `*_META` aggregate files** (not per-sample by nature) — do not conclude "no platform/sample info in graph" from them |
-| `T2` | Result files (VCF/BAM/MAF…): `t2_id`, `file_name`, `format`, `strategy`, `data_level`, `size`, `study_accession` (all 35,572); `semantic_format` 35,570; `file_path` 35,566; `run_accession` 31,717. **T2 has no `platform` / `sample_accession`** — for sample ownership walk `(T2)-[:generated_from]->(T1)-[:in_sample]->(sample)` |
+| `study` (53 = 20 HRA + 33 TCGA) / `project` (19) | `study_accession`, `tumor_type`, `title`, `study_description`, `individual_count`, `sample_count`. **`tumor_type` means two different things**: on HRA cohorts it is a Title Case English disease name (e.g. `Liver Cancer`; query with toLower + CONTAINS — one cancer has multiple spellings, see §4 recipe 3); on TCGA projects it is a `;`-joined list of GDC histology families (`TCGA-LIHC` is just `Adenomas and Adenocarcinomas`) — **the TCGA cancer site is only in `title`** (`The Cancer Genome Atlas - Liver Hepatocellular Carcinoma`) and in the project code. `sample_count` is on 47/53 studies (**null on HRA000073/HRA000087/HRA002693/HRA006117/HRA007413/HRA016026** — sorting/filtering by it silently drops those 6; to size a cohort count `sample` nodes) |
+| `individual` (18,559 = 7,131 HRA + 11,428 TCGA) | **`00_individual_accession` is the id — there is NO bare `individual_accession` on this label** (that name exists only on `T1`/`T2`; using it here returns an all-null column, not an error). Other properties are prefix-grouped: **only `00_*` is operational** (`00_individual_accession` / `00_sample_accession` / `00_platform` / `00_strategy` …). **`01_`–`13_` are all patient-level sensitive**: 01_ demographics, 02_ family history, 03_ lifestyle, 04_ hematology, 09_ tumor pathology, 10_ invasion, 11_ molecular (`11_tmb` / `11_msi_score`), 12_ treatment, **13_ survival (`13_survival_days` / `13_survival_status` / `13_pfs_time` … — survival-analysis data lives here)**. Aggregates only (count / avg / IS NOT NULL); per-individual reads are refused by the server guard (§8) |
+| `sample` (44,404 = 10,465 HRA + 33,939 TCGA) | `sample_accession`, `sample_name`, `tissue_type`, `specimen_type`, `gender`. **`tissue_type` is not a clean Tumor/Normal binary** (HRA: Tumor 7045, Normal 2863, Blood 557 — unchanged since 0826; `Blood` still breaks equality matching). TCGA has only Tumor 21,513 / Normal 12,426, but **9,713 of those TCGA `Normal` samples are `Blood Derived Normal`** (germline blood, not adjacent tissue). `specimen_type` uses two vocabularies: HRA underscore style (`Patient_Solid_Tissue`, with `;`-separated multi-values such as 486 `Organoid;Patient_Solid_Tissue`), TCGA GDC sample types with spaces (`Primary Tumor`, `Solid Tissue Normal`, `Blood Derived Normal` …). Always judge roles via `resolve_sample_roles`, never equality-matching |
+| `T1` | Raw files (FASTQ etc.): `t1_id`, `file_name`, `file_format` (literal), `semantic_format`, `data_level`, `study_accession` (all 6 populated for 29,111); `strategy` 28,984; `platform` / `sample_name` 28,946; `sample_accession` / `individual_accession` 28,184; `run_accession` / `experiment_accession` 27,070; `file_path` 27,761; `size` 26,299. Of the 927 files without `sample_accession`, **165 are Clinical / `*_META` aggregate files** (not per-sample by nature) and **762 are HRA000001 FASTQ** whose `sample_name` matches no sample node (§12.3) — do not conclude "no platform/sample info in graph" from them. TCGA has **no T1 data files**, only 6 shared metadata CSVs whose `study_accession` is all 33 project codes joined by `;` (so `t.study_accession = 'TCGA-LIHC'` misses them) |
+| `T2` | Result files (VCF/BAM/MAF…): `t2_id`, `file_name`, `format`, `strategy`, `data_level`, `size`, `study_accession` (all 35,706); `semantic_format` 35,703; `file_path` 35,699; `run_accession` 31,717. **T2 has no `platform` / `sample_accession`** — for HRA files, sample ownership walks `(T2)-[:generated_from]->(T1)-[:in_sample]->(sample)`. Only the 133 TCGA tables carry direct `(T2)-[:in_sample]->(sample)` / `(T2)-[:in_individual]->(individual)` edges (one edge per sample/patient covered by the table) |
 
 Key relationships: `(tool)-[:next_tool]->(tool)` chains; `(tool)-[:input|output]->(format)` I/O contract;
 `(tool)-[:suitable_for]->(modal)`; `(tool)-[:has_function]->(function)`;
 `(T1|T2)-[:in_sample|in_format|in_modal|in_level|in_study]->(...)`; `(T2)-[:generated_from]->(T1)`;
-`(sample)-[:in_individual]->(individual)`; `(individual)-[:in_study]->(study)`;
+`(sample)-[:in_individual]->(individual)`; `(T2)-[:in_individual]->(individual)` (TCGA tables only); `(individual)-[:in_study]->(study)`;
 `(study)-[:in_project]->(project)`; `(format)-[:subclass_of]->(format)` (specific → generic; walk up
 when matching tools by semantic format).
 
-**Numeric-looking fields are STRING — re-verified unchanged on the 0826 graph. Wrap in `toInteger()`/`toFloat()` before any
+**Numeric-looking fields are STRING — re-verified on the 2026-10-14 graph. Wrap in `toInteger()`/`toFloat()` before any
 `<` `>` comparison or `ORDER BY`** (verified with `valueType()`): `data_level`, `size`, `01_age`,
 `11_tmb`, `11_msi_score`, `13_survival_days` / `13_dfs_time` / `13_efs_time` / `13_pfs_time`.
-**Only `study.sample_count` and `study.individual_count` are true INTEGER** (and only 14 studies carry
+**Only `study.sample_count` and `study.individual_count` are true INTEGER** (and only 47 of 53 studies carry
 them). Write `f.data_level = '1'`, `toInteger(i.\`13_survival_days\`) > 365`,
 `ORDER BY s.sample_count DESC`.
 
 Both mistakes are silent — neither errors, both return plausible-looking rows:
-- Unquoted equality on a STRING column matches nothing: `f.data_level = 1` → **0 rows** (`= '1'` → 28,228).
+- Unquoted equality on a STRING column matches nothing: `f.data_level = 1` → **0 rows** (`= '1'` → 29,110).
 - Unquoted `>` on a STRING column also yields **0 rows**: `i.\`13_survival_days\` > 365` → **0**
-  (`toInteger(...) > 365` → 2,465).
-- Quoted `>` compares lexicographically: `> '365'` → 2,110 but `> '99'` → **27**, because `'99' > '365'`
+  (`toInteger(...) > 365` → 11,059).
+- Quoted `>` compares lexicographically: `> '365'` → 7,397 but `> '99'` → **70**, because `'99' > '365'`
   as text. `ORDER BY` without conversion sorts `'995'` above `'7061'`.
 
 If a count looks impossibly low or a max looks too small, check `valueType()` before believing it.
@@ -132,10 +138,10 @@ has a working default. Bind `expr` and stop.
 - `sample_csv`, `individual_csv` — CNCB-native metadata at `/cbb-data/gsa/agent/{STUDY}/sample.csv`
   and `individual.csv`. **Do not write them into `inputs`, and do not query the graph for them.**
   The server derives both from the study accession in `expr`, the same way it derives the clinical
-  table + sample-metainfo pair — but unlike that pair, these two CSVs are **not in the graph** at all
-  (the clinical pair is; you just never have to look it up). No bulk10 study has them (only
-  HRA000001 has nodes with those names) — binding them makes `validate_plan` match HRA000001's node
-  by `file_name` and reject the plan with `asset file_path 与图内记录不符`.
+  table + sample-metainfo pair. Since the 2026-10-14 graph every HRA cohort does carry these two
+  files as T1 nodes (`SAMPLE_META` / `INDIVIDUAL_META`, at exactly that path — on 0826 only HRA000001
+  had them), but the rule is unchanged: 21 nodes share the name `sample.csv` (21 more `individual.csv`),
+  so there is nothing for you to look up, and the server fills both.
 - `case_label` / `control_label` — the four label-taking pipelines above. The server supplies the
   literals `case` / `control`; override only if the user names different groups.
 
@@ -221,8 +227,9 @@ Standard recipes:
    any tool with a §3.2 whitelist row, "discovery" means picking from its proven cohorts, not from a
    graph search: the same unproven-pair rejection applies there.
 
-   - Cohort: `tumor_type` is **English Title Case** — match with `toLower(s.tumor_type) CONTAINS '<english>'`;
-     Chinese matches nothing. All values re-measured on 0826 — unchanged from 0821 (20 studies): `Liver Cancer`,
+   - Cohort: on the 20 HRA cohorts `tumor_type` is **English Title Case** — match with
+     `toLower(s.tumor_type) CONTAINS '<english>'`; Chinese matches nothing. HRA values re-measured on
+     2026-10-14 — unchanged since 0821: `Liver Cancer`,
      `Hepatocellular Carcinoma`, `Lung Cancer`, `Non-Small Cell Lung Carcinoma`, `Malignant Glioma`,
      `Melanoma`, `Esophageal Cancer`, `Colorectal Adenocarcinoma`, `Nasopharynx Carcinoma`,
      `Acute Myeloid Leukemia`, `Acute T Cell Leukemia`, plus one null.
@@ -230,8 +237,14 @@ Standard recipes:
      but **miss HRA001272** (`Hepatocellular Carcinoma`) — the very cohort with the ready TPM matrix used
      in this manual's example. Use `... CONTAINS 'liver' OR ... CONTAINS 'hepatocell'`. Lung is fine with
      one word (`Lung Cancer` and `Non-Small Cell Lung Carcinoma` both contain `lung`).
-     When unsure, fetch all 20 studies' `study_accession` + `tumor_type` in **one** query (20 rows) and
-     pick by eye — cheaper than keyword trial-and-error.
+     **TCGA trap (new in the 2026-10-14 graph)**: the 33 `TCGA-*` projects store GDC histology families
+     in `tumor_type` (`Adenomas and Adenocarcinomas`, `Gliomas`, `Nevi and Melanomas` …, often several
+     joined by `;`), so `CONTAINS 'liver'` / `'lung'` / `'esophag'` never reaches them. Their cancer site
+     is only in `title` (`The Cancer Genome Atlas - Liver Hepatocellular Carcinoma`) and in the project
+     code (`TCGA-LIHC`). No tool has a run binding on any TCGA project yet (§3.2), so they are never a
+     default cohort (§12.2).
+     When unsure, fetch all 53 studies' `study_accession` + `tumor_type` + `title` in **one** query
+     (53 rows) and pick by eye — cheaper than keyword trial-and-error.
    - **Ready-made expression matrices are in T2** (file names contain `Genes`, e.g.
      `HRA001272-Genes-TPM-1.0.tsv`), not T1 (raw FASTQ). `semantic_format` (e.g. `TABULAR_BIO_DATA`)
      ≠ `format` / `file_format` (literal).
@@ -240,7 +253,7 @@ Standard recipes:
      `find_paired_tumor_normal_samples`.
    - **Paired analysis: cohort discovery first** — never assume a cohort is pairable; aggregate which
      studies have same-individual Tumor+Normal first. HRA016026 is exactly 350 `Tumor` + 350 `Normal`
-     on 0826, but `tissue_type` graph-wide is **not** a clean binary (`Blood` 557, `Organoid` 30 — §12.4),
+     (re-measured 2026-10-14), but `tissue_type` graph-wide is **not** a clean binary (`Blood` 557, `Organoid` 30 — §12.4),
      so tolerate name suffixes as a fallback:
      ```cypher
      MATCH (sp:sample)-[:in_individual]->(i:individual)
@@ -251,14 +264,23 @@ Standard recipes:
        AND (any(t IN tts WHERE t CONTAINS 'normal') OR any(n IN nms WHERE n ENDS WITH '_normal'))
      RETURN study, count(i) AS pairable_individuals ORDER BY pairable_individuals DESC
      ```
-     Pairable cohorts measured on the 0826 delivery (individuals): HRA000873 1015, HRA000021 508,
-     **HRA016026 350**, HRA001272 206, HRA003107 155, HRA007169 76, HRA006499 72, HRA001749 56,
-     HRA000122 42, HRA001748 30. Two changes from 0821: HRA001749 dropped 84 → 56, and **HRA000122
-     became pairable** (0821 had it in the unresolvable list; 0826 gives it 245 Tumor / 42 Normal).
+     Pairable HRA cohorts measured on 2026-10-14 (individuals): HRA000873 1015, HRA000021 508,
+     **HRA016026 350**, HRA001272 206, HRA003107 155, HRA001749 84, HRA007169 76, HRA006499 72,
+     HRA000122 42, HRA001748 14. Two figures differ from the 0826 text although both cohorts' sample and
+     `tissue_type` counts are identical — so either the sample → individual links changed or the 0826
+     figures were off: **HRA001749 is 84** (was 56; all 84 of its individuals have both arms) and
+     **HRA001748 is 14** (was 30). HRA000122 stays
+     pairable (245 Tumor / 42 Normal; it left the unresolvable list in 0826).
      Note HRA000122's whitelist reach is still narrow — within bulk10 only `umap` (§3.1), plus
      `diff_expr_go`/`diff_expr_kegg`/`bootstrap_stability`/`hvg_pca_gmm`/`rnaseq_unsupervised_cluster`
-     in §3.2 — pairable does not mean freely usable. Every pair here is Tumor+Normal; **no cohort pairs via Blood**. The naive form
-     (`'Tumor' IN tts`) **misses HRA016026 entirely** — the third-largest pairable cohort.
+     in §3.2 — pairable does not mean freely usable. Every HRA pair here is Tumor+Normal; **no HRA cohort pairs via Blood**. The naive form
+     (`'Tumor' IN tts`) **misses HRA016026 entirely** — the third-largest pairable HRA cohort.
+     **The same query now also returns all 33 TCGA projects** (TCGA-BRCA 1098 tops the whole list), but
+     TCGA pairing is metadata only: most TCGA `Normal` samples are `Blood Derived Normal`, and TCGA has
+     no per-sample files at all (no FASTQ/BAM/VCF — §12.3), so there is nothing to bind for
+     `wes_somatic_pair` / `gatk` / `cnvkit_cnv_clinical`. Individuals with a `Solid Tissue Normal`
+     sample: KIRC 442, LUAD 274, LUSC 254, LAML 200, BRCA 162, OV 127, PRAD 118, STAD 101, THCA 100;
+     none in LGG / TGCT / UVM / DLBC.
      Known trap: **HRA000071's blood controls and tumor samples belong to different individuals**
      (572 samples 1:1 to 572 individuals) — usable for tumor/normal grouping (`resolve_sample_roles`
      can judge roles) but **not same-individual pairing** (`wes_somatic_pair` not applicable); say so
@@ -269,9 +291,12 @@ Standard recipes:
      grouped differential expression), call `study` mode and check `role_resolved`; cohorts with false
      cannot do pairing/grouping — report honestly. Per-file `sample_role` / `sample_role_label` use
      `records` mode.
-     **Cohorts whose roles cannot be resolved (re-measured on 0826 — do not burn rounds retrying)**:
-     HRA000001 (557, all `Blood`), HRA000074 (693, all `Tumor`), HRA002693 (655, all `Tumor`),
-     HRA006117 (835, all `Tumor`), HRA005191 (243, all `Tumor`).
+     **Cohorts whose roles cannot be resolved (`resolve_sample_roles` re-run on 2026-10-14 — do not burn
+     rounds retrying)**: HRA000001 (557, all `Blood`), HRA000073 (325, all `Tumor`), HRA000074 (693, all
+     `Tumor`), HRA002693 (655, all `Tumor`), HRA005191 (243, all `Tumor`), HRA006117 (835, all `Tumor`),
+     HRA007167 (81, all `Tumor`), HRA007413 (373, all `Tumor`). HRA000073 / HRA007167 / HRA007413 were
+     missing from the old list (the HRA-wide `tissue_type` totals are the same as on 0826). All 33 TCGA projects resolve
+     (`role_resolved=true`), which still gives no file to pair (see above).
      **The 0821 reason for these is now wrong and the old wording has been removed**: it read
      "543/693 no `tissue_type`", but 0826 filled every null graph-wide (see §12.4), so these samples
      all *have* a `tissue_type` — they are single-valued cohorts with no counterpart arm, which is a
@@ -286,16 +311,20 @@ Standard recipes:
    - **Cohort sample lists come from `sample` nodes**: `MATCH (sp:sample) WHERE sp.study_accession = '<HRA*>'`
      (equivalent to the `study<-individual<-sample` traversal). **Do not count samples via
      `(T1)-[:in_sample]->(sample)`** — that only sees file-attached samples and silently drops the rest
-     (HRA006117 has 835 samples; via files only 570 remain).
+     (re-measured 2026-10-14: HRA000021 has 1016 sample nodes, via files only 814 remain; TCGA-LIHC has
+     1168, of which only 430 are attached to any TCGA table).
    - **Two kinds of `sample_accession = null` on files — do not conflate**: **aggregate files**
      (expression matrices / MAF / clinical tables / MetaInfo) are cross-sample by nature, null is normal;
      **run-organized fastq** (`data_level=1`) should have samples, but that class is basically
-     zero — `sample_accession` sits directly on T1 (no run hop). Re-measured on 0826 and unchanged
-     from 0821: 28,184 of 28,229 T1 have `in_sample` edges, the remaining 45 are all aggregates.
+     zero — `sample_accession` sits directly on T1 (no run hop). Re-measured on 2026-10-14: 28,184 of
+     29,111 T1 have `in_sample` edges (the same 28,184 as 0826); the other 927 are 165 aggregates plus
+     **762 HRA000001 FASTQ with no sample node** — a genuine gap, confined to that healthy cohort (§12.3).
      **Do not reject cohorts on the pre-0821 conclusion that runs orphan files.**
      Judge gaps **only** by `resolve_sample_roles(study=...)` → `file_coverage.t1_files_unlinked`
-     (files truly lacking `in_sample` edges; e.g. HRA000087 2/3108, HRA001272 2/2362, all aggregates).
-     Its sibling `runs_without_sample_node` stays large (1492/1553, 482/1180) and is a **diagnostic
+     (files truly lacking `in_sample` edges; since 2026-10 every HRA cohort shows 8 — the clinical and
+     MetaInfo xlsx plus six `*_META` CSVs, all aggregates — e.g. HRA000087 8/3114, HRA001272 8/2368; the one
+     real exception is HRA000001 769/1883). Its sibling `runs_without_sample_node` stays large
+     (HRA000087 1503/1553, HRA001272 875/1180) and is a **diagnostic
      field, not a gap** — each sample node records only one run, so run-based back-lookup never
      reconciles; judging cohorts by it kills good cohorts. If `t1_files_unlinked` really is large, output
      `missing_from_graph` honestly — **never guess sample ownership from file names or order**.
@@ -579,10 +608,10 @@ top-level `answer` stating what is missing. **Do not force a rank-1.**
     something is missing, write `missing_from_graph`. Two different things.)
   - "Does project X meet the conditions for recommending data and tools for **survival analysis**?" —
     survival analysis needs a registered cancer type, and the test is **`project.tumor_type` being
-    null** (7 of the 18 projects are: CGGA-WES, CGGA-RNA-seq(325), "Single-cell RNA analysis…",
+    null** (7 of the 19 projects are: CGGA-WES, CGGA-RNA-seq(325), "Single-cell RNA analysis…",
     "Multi-center RNA sequencing…", "Aging and leukemia", "Multi-omics research of AML",
-    "Multi-omics Landscape of CNS Tumors"). Null means the condition is not met. **Do not substitute
-    `study.tumor_type`** — 19 of 20 cohorts carry it (only HRA000001/CASPMI is null), so using it
+    "Multi-omics Landscape of CNS Tumors"; the TCGA project reads `Pan-cancer`). Null means the condition is not met. **Do not substitute
+    `study.tumor_type`** — 52 of 53 studies carry it (only HRA000001/CASPMI is null), so using it
     always misjudges these as "met".
   - "Which data can tool X process?" — put the attributes in `answer` and give X as rank-1, but when
     the graph holds **no file at all** that X can consume (`multiqc`, `bootstrap_stability`,
@@ -1007,9 +1036,15 @@ Six things to get right when transcribing execution params:
 
 ## 12. Appendix: measured snapshots (whitelist sources; re-verify after graph updates)
 
-Measured on the connected graph. Tool/cohort matching should start here, not with exploratory queries.
+Measured on the connected graph; last re-derived **2026-10-14** on the online graph (127,989 nodes / 478,007
+relations: the 20 HRA cohorts of the 0826 delivery plus 33 TCGA projects). Tool/cohort matching should
+start here, not with exploratory queries.
 
 ### 12.1 Tool catalog snapshot (55)
+
+Re-checked 2026-10-14: the tool layer is unchanged (55 tools, 89 `has_function`, 22 `next_tool`). The
+`modal` column is the graph's `suitable_for` edges; the input/output columns come from the delivery
+cards, not from the graph's `input` / `output` edges (see §12.3 for the two card names with no nodes).
 
 Several pipelines differ by exactly one discriminating detail; the full descriptions below carry it,
 so read to the end of the row rather than matching on the opening clause. The families that actually
@@ -1056,7 +1091,7 @@ get confused in practice:
 | `bwa` | 基于 BWA-MEM 算法的双端测序比对流程。输入为 R1/R2 FASTQ 文件和样本 ID， 输出为未排序的 SAM 文件及 BWA 运行日志。适用于全外显子组测序数据的比对步骤， 后续需配合 SAMtools 完成排序和索引。 | WES | REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | DNA_GENOMIC_ALIGNMENT_BAM |
 | `cellranger_workflow` | 基于 10x Genomics CellRanger 的单细胞 RNA 测序数据分析流程。 包含 FASTQ 质控、序列比对、基因表达定量及结果可视化，适用于 10x Chromium 平台产生的单细胞转录组数据。 | sc-RNA,bulk_RNA | RAW_SINGLE_END_FASTQ,DNA_GENOMIC_ALIGNMENT_BAM | TABULAR_BIO_DATA,DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT |
 | `celltype_case_control_de` | 对单细胞RNA-seq数据中指定的细胞类型进行病例-对照差异表达分析。输入为Seurat RDS文件，输出包括差异表达结果、分析摘要、质控报告等。适用于配对或非配对的病例-对照研究设计。 | sc-RNA,bulk_RNA | SCRNA_OBJECT_RDS,TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA | QC_STATS_REPORT |
-| `cnvkit_cnv_clinical` | 对肿瘤队列的配对肿瘤/正常 WGS 或 WES BAM 运行 CNVkit，生成样本级分段、离散拷贝数、BED文件和scatter/diagram图。输入为按位对应的样本ID与肿瘤/正常BAM/BAI数组；WES使用hybrid模式且必须提供targets_bed。当前交付WDL不接收临床表，不执行临床关联分析。 | WES,WGS | DNA_GENOMIC_ALIGNMENT_BAM | VISUALIZATION_RESULT,TABULAR_BIO_DATA |
+| `cnvkit_cnv_clinical` | 对肿瘤队列的配对肿瘤/正常 WGS 或 WES BAM 运行 CNVkit，生成样本级分段、离散拷贝数、BED文件和scatter/diagram图。输入为按位对应的样本ID与肿瘤/正常BAM/BAI数组；WES使用hybrid模式且必须提供targets_bed。当前交付WDL不接收临床表，不执行临床关联分析。 | WES,WGS,Clinical | DNA_GENOMIC_ALIGNMENT_BAM | VISUALIZATION_RESULT,TABULAR_BIO_DATA |
 | `cox_model` | 整合基因表达矩阵与临床元数据，执行 Cox 比例风险回归分析和 Kaplan-Meier 生存曲线绘制。 支持自定义样本分组、生存时间/状态列映射，输出风险比、P 值及前 N 个显著基因。 适用于癌症预后标志物筛选和临床亚组生存差异分析场景。 | Clinical,bulk_RNA| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `dataset_downstream` | 对单细胞RNA-seq数据集进行标准化下游分析，包括基因排序、细胞类型注释和恶性细胞标记。 输入为Seurat RDS文件和基因排序文件，输出包括压缩的结果文件、运行摘要和质量控制报告。 | sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,SCRNA_OBJECT_RDS | QC_STATS_REPORT |
 | `dataset_matrix_annotation` | 该流程用于对单细胞RNA-seq数据集进行矩阵注释和细胞类型标注。输入为Seurat RDS格式的整合数据文件，输出包括注释结果压缩包、运行摘要、输入质量控制报告和分析清单等文件。 | sc-RNA | TABULAR_BIO_DATA,SCRNA_OBJECT_RDS,REFERENCE_GENOME_FASTA | QC_STATS_REPORT |
@@ -1072,7 +1107,7 @@ get confused in practice:
 | `gatk` | 基于 GATK 最佳实践的全外显子组（WES）肿瘤-正常配对体细胞变异检测流程。 流程对肿瘤和正常样本分别进行 MarkDuplicates 标记重复、BaseRecalibrator 碱基质量校正， 然后使用 Mutect2 进行体细胞变异检测，并通过 FilterMutectCalls 进行过滤， 同时评估样本污染和构建读段方向偏倚模型。 | WES | DNA_ALIGNMENT_INDEX_BAI,REFERENCE_GENOME_FASTA,TARGET_INTERVAL_LIST,DNA_GENOMIC_ALIGNMENT_BAM | DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT,DNA_VARIANT_INDEX_TBI,DNA_VARIANT_VCF_GENERAL |
 | `gatk_germline_cohort` | GATK 最佳实践的**队列级胚系**变异检测：HaplotypeCaller 逐样本产 gVCF → GenomicsDB 合并 → 联合分型 → VQSR 过滤，输出队列 VCF/TBI 与质控统计。与 `gatk`（原子工具，走 Mutect2 体细胞分支）分工不同：**要胚系、要队列联合分型就用它**；单病人配对的体细胞检测走 `wes_somatic_pair`。`analysis_ready_bams`/`analysis_ready_bais`/`sample_metadata`/`clinical_metadata` 由服务端按队列补齐（给代表性 BAM 即可），`sample_ids` 与 BAM 数组按位平行 | WGS,WES,Clinical | DNA_GENOMIC_ALIGNMENT_BAM,TARGET_INTERVAL_LIST,REFERENCE_GENOME_FASTA,METADATA_SAMPLE_INFO,CLINICAL_DATA_EXCEL,DNA_VARIANT_VCF_GENERAL,DNA_VARIANT_INDEX_TBI | DNA_VARIANT_VCF_GENERAL,DNA_VARIANT_INDEX_TBI,DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT,TABULAR_BIO_DATA,VISUALIZATION_RESULT |
 | `gene_boxplot` | 基于基因表达矩阵和临床元数据生成箱线图、火山图、热图等可视化结果。支持从 CNCB 原生格式元数据自动映射样本分组信息，可整合生存分析和肿瘤分期数据。适用于 bulk RNA-seq 数据的探索性可视化分析。 | Clinical,bulk_RNA| TABULAR_BIO_DATA(counts, required) + case/control labels | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
-| `gsea_pathway_enrichment` | 本流程基于limma moderated t统计量构建全基因排序，使用fgseaMultilevel执行预排序GSEA。 输入为表达矩阵和样本元数据，输出包括通路富集结果、显著通路、排序基因列表及可视化图表。 适用于病例-对照转录组比较分析，支持协变量校正和配对设计。 | bulk_RNA | TABULAR_BIO_DATA | VISUALIZATION_RESULT,TABULAR_BIO_DATA,QC_STATS_REPORT |
+| `gsea_pathway_enrichment` | 本流程基于limma moderated t统计量构建全基因排序，使用fgseaMultilevel执行预排序GSEA。 输入为表达矩阵和样本元数据，输出包括通路富集结果、显著通路、排序基因列表及可视化图表。 适用于病例-对照转录组比较分析，支持协变量校正和配对设计。 | bulk_RNA,Clinical | TABULAR_BIO_DATA | VISUALIZATION_RESULT,TABULAR_BIO_DATA,QC_STATS_REPORT |
 | `her2_pfs_survival` | 基于 TPM 表达矩阵、临床信息及样本元信息，分析特定基因（默认 HER2）表达水平与无进展生存期（PFS）的关联。 流程自动匹配样本 accession，执行 Winsorizing 处理，生成 KM 生存曲线、Logrank 统计量及质量控制报告。 | Clinical,bulk_RNA | INDIVIDUAL_META,SAMPLE_META,T1_META,TABULAR_BIO_DATA | VISUALIZATION_RESULT,QC_STATS_REPORT,TABULAR_BIO_DATA |
 | `hvg_pca_gmm` | 从logCPM表达矩阵中筛选高变基因，执行PCA降维，并在候选K范围内拟合高斯混合模型（GMM），最终依据BIC选择最佳聚类数。输入为预处理后的logCPM矩阵，输出包括高变基因统计、PCA结果、GMM聚类指标及可视化图表。 | bulk_RNA,sc-RNA | - | TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
 | `immune_infiltration_iobr` | 基于 IOBR 包的 CIBERSORT 算法进行免疫细胞浸润分析流程。 输入基因表达 TPM 矩阵、XLSX 临床对和样本元信息（服务端按队列补，XLSX 无有效路径的队列按实跑口径回落 CSV；另带可选 `sample_ids` run 列表），输出免疫细胞比例估计、可靠性评估及可视化图表。 适用于批量 RNA-seq 数据的肿瘤微环境免疫细胞组成分析。 | bulk_RNA,Clinical | CLINICAL_DATA_EXCEL,METADATA_SAMPLE_INFO,TABULAR_BIO_DATA | TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
@@ -1093,12 +1128,12 @@ get confused in practice:
 | `snpeff` | 基于 SnpEff 工具对 VCF 文件进行变异效应注释的独立流程。输入为未压缩或压缩的 VCF 文件，输出包含注释后的 VCF、HTML/CSV 格式的统计报告以及运行日志。适用于 WES/WGS 体细胞或胚系突变的生物学效应预测。 | WES,WGS | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA | DNA_VARIANT_VCF_GENERAL,QC_STATS_REPORT |
 | `stage_heatmap` | 本流程用于生成基于肿瘤分期的基因表达热图可视化。整合表达矩阵、元数据文件和临床信息文件，自动匹配样本信息并筛选目标分期样本，输出分期热图及样本映射报告。适用于 CNCB 等公共数据库来源的 bulk RNA-seq 数据可视化分析。 | Clinical,bulk_RNA| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `star` | 该流程使用 STAR 比对工具对 RNA-seq 数据进行 rRNA 去除和基因组比对。流程包含两个步骤：首先将 reads 比对到 rRNA 参考索引以去除 rRNA 污染，然后将未比对的 reads 比对到基因组参考索引，输出未排序的基因组 BAM、转录组 BAM、基因计数文件和日志。 | bulk_RNA | REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R2_FASTQ,RAW_PAIRED_END_R1_FASTQ | RNA_TRANSCRIPTOME_ALIGNMENT_BAM,DNA_GENOMIC_ALIGNMENT_BAM,REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ |
-| `star_fusion` | STAR-Fusion 基因融合检测：从**双端 FASTQ 起步**比对并识别融合转录本，输出融合事件表与 HTML 报告。**闭集内唯一做基因融合的流程**。注意起点是 FASTQ 不是表达矩阵——手上只有 counts 矩阵时它做不了，这是数据缺口不是工具缺口（按 §8 给 rank1 并在 match_note 说明）。与 `star`（原子比对工具）同名前缀但不是一回事。 | RNA,Clinical | METADATA_SAMPLE_INFO,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | TABULAR_BIO_DATA,QC_STATS_REPORT |
+| `star_fusion` | STAR-Fusion 基因融合检测：从**双端 FASTQ 起步**比对并识别融合转录本，输出融合事件表与 HTML 报告。**闭集内唯一做基因融合的流程**。注意起点是 FASTQ 不是表达矩阵——手上只有 counts 矩阵时它做不了，这是数据缺口不是工具缺口（按 §8 给 rank1 并在 match_note 说明）。与 `star`（原子比对工具）同名前缀但不是一回事。 | bulk_RNA,Clinical | METADATA_SAMPLE_INFO,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | TABULAR_BIO_DATA,QC_STATS_REPORT |
 | `survival_analysis` | 基于 WDL 1.0 和 Cromwell 的生存分析流程，用于评估指定基因突变状态与无进展生存期（PFS）的关系。 流程整合了突变提取、Log-rank 检验、Kaplan-Meier 曲线绘制及单因素 Cox 回归分析，最终生成汇总报告。 | WES,Clinical | INDIVIDUAL_META,SAMPLE_META,T1_META,MUTATION_ANNOTATION_FORMAT_MAF | QC_STATS_REPORT,VISUALIZATION_RESULT,CLINICAL_DATA_EXCEL |
 | `tcell_intervention` | 该流程用于对单细胞RNA-seq数据进行T细胞干预前后的比较分析。输入为Seurat RDS文件，通过指定细胞类型、时间点和患者信息等元数据列，进行差异表达分析，输出包括压缩的结果文件、运行摘要、质控报告和分析清单等。 | bulk_RNA,sc-RNA | TABULAR_BIO_DATA,REFERENCE_GENOME_FASTA,METADATA_SAMPLE_INFO,SCRNA_OBJECT_RDS | QC_STATS_REPORT |
 | `tmb_survival_analysis` | 从MAF文件和临床数据计算病人级肿瘤突变负荷（TMB），按TMB中位数将病人分为高/低组， 进行Kaplan-Meier生存分析和log-rank检验，输出生存曲线、TMB分布图及统计结果表。 适用于肿瘤队列的预后分析场景。 | WES,Clinical | MUTATION_ANNOTATION_FORMAT_MAF,INDIVIDUAL_META,SAMPLE_META,T1_META | QC_STATS_REPORT,TABULAR_BIO_DATA,VISUALIZATION_RESULT |
 | `trim_galore` | 基于 Trim Galore 工具的 FASTQ 文件接头修剪与质量控制流程。支持单端和双端测序数据，可指定接头序列，输出修剪后的 FASTQ 文件和修剪报告。 | bulk_RNA | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ,QC_STATS_REPORT |
-| `tumor_evolution_inference` | 肿瘤演化与克隆推断：由变异/表达数据重建克隆结构与演化关系，输出克隆分配表与演化树图。**闭集内唯一做克隆演化的流程**。它推断的是克隆谱系，**不是因果机制**——「能否推断致病因果」仍按 §8 的因果拒绝纪律处理，不要拿这条去顶。`tumor_bams`/`tumor_bam_indexes`/`somatic_small_variant_vcfs`/`allele_specific_cnv_files` 由服务端按队列补齐（三证齐全的肿瘤 run）；**`sample_manifest` 图内没有**——它是 MakeManifest 辅助流程的运行产物，合同里如实报缺，执行前先跑辅助流程生成 | sc-RNA,WGS,RNA | DNA_GENOMIC_ALIGNMENT_BAM,TABULAR_BIO_DATA,DNA_VARIANT_VCF_GENERAL | TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
+| `tumor_evolution_inference` | 肿瘤演化与克隆推断：由变异/表达数据重建克隆结构与演化关系，输出克隆分配表与演化树图。**闭集内唯一做克隆演化的流程**。它推断的是克隆谱系，**不是因果机制**——「能否推断致病因果」仍按 §8 的因果拒绝纪律处理，不要拿这条去顶。`tumor_bams`/`tumor_bam_indexes`/`somatic_small_variant_vcfs`/`allele_specific_cnv_files` 由服务端按队列补齐（三证齐全的肿瘤 run）；**`sample_manifest` 图内没有**——它是 MakeManifest 辅助流程的运行产物，合同里如实报缺，执行前先跑辅助流程生成 | sc-RNA,WGS,bulk_RNA | DNA_GENOMIC_ALIGNMENT_BAM,TABULAR_BIO_DATA,DNA_VARIANT_VCF_GENERAL | TABULAR_BIO_DATA,VISUALIZATION_RESULT,QC_STATS_REPORT |
 | `umap` | 基于基因表达矩阵进行 UMAP 降维可视化分析，整合 CNCB 元数据和临床信息。 支持自动样本分组、生存分析数据提取，输出降维结果及样本信息报告。 | Clinical,bulk_RNA| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `wes_somatic_maf_landscape` | 本流程用于全外显子测序（WES）队列的体细胞突变景观分析。输入标准 MAF 文件，经过滤处理后绘制 Top N 突变基因 Oncoplot 及突变类型分布图。适用于癌症基因组学中的突变谱可视化与总结。 | WES | MUTATION_ANNOTATION_FORMAT_MAF | TABULAR_BIO_DATA,VISUALIZATION_RESULT,MUTATION_ANNOTATION_FORMAT_MAF |
 | `wes_somatic_pair` | 用于单个病人配对 tumor-normal WES 数据的体细胞变异分析流程。包含 FASTQ 质控、BWA 比对、Mutect2 变异检测、SnpEff 注释及 MultiQC 汇总报告。 输出包括过滤后的 VCF 文件、BAM 文件及完整的质控报告。 | WGS,WES | DNA_VARIANT_VCF_GENERAL,REFERENCE_GENOME_FASTA,RAW_PAIRED_END_R1_FASTQ,RAW_PAIRED_END_R2_FASTQ | DNA_VARIANT_INDEX_TBI,DNA_GENOMIC_ALIGNMENT_BAM,QC_STATS_REPORT,DNA_VARIANT_VCF_GENERAL |
@@ -1106,11 +1141,13 @@ get confused in practice:
 | `wgcna_hub` | 基于 WGCNA 算法构建基因共表达网络，识别与表型性状相关的关键模块和 Hub 基因。 支持从 CNCB 等平台的原始元数据自动解析样本分组和临床信息，输出模块 - 性状关联、候选 Hub 基因列表及功能富集结果。 | Clinical,bulk_RNA| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 | `wgcna_module_trait` | 基于 WGCNA 算法构建基因共表达网络，识别功能模块并分析与临床性状的关联关系。 支持 GO/KEGG/Hallmark 富集分析、生存分析和 hub 基因筛选，适用于批量 RNA-seq 数据的系统生物学研究。 | bulk_RNA,Clinical| TABULAR_BIO_DATA(counts, required) | RESULT_ARCHIVE,OUTPUT_MANIFEST,RUN_SUMMARY |
 
-### 12.2 Study snapshot (20; sample_count property is null for 6 studies — sample-node counts fill the gap)
+### 12.2 Study snapshot (53 = 20 HRA cohorts + 33 TCGA projects; sample_count property is null for 6 studies — sample-node counts fill the gap)
+
+HRA cohorts — unchanged since 0826 except HRA000001's `sample_count` property:
 
 | study_accession | tumor_type | sample_count(prop) | sample nodes |
 |---|---|---|---|
-| HRA000001 | *(null; study_type = Healthy Study)* | 557 | 557 |
+| HRA000001 | *(null; study_type = Healthy Study)* | **1876** (557 on 0826) | 557 |
 | HRA000021 | esophageal cancer | 1016 | 1016 |
 | HRA000071 | malignant glioma | 572 | 572 |
 | HRA000073 | malignant glioma | null | 325 |
@@ -1131,33 +1168,108 @@ get confused in practice:
 | HRA007413 | acute myeloid leukemia | null | 373 |
 | HRA016026 | lung cancer | null | 700 |
 
+`sample_count` is not a cohort size: besides the 6 nulls, HRA000074 says 572 (693 nodes), HRA006499
+482 (523), and since 2026-10-14 HRA000001 says 1876 (`individual_count` 938) while it still has 557 sample
+nodes — 1876 is its FASTQ file count, 938 its pair count. Count `sample` nodes.
+
+TCGA projects (new on 2026-10-14; one `project` node `TCGA`). All 33 have `tumor_type` set, but it is a
+`;`-joined list of GDC histology families — **the cancer site is in `title`** (second column, prefix
+`The Cancer Genome Atlas - ` dropped). For every TCGA project `sample_count` equals the sample-node count.
+**No tool has a run binding on any TCGA project yet** (§3.2), and the data is four cohort-level tables
+per project (§12.3), so a TCGA project is never a default cohort; name it in `match_note` when the user
+asks for TCGA or for a cancer only TCGA covers (breast, kidney, prostate …), and say it has no verified run.
+
+| study_accession | cancer (`title`) | tumor_type (GDC families) | sample nodes | individuals |
+|---|---|---|---|---|
+| TCGA-ACC | Adrenocortical Carcinoma | Adenomas and Adenocarcinomas | 243 | 92 |
+| TCGA-BLCA | Bladder Urothelial Carcinoma | Adenomas and Adenocarcinomas; Epithelial Neoplasms, NOS; Squamous Cell Neoplasms; Transitional Cell Papillomas and Carcinomas | 1240 | 412 |
+| TCGA-BRCA | Breast Invasive Carcinoma | Adenomas and Adenocarcinomas; Adnexal and Skin Appendage Neoplasms; Basal Cell Neoplasms; Complex Epithelial Neoplasms; Cystic, Mucinous and Serous Neoplasms; Ductal and Lobular Neoplasms; Epithelial Neoplasms, NOS; Fibroepithelial Neoplasms; Squamous Cell Neoplasms | 3397 | 1098 |
+| TCGA-CESC | Cervical Squamous Cell Carcinoma and Endocervical Adenocarcinoma | Adenomas and Adenocarcinomas; Complex Epithelial Neoplasms; Cystic, Mucinous and Serous Neoplasms; Squamous Cell Neoplasms | 888 | 307 |
+| TCGA-CHOL | Cholangiocarcinoma | Adenomas and Adenocarcinomas | 154 | 51 |
+| TCGA-COAD | Colon Adenocarcinoma | Adenomas and Adenocarcinomas; Complex Epithelial Neoplasms; Cystic, Mucinous and Serous Neoplasms; Epithelial Neoplasms, NOS | 1490 | 461 |
+| TCGA-DLBC | Lymphoid Neoplasm Diffuse Large B-cell Lymphoma | Mature B-Cell Lymphomas | 161 | 58 |
+| TCGA-ESCA | Esophageal Carcinoma | Adenomas and Adenocarcinomas; Cystic, Mucinous and Serous Neoplasms; Squamous Cell Neoplasms | 536 | 185 |
+| TCGA-GBM | Glioblastoma Multiforme | Gliomas | 1582 | 617 |
+| TCGA-HNSC | Head and Neck Squamous Cell Carcinoma | Squamous Cell Neoplasms | 1578 | 528 |
+| TCGA-KICH | Kidney Chromophobe | Adenomas and Adenocarcinomas | 347 | 113 |
+| TCGA-KIRC | Kidney Renal Clear Cell Carcinoma | Adenomas and Adenocarcinomas | 1618 | 537 |
+| TCGA-KIRP | Kidney Renal Papillary Cell Carcinoma | Adenomas and Adenocarcinomas | 893 | 291 |
+| TCGA-LAML | Acute Myeloid Leukemia | Myeloid Leukemias | 697 | 200 |
+| TCGA-LGG | Brain Lower Grade Glioma | Gliomas | 1553 | 516 |
+| TCGA-LIHC | Liver Hepatocellular Carcinoma | Adenomas and Adenocarcinomas | 1168 | 377 |
+| TCGA-LUAD | Lung Adenocarcinoma | Acinar Cell Neoplasms; Adenomas and Adenocarcinomas; Cystic, Mucinous and Serous Neoplasms; Ductal and Lobular Neoplasms | 1781 | 585 |
+| TCGA-LUSC | Lung Squamous Cell Carcinoma | Adenomas and Adenocarcinomas; Squamous Cell Neoplasms | 1562 | 504 |
+| TCGA-MESO | Mesothelioma | Mesothelial Neoplasms | 249 | 87 |
+| TCGA-OV | Ovarian Serous Cystadenocarcinoma | Cystic, Mucinous and Serous Neoplasms | 1329 | 608 |
+| TCGA-PAAD | Pancreatic Adenocarcinoma | Adenomas and Adenocarcinomas; Cystic, Mucinous and Serous Neoplasms; Ductal and Lobular Neoplasms; Epithelial Neoplasms, NOS | 566 | 185 |
+| TCGA-PCPG | Pheochromocytoma and Paraganglioma | Paragangliomas and Glomus Tumors | 546 | 179 |
+| TCGA-PRAD | Prostate Adenocarcinoma | Acinar Cell Neoplasms; Adenomas and Adenocarcinomas; Cystic, Mucinous and Serous Neoplasms; Ductal and Lobular Neoplasms | 1470 | 500 |
+| TCGA-READ | Rectum Adenocarcinoma | Adenomas and Adenocarcinomas; Cystic, Mucinous and Serous Neoplasms | 547 | 172 |
+| TCGA-SARC | Sarcoma | Fibromatous Neoplasms; Lipomatous Neoplasms; Myomatous Neoplasms; Nerve Sheath Tumors; Soft Tissue Tumors and Sarcomas, NOS; Synovial-like Neoplasms | 795 | 261 |
+| TCGA-SKCM | Skin Cutaneous Melanoma | Nevi and Melanomas | 1384 | 470 |
+| TCGA-STAD | Stomach Adenocarcinoma | Adenomas and Adenocarcinomas; Cystic, Mucinous and Serous Neoplasms | 1359 | 443 |
+| TCGA-TGCT | Testicular Germ Cell Tumors | Germ Cell Neoplasms | 803 | 263 |
+| TCGA-THCA | Thyroid Carcinoma | Adenomas and Adenocarcinomas; Epithelial Neoplasms, NOS; Squamous Cell Neoplasms | 1562 | 507 |
+| TCGA-THYM | Thymoma | Thymic Epithelial Neoplasms | 373 | 124 |
+| TCGA-UCEC | Uterine Corpus Endometrial Carcinoma | Adenomas and Adenocarcinomas; Cystic, Mucinous and Serous Neoplasms; Epithelial Neoplasms, NOS | 1641 | 560 |
+| TCGA-UCS | Uterine Carcinosarcoma | Basal Cell Neoplasms; Complex Mixed and Stromal Neoplasms | 171 | 57 |
+| TCGA-UVM | Uveal Melanoma | Nevi and Melanomas; Paragangliomas and Glomus Tumors | 256 | 80 |
+
 ### 12.3 Derived-data snapshot (T2 — this table *is* the answer; do not spend rounds rediscovering it)
 
-**T1 holds raw reads only**: `RAW_PAIRED_END_R1_FASTQ` / `R2`, 14092 files each, plus one
-`CLINICAL_DATA_EXCEL` and one `METADATA_SAMPLE_INFO` per cohort (19 each). **There is no BAM, VCF,
+Re-measured 2026-10-14: every HRA count below is identical to 0826; the only T2 growth is the 133 TCGA
+tables (`TABULAR_BIO_DATA` row and the TCGA paragraph below).
+
+**T1 holds raw reads only**: `RAW_PAIRED_END_R1_FASTQ` / `R2`, 14,473 files each (14,092 on 0826 — the
+extra 381 pairs are all HRA000001, see below), plus metadata: one `CLINICAL_DATA_EXCEL` and one
+`METADATA_SAMPLE_INFO` per cohort (19 each) and, since 2026-10, six CNCB CSVs per HRA cohort
+(`study.csv` / `project.csv` / `individual.csv` / `sample.csv` / `T1.csv` / `T2.csv` =
+`STUDY_META` … `T2_META`, 21 each counting one set shared by all TCGA projects). **There is no BAM, VCF,
 MAF or matrix anywhere in T1.** Every alignment, variant-calling and quantification product lives in
 **T2**. A BAM query written as `MATCH (t:T1)` returns zero rows by construction — never read that as
 `no_candidate`.
 
+**HRA000001 gap (new on 2026-10-14)**: its 762 new FASTQ (381 pairs, `sample_name` like `10420844`, no
+`sample_accession` / `run_accession`) match none of its 557 sample nodes (named `CAS########`), so they
+hang off no sample — `resolve_sample_roles` reports `t1_files_unlinked` 769/1883. No binding uses
+HRA000001; if asked, report the gap rather than guessing ownership.
+
 **On T2, `format` is a lower-case file extension** (`bam` 9465, `vcf.gz` 7291, `bai` 6177,
-`gz.tbi` 5788, `maf` 2355, `vcf` 1301, `tab` 430, `h5` 403) **while `semantic_format` carries the
+`gz.tbi` 5788, `maf` 2355, `vcf` 1301, `tab` 430, `h5` 403; the TCGA tables are `tsv` / `tsv.gz` /
+`txt`) **while `semantic_format` carries the
 upper-case semantic name.** So `WHERE t.format CONTAINS 'BAM'` can never match — query
 `semantic_format` for semantics, and lower-case for extensions.
 
 | T2 semantic_format | count | cohorts (example file_name) |
 |---|---|---|
-| `DNA_VARIANT_VCF_GENERAL` | 8310 | HRA000873(3045), HRA001272(1909), HRA016026(1050), HRA006499(1014), HRA000071(572), HRA007169(380), HRA001749(336) |
+| `DNA_VARIANT_VCF_GENERAL` | 8310 | HRA000873(3045), HRA001272(1909), HRA016026(1050), HRA006499(1014), HRA000071(572), HRA007169(380), HRA001749(336), HRA000001(4, cohort-level, no `file_path`) |
 | `DNA_ALIGNMENT_BQSR_BAM` | 6177 | HRA000873(2030), HRA000021(1016), HRA006499(763), HRA001272(750), HRA016026(700), HRA000071(572), HRA001749(178), HRA007169(168) |
 | `DNA_ALIGNMENT_INDEX_BAI` | 6177 | same cohorts — companion index |
 | `DNA_VARIANT_INDEX_TBI` | 5788 | same as VCF — companion index |
-| `RNA_TRANSCRIPTOME_ALIGNMENT_BAM` | 3288 | HRA000074(693), HRA006117(570), HRA002693(442), HRA001272(430), HRA007167(391), HRA000073(325), HRA003107(310), HRA000122(124) (`HRR025534Aligned.sortedByCoord.out.bam`) |
-| `MUTATION_ANNOTATION_FORMAT_MAF` | 2355 | the seven-cohort whitelist above |
-| `TABULAR_BIO_DATA` | 592 | expression matrices — 9 cohorts × 3 flavours (FPKM/TPM/counts), file name contains `Genes` |
+| `RNA_TRANSCRIPTOME_ALIGNMENT_BAM` | 3288 | HRA000074(693), HRA006117(570), HRA002693(442), HRA001272(430), HRA007167(391), HRA000073(325), HRA003107(310), HRA000122(124), HRA007413(3) (`HRR025534Aligned.sortedByCoord.out.bam`) |
+| `MUTATION_ANNOTATION_FORMAT_MAF` | 2355 | **only these seven cohorts**: HRA000873(1016), HRA001272(486), HRA016026(351), HRA006499(339), HRA001749(85), HRA007169(77), HRA000071(1 — cohort-level `HRA000071-SomaticSNV-1.0.maf` only). TCGA mutation tables are *not* typed MAF (below) |
+| `TABULAR_BIO_DATA` | 725 | HRA 592 (unchanged): expression matrices — 9 cohorts × 3 flavours (FPKM/TPM/counts), file name contains `Genes`: HRA000073 / 000074 / 000122 / 001272 / 002693 / 003107 / 006117 / 007167 / 007413 — plus per-run tables. TCGA 133: four cohort-level tables per project (below) |
 | `RNA_SPLICEJUNCTION_TAB` | 430 | **HRA001272 only** (`HRR1402797SJ.out.tab`, STAR splice junctions) |
 | `SCRNA_MATRIX_H5` | 403 | HRA005191(243), HRA001748(160) — ready-made single-cell matrices |
 | `DNA_SOMATIC_SV_VCF` | 286 | structural variants |
 | `BIO_DATA_CONTAINER_OBJECT` | 18 | **Seurat RDS objects**: HRA001748(10), HRA005191(6), HRA000087(2) |
 | `SOMATIC_CNV_TSV` | 4 | copy number |
+
+Not listed above (no planning use): `OTHER_UNCLASSIFIED_DATA` 1081 (run scripts / file lists in
+HRA001272 and HRA007169), `DNA_VARIANT_STATS_REPORT` 603 (`*.vcf.gz.stats`), `VISUALIZATION_RESULT` 52
+(jpeg), two `SCRNA_MATRIX_H5_ZIP`, a Clinical/MetaInfo xlsx pair in T2 for HRA001748 and HRA005191, and
+three HRA000001 records with no `semantic_format` and no `file_path` (one, the clinical tsv, carries
+`strategy = 'ClinicalTest'`).
+
+**TCGA projects (new on 2026-10-14) are table-only.** Each of the 33 projects has four cohort-level T2
+tables under `/cbb-data/gsa/agent/TCGA/`, all `semantic_format = TABULAR_BIO_DATA`:
+`TCGA-<X>.star_tpm.tsv` (STAR **TPM**, bulk_RNA), `TCGA.<X>.sampleMap__HiSeqV2.gz` (HiSeqV2 expression,
+bulk_RNA), `TCGA-<X>.somaticmutation_wxs.tsv` (WES somatic mutations) and `mc3%2F<X>_mc3.txt` (MC3 calls,
+data_level 3). TCGA-LAML has five: no mc3 file, but `TCGA.LAML.sampleMap%2Fmutation_wustl` and one
+single-sample `….rna_seq.augmented_star_gene_counts.tsv`. Consequences for planning: there is **no counts
+matrix** (bulk10 takes counts only — §3.1), the mutation tables are **not** `MUTATION_ANNOTATION_FORMAT_MAF`
+(the MAF-consuming pipelines do not see them), there is no FASTQ/BAM/VCF, and **no run binding exists on
+any TCGA project** (§3.2). These are the only T2 files with direct `in_sample` / `in_individual` edges.
 
 **Two names in §13's "input formats" column have zero nodes in the graph.** They are what the
 delivery card declares, not graph semantic names. Querying them returns 0 rows every time — do not
@@ -1184,39 +1296,52 @@ incompatible object structures, so all nine RDS-consuming pipelines
 `RNA_TRANSCRIPTOME_ALIGNMENT_BAM` (row 5). `RNA_SPLICEJUNCTION_TAB` is STAR's precomputed junction
 table and exists only for HRA001272.
 
-### 12.4 Untrustworthy sample fields (measured on the 0826 delivery; never filter on these)
+### 12.4 Untrustworthy sample fields (re-measured 2026-10-14 — HRA values identical to 0826; never filter on these)
 
 The delivery overwrote **sample-level facts with study-level defaults**. The bad values are
 neither empty nor malformed — every cell is populated and every value looks plausible on its own — so
 a query against them returns rows happily and simply selects the wrong samples. Four rules:
 
-1. **`tumor_descriptor` can no longer separate primary / metastatic / recurrent.** The whole graph
-   holds only `Primary` 8551, `Metastasis` 12, null 1902 — the former `Metastatic` (210) and
+1. **`tumor_descriptor` can no longer separate primary / metastatic / recurrent on HRA cohorts.** The
+   HRA samples hold only `Primary` 8551, `Metastasis` 12, null 1902 — the former `Metastatic` (210) and
    `Recurrent` (407) were flattened into `Primary`, and **1512 samples with `tissue_type = 'Normal'`
    are now tagged `Primary`** (a normal blood draw labelled "primary tumour" — self-contradictory).
-   Read the site from **`sample_name` suffixes** instead. HRA001272 encodes them as: `PT` primary 143,
-   `NC` adjacent-normal control 85, `LM` lung met 65, `PM` peritoneal met 31, `RT` recurrent 28,
-   `BM` bone met 20, `AGM` adrenal-gland met 19, `LNM` lymph-node met 19, `BRM` brain met 5,
-   `KM` kidney met 2 (e.g. `M019_LM1_S2010-10889_2`).
+   Read the site from **`sample_name` suffixes** instead. HRA001272 encodes them in the second `_` token,
+   sometimes with a lesion ordinal (`LM1`, `LM2` …): `PT` primary 281, `NC` adjacent-normal control 213,
+   `LM` lung met 70, `PM` peritoneal met 38, `RT` recurrent 28, `BM` bone met 20, `AGM` adrenal-gland
+   met 19, `LNM` lymph-node met 19, `BRM` brain met 5, `KM` kidney met 2, plus `SpM` 2 and `DM` 1
+   (meaning not recorded in the graph) — 698 in all (e.g. `M019_LM1_S2010-10889_2`). The 0826 text gave
+   PT 143 / NC 85 / LM 65 / PM 31, which do not reproduce; NC 213 equals the cohort's 213 `Normal` samples.
+   TCGA samples are different: their GDC values (`Primary` 20,869, `Metastatic` 544, `Recurrence` 70,
+   `New Primary` 20, null 12,436 = the normals plus 10 FFPE scrolls) agree with their `specimen_type`.
 
 2. **`biospecimen_anatomic_site` is the study's primary site, not the sample's.** All 698 HRA001272
    samples read `Liver And Intrahepatic Bile Ducts` even though their names show ten distinct
    metastatic sites (above). **Filtering metastatic site on this property is always wrong.**
-   HRA006499 was likewise collapsed to a single value.
+   HRA006499 was likewise collapsed to a single value (482 samples; the other 41 are null). TCGA samples
+   do not carry this property at all.
 
-3. **`gender` is case-inconsistent**: `Male` 6474 / `Female` 3931 / `male` 56 / `female` 3, plus one
-   literal `missing`. Always compare `toLower(s.gender)`; `= 'Male'` silently drops 56 samples.
+3. **`gender` is case-inconsistent**: HRA `Male` 6474 / `Female` 3931 / `male` 56 / `female` 3, plus one
+   literal `missing`; TCGA `Female` 17,202 / `Male` 16,506 / null 231. Always compare `toLower(s.gender)`;
+   `= 'Male'` silently drops 56 samples.
 
 4. **`specimen_type` is applied inconsistently across cohorts.** `Peritumoral` survives only in
-   **HRA000021** (508); the 525 adjacent-normal samples of HRA001272 / HRA003107 / HRA001749 /
-   HRA007169 / HRA001748 / HRA006499 were folded into `Patient_Solid_Tissue`. A new semicolon
-   multi-value `Organoid;Patient_Solid_Tissue` (486) also appears — match with `CONTAINS`, never `=`.
-   Reassuringly, all 525 folded samples retain `tissue_type = 'Normal'`, so **tumour/normal pairing,
-   which keys on `tissue_type`, is unaffected**. A standalone `Organoid` (30) also appears alongside
-   the multi-value.
+   **HRA000021** (508); elsewhere adjacent-normal tissue is filed under `Patient_Solid_Tissue` —
+   `Normal` samples with that value: HRA001272 213, HRA003107 155, HRA001749 94, HRA007169 76,
+   HRA001748 24, HRA006499 3 (565 in all; the 0826 text said 525, which does not reproduce), plus
+   HRA000873 1015 and HRA016026 350. The semicolon multi-value `Organoid;Patient_Solid_Tissue` (486:
+   HRA006499 432, HRA005191 54) — match with `CONTAINS`, never `=`; a standalone `Organoid` (30) is all
+   HRA006499. Reassuringly, the adjacent-normal samples listed above all keep `tissue_type = 'Normal'`,
+   so **tumour/normal pairing, which keys on `tissue_type`, is unaffected**.
+   **TCGA uses a different vocabulary** (GDC sample types, with spaces): `Primary Tumor` 20,513,
+   `Blood Derived Normal` 9,713, `Solid Tissue Normal` 2,702, `Metastatic` 541, `Primary Blood Derived
+   Cancer - Peripheral Blood` 356, `Recurrent Tumor` 70, and a few small ones. On TCGA `tissue_type =
+   'Normal'` mixes germline blood with adjacent tissue — for tumour vs adjacent-normal, the discriminator
+   is `specimen_type = 'Solid Tissue Normal'`.
 
 **`tissue_type` no longer has nulls.** The 0821 delivery left 829 samples null; 0826 fills all of
-them — the graph now reads Tumor 7045 / Normal 2863 / Blood 557. An `IS NOT NULL` guard is no longer
+them — HRA reads Tumor 7045 / Normal 2863 / Blood 557 (unchanged on 2026-10-14), TCGA Tumor 21,513 /
+Normal 12,426. An `IS NOT NULL` guard is no longer
 needed, but `Blood` still means this is **not** a clean Tumor/Normal binary.
 **HRA000071's `tissue_type` was genuinely fixed in 0821**:
 `Blood`/`Normal` 286 plus `Patient_Solid_Tissue`/`Tumor` 286, matching the 286 `B_` and 286 `T_`
