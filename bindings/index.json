@@ -1,0 +1,1052 @@
+{
+  "schema_version": "run-bindings/v1",
+  "generated_at": "2026-10-14T08:16:50+00:00",
+  "source": {
+    "cromwell": "http://192.168.121.231:8088",
+    "succeeded_runs_considered": 603
+  },
+  "bound_tools": {
+    "bootstrap_stability": {
+      "bound_studies": [
+        "HRA003107"
+      ],
+      "default_study": "HRA003107"
+    },
+    "bwa": {
+      "bound_studies": [
+        "HRA000074"
+      ],
+      "default_study": "HRA000074"
+    },
+    "cnvkit_cnv_clinical": {
+      "bound_studies": [
+        "HRA000021",
+        "HRA000071",
+        "HRA000873",
+        "HRA001272",
+        "HRA001749",
+        "HRA006499",
+        "HRA007169"
+      ],
+      "default_study": "HRA000021"
+    },
+    "cox_model": {
+      "bound_studies": [
+        "HRA000073",
+        "HRA000074",
+        "HRA002693",
+        "HRA003107",
+        "HRA006117"
+      ],
+      "default_study": "HRA003107"
+    },
+    "dataset_downstream": {
+      "bound_studies": [
+        "HRA000087"
+      ],
+      "default_study": "HRA000087"
+    },
+    "dataset_matrix_annotation": {
+      "bound_studies": [
+        "HRA000087",
+        "HRA000321"
+      ],
+      "default_study": "HRA000321"
+    },
+    "de_enrichment": {
+      "bound_studies": [
+        "HRA000073",
+        "HRA003107"
+      ],
+      "default_study": "HRA003107"
+    },
+    "deg_enrichment": {
+      "bound_studies": [
+        "HRA000073",
+        "HRA003107"
+      ],
+      "default_study": "HRA003107"
+    },
+    "deg_trend": {
+      "bound_studies": [
+        "HRA000073",
+        "HRA000074",
+        "HRA000122",
+        "HRA002693",
+        "HRA003107",
+        "HRA006117",
+        "HRA007167"
+      ],
+      "default_study": "HRA003107"
+    },
+    "diff_expr_go": {
+      "bound_studies": [
+        "HRA000074",
+        "HRA003107"
+      ],
+      "default_study": "HRA003107"
+    },
+    "diff_expr_kegg": {
+      "bound_studies": [
+        "HRA000074"
+      ],
+      "default_study": "HRA000074"
+    },
+    "driver_gene_gender_analysis": {
+      "bound_studies": [
+        "HRA000071",
+        "HRA000873",
+        "HRA001272",
+        "HRA001749",
+        "HRA007169",
+        "HRA016026"
+      ],
+      "default_study": "HRA001272"
+    },
+    "fastp": {
+      "bound_studies": [
+        "HRA000873",
+        "HRA001272",
+        "HRA001749"
+      ],
+      "default_study": "HRA001749"
+    },
+    "fastqc": {
+      "bound_studies": [
+        "HRA001748",
+        "HRA003107"
+      ],
+      "default_study": "HRA001748"
+    },
+    "gene_boxplot": {
+      "bound_studies": [
+        "HRA000073",
+        "HRA000074",
+        "HRA000122",
+        "HRA002693",
+        "HRA003107",
+        "HRA006117",
+        "HRA007167"
+      ],
+      "default_study": "HRA003107"
+    },
+    "gsea_pathway_enrichment": {
+      "bound_studies": [
+        "HRA001272"
+      ],
+      "default_study": "HRA001272"
+    },
+    "her2_pfs_survival": {
+      "bound_studies": [
+        "HRA000073",
+        "HRA000074",
+        "HRA000122",
+        "HRA001272",
+        "HRA002693",
+        "HRA003107",
+        "HRA006117",
+        "HRA007167",
+        "HRA007413"
+      ],
+      "default_study": "HRA001272"
+    },
+    "hvg_pca_gmm": {
+      "bound_studies": [
+        "HRA003107"
+      ],
+      "default_study": "HRA003107"
+    },
+    "immune_infiltration_iobr": {
+      "bound_studies": [
+        "HRA000073",
+        "HRA007167"
+      ],
+      "default_study": "HRA007167"
+    },
+    "ipf_trajectory_regulon": {
+      "bound_studies": [
+        "HRA000087"
+      ],
+      "default_study": "HRA000087"
+    },
+    "km_survival": {
+      "bound_studies": [
+        "HRA000073",
+        "HRA000074",
+        "HRA002693",
+        "HRA003107",
+        "HRA006117"
+      ],
+      "default_study": "HRA003107"
+    },
+    "lung_tme_annotation_cnv": {
+      "bound_studies": [
+        "HRA000087"
+      ],
+      "default_study": "HRA000087"
+    },
+    "manta_structural_variants": {
+      "bound_studies": [
+        "HRA000873",
+        "HRA001272",
+        "HRA006499",
+        "HRA016026"
+      ],
+      "default_study": "HRA016026"
+    },
+    "preprocess_counts": {
+      "bound_studies": [
+        "HRA006117"
+      ],
+      "default_study": "HRA006117"
+    },
+    "rnaseq_unsupervised_cluster": {
+      "bound_studies": [
+        "HRA000073",
+        "HRA001272",
+        "HRA003107",
+        "HRA007167"
+      ],
+      "default_study": "HRA007167"
+    },
+    "scrna_cell_communication": {
+      "bound_studies": [
+        "HRA000087"
+      ],
+      "default_study": "HRA000087"
+    },
+    "stage_heatmap": {
+      "bound_studies": [
+        "HRA003107",
+        "HRA007167"
+      ],
+      "default_study": "HRA003107"
+    },
+    "star": {
+      "bound_studies": [
+        "HRA003107",
+        "HRA006117"
+      ],
+      "default_study": "HRA006117"
+    },
+    "survival_analysis": {
+      "bound_studies": [
+        "HRA001272",
+        "HRA001749",
+        "HRA007169",
+        "HRA016026"
+      ],
+      "default_study": "HRA001272"
+    },
+    "tmb_survival_analysis": {
+      "bound_studies": [
+        "HRA000071",
+        "HRA000873",
+        "HRA001272",
+        "HRA001749",
+        "HRA006499",
+        "HRA007169",
+        "HRA016026"
+      ],
+      "default_study": "HRA007169"
+    },
+    "trim_galore": {
+      "bound_studies": [
+        "HRA001748",
+        "HRA003107"
+      ],
+      "default_study": "HRA001748"
+    },
+    "umap": {
+      "bound_studies": [
+        "HRA000073",
+        "HRA000074",
+        "HRA000122",
+        "HRA002693",
+        "HRA003107",
+        "HRA006117",
+        "HRA007167"
+      ],
+      "default_study": "HRA003107"
+    },
+    "wes_somatic_maf_landscape": {
+      "bound_studies": [
+        "HRA000873",
+        "HRA001272"
+      ],
+      "default_study": "HRA001272"
+    },
+    "wgcna": {
+      "bound_studies": [
+        "HRA000073",
+        "HRA000074"
+      ],
+      "default_study": "HRA000074"
+    },
+    "wgcna_hub": {
+      "bound_studies": [
+        "HRA003107",
+        "HRA007167"
+      ],
+      "default_study": "HRA003107"
+    },
+    "wgcna_module_trait": {
+      "bound_studies": [
+        "HRA003107",
+        "HRA007167"
+      ],
+      "default_study": "HRA003107"
+    }
+  },
+  "unbound_tools": {
+    "bcftools": "Cromwell 上没有该流程的成功运行",
+    "breast_cellchat": "成功运行均不合格：冒烟测试运行（smoke_test=true，抽样），不代表完整分析能跑通",
+    "cellranger_workflow": "Cromwell 上没有该流程的成功运行",
+    "celltype_case_control_de": "成功运行均不合格：冒烟测试运行（smoke_test=true，抽样），不代表完整分析能跑通",
+    "featurecounts": "Cromwell 上没有该流程的成功运行",
+    "gatk": "Cromwell 上没有该流程的成功运行",
+    "gatk_germline_cohort": "Cromwell 上没有该流程的成功运行",
+    "immunotherapy_cellchat": "成功运行均不合格：冒烟测试运行（smoke_test=true，抽样），不代表完整分析能跑通",
+    "multiqc": "Cromwell 上没有该流程的成功运行",
+    "paired_fastq_to_unmapped_bam": "成功运行均不合格：输入里没有真实队列数据路径（测试数据或参考文件）",
+    "rmats_alternative_splicing": "成功运行均不合格：输入里没有真实队列数据路径（测试数据或参考文件）",
+    "rnaseq_singletask": "Cromwell 上没有该流程的成功运行",
+    "rsem": "成功运行均不合格：输入里没有真实队列数据路径（测试数据或参考文件）",
+    "samtools": "Cromwell 上没有该流程的成功运行",
+    "snpeff": "Cromwell 上没有该流程的成功运行",
+    "star_fusion": "Cromwell 上没有该流程的成功运行",
+    "tcell_intervention": "成功运行均不合格：冒烟测试运行（smoke_test=true，抽样），不代表完整分析能跑通",
+    "tumor_evolution_inference": "Cromwell 上没有该流程的成功运行",
+    "wes_somatic_pair": "Cromwell 上没有该流程的成功运行"
+  },
+  "skipped_runs": [
+    {
+      "tool_id": "breast_cellchat",
+      "cromwell_id": "b2dffc8f-0b09-4c6c-85a4-db29ae816697",
+      "workflow_name": "task393_breast_cellchat",
+      "submitted_at": "2026-09-18T06:46:23.799Z",
+      "reason": "冒烟测试运行（smoke_test=true，抽样），不代表完整分析能跑通"
+    },
+    {
+      "tool_id": "breast_cellchat",
+      "cromwell_id": "019b9130-d963-4e94-867a-cf46d7cf9314",
+      "workflow_name": "task393_breast_cellchat",
+      "submitted_at": "2026-09-18T06:46:51.412Z",
+      "reason": "冒烟测试运行（smoke_test=true，抽样），不代表完整分析能跑通"
+    },
+    {
+      "tool_id": "bwa",
+      "cromwell_id": "0906e2c8-3389-4be5-836e-9e417d9991a7",
+      "workflow_name": "BwaMain",
+      "submitted_at": "2026-09-18T02:47:00.839Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "bwa",
+      "cromwell_id": "45aa4931-7035-4822-b60f-11294cdbe273",
+      "workflow_name": "BwaMemWorkflow",
+      "submitted_at": "2026-09-18T09:03:07.863Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "celltype_case_control_de",
+      "cromwell_id": "1fd85099-beeb-4961-925b-22cf19d86bbe",
+      "workflow_name": "task457_celltype_case_control_de",
+      "submitted_at": "2026-09-18T06:52:46.950Z",
+      "reason": "冒烟测试运行（smoke_test=true，抽样），不代表完整分析能跑通"
+    },
+    {
+      "tool_id": "celltype_case_control_de",
+      "cromwell_id": "0033e9ae-9679-4984-8ee8-2558251b85ef",
+      "workflow_name": "task457_celltype_case_control_de",
+      "submitted_at": "2026-09-18T06:53:11.477Z",
+      "reason": "冒烟测试运行（smoke_test=true，抽样），不代表完整分析能跑通"
+    },
+    {
+      "tool_id": "cox_model",
+      "cromwell_id": "e858ae2a-7f0e-4ffd-9171-6ebf9c463f34",
+      "workflow_name": "cox_model",
+      "submitted_at": "2026-10-13T10:09:56.657Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "cox_model",
+      "cromwell_id": "d8381e0b-e8d1-4a9b-b608-a9a51761e6d3",
+      "workflow_name": "cox_model",
+      "submitted_at": "2026-10-14T02:08:23.056Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "cox_model",
+      "cromwell_id": "44c34e71-24f6-4961-9662-f6ae2fa3963f",
+      "workflow_name": "cox_model",
+      "submitted_at": "2026-10-14T03:12:14.075Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "cox_model",
+      "cromwell_id": "70579756-f324-4437-b04b-ffd9fab685a7",
+      "workflow_name": "cox_model",
+      "submitted_at": "2026-10-14T03:43:19.117Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "cox_model",
+      "cromwell_id": "dc09d431-5bec-44fc-96b6-29b7151e7264",
+      "workflow_name": "cox_model",
+      "submitted_at": "2026-10-14T04:11:50.627Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "cox_model",
+      "cromwell_id": "024b003a-be6e-499c-a2c6-9080a1525f3e",
+      "workflow_name": "cox_model",
+      "submitted_at": "2026-10-14T04:44:18.242Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "cox_model",
+      "cromwell_id": "204fb873-767f-45ef-9329-1baa0b7e8d26",
+      "workflow_name": "cox_model",
+      "submitted_at": "2026-10-14T05:45:40.741Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "cox_model",
+      "cromwell_id": "25e803ec-89ae-44a7-bd1c-cf63091e9c50",
+      "workflow_name": "cox_model",
+      "submitted_at": "2026-10-14T07:51:06.772Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "cox_model",
+      "cromwell_id": "6444e319-c0aa-4985-ae1c-24f8a0594afc",
+      "workflow_name": "cox_model",
+      "submitted_at": "2026-10-14T08:09:52.348Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "dataset_downstream",
+      "cromwell_id": "62fd103b-ecf2-4315-bb65-9896876f2a62",
+      "workflow_name": "task404_dataset_downstream",
+      "submitted_at": "2026-09-18T06:51:54.458Z",
+      "reason": "一次运行混用了多个队列：HRA000087/HRA000321"
+    },
+    {
+      "tool_id": "de_enrichment",
+      "cromwell_id": "10f96d84-3429-4b77-be94-77f3a33c434d",
+      "workflow_name": "de_enrichment",
+      "submitted_at": "2026-10-13T09:39:59.853Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "de_enrichment",
+      "cromwell_id": "5a667865-c36f-417d-aa3d-4d5f7bccae42",
+      "workflow_name": "de_enrichment",
+      "submitted_at": "2026-10-14T05:13:56.922Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "deg_enrichment",
+      "cromwell_id": "3bfa6179-5c4a-4e77-9322-e92748833145",
+      "workflow_name": "deg_enrichment",
+      "submitted_at": "2026-10-13T09:49:16.289Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "deg_enrichment",
+      "cromwell_id": "d1c98342-71ee-45bf-89c5-98f7da4ffcb1",
+      "workflow_name": "deg_enrichment",
+      "submitted_at": "2026-10-14T05:23:39.013Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "deg_trend",
+      "cromwell_id": "6a587ee3-8f32-40cd-9584-723d2a3972c8",
+      "workflow_name": "deg_trend",
+      "submitted_at": "2026-10-13T10:02:02.215Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "deg_trend",
+      "cromwell_id": "acf02b84-1aad-4037-b4dc-78f99f3cf61d",
+      "workflow_name": "deg_trend",
+      "submitted_at": "2026-10-14T05:40:59.495Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "diff_expr_go",
+      "cromwell_id": "b864dae0-1955-4d0a-b3c3-cb6b6056929d",
+      "workflow_name": "DiffExprGoWorkflow",
+      "submitted_at": "2026-10-13T08:00:51.671Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "diff_expr_go",
+      "cromwell_id": "7ab59e0c-931a-4011-8ec7-49b05e0fe213",
+      "workflow_name": "DiffExprGoWorkflow",
+      "submitted_at": "2026-10-13T08:49:32.723Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "diff_expr_kegg",
+      "cromwell_id": "f84d3143-d376-40ad-8da2-c14b329d3bb6",
+      "workflow_name": "DiffExprKeggWorkflow",
+      "submitted_at": "2026-10-13T10:46:14.986Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "diff_expr_kegg",
+      "cromwell_id": "5d20334b-f8b4-47ee-a90b-46637e6a72f4",
+      "workflow_name": "DiffExprKeggWorkflow",
+      "submitted_at": "2026-10-14T06:21:29.181Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "gene_boxplot",
+      "cromwell_id": "d5d7bd19-f14e-47ec-9cb2-570ff6bfd0a4",
+      "workflow_name": "gene_boxplot",
+      "submitted_at": "2026-10-13T09:58:30.564Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "gene_boxplot",
+      "cromwell_id": "52057056-97e0-4522-8a38-cf27ca132ce5",
+      "workflow_name": "gene_boxplot",
+      "submitted_at": "2026-10-14T05:38:52.328Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "gsea_pathway_enrichment",
+      "cromwell_id": "be36dea5-953b-4259-a34d-5b7584ac27aa",
+      "workflow_name": "GseaPathwayEnrichment",
+      "submitted_at": "2026-10-13T09:36:54.613Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "gsea_pathway_enrichment",
+      "cromwell_id": "d1d60dfb-e75d-4a4a-aed0-0092d2c237df",
+      "workflow_name": "GseaPathwayEnrichment",
+      "submitted_at": "2026-10-14T05:12:15.126Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "her2_pfs_survival",
+      "cromwell_id": "f4d8ff27-6eba-4b4d-840c-52a7a7532ced",
+      "workflow_name": "her2_pfs_survival",
+      "submitted_at": "2026-08-24T08:59:35.342Z",
+      "reason": "缺知识卡片必填参数：individual_csv,sample_csv,t1_csv"
+    },
+    {
+      "tool_id": "her2_pfs_survival",
+      "cromwell_id": "0c26745f-9954-4fc8-8e63-a6d994ccbffe",
+      "workflow_name": "her2_pfs_survival",
+      "submitted_at": "2026-08-28T07:18:34.263Z",
+      "reason": "缺知识卡片必填参数：individual_csv,sample_csv,t1_csv"
+    },
+    {
+      "tool_id": "her2_pfs_survival",
+      "cromwell_id": "20ff12f1-dd5a-4387-802e-007113517747",
+      "workflow_name": "her2_pfs_survival",
+      "submitted_at": "2026-08-28T19:45:24.169Z",
+      "reason": "缺知识卡片必填参数：individual_csv,sample_csv,t1_csv"
+    },
+    {
+      "tool_id": "her2_pfs_survival",
+      "cromwell_id": "cb64aa7b-bf4a-4659-b248-3aeff6344de1",
+      "workflow_name": "her2_pfs_survival",
+      "submitted_at": "2026-08-28T19:45:52.968Z",
+      "reason": "缺知识卡片必填参数：individual_csv,sample_csv,t1_csv"
+    },
+    {
+      "tool_id": "her2_pfs_survival",
+      "cromwell_id": "68bd7240-d45b-4979-86f5-25085fda9ea2",
+      "workflow_name": "her2_pfs_survival",
+      "submitted_at": "2026-08-28T19:50:10.730Z",
+      "reason": "缺知识卡片必填参数：individual_csv,sample_csv,t1_csv"
+    },
+    {
+      "tool_id": "her2_pfs_survival",
+      "cromwell_id": "09bda22a-e832-40b4-bdce-fdae84c19e71",
+      "workflow_name": "her2_pfs_survival",
+      "submitted_at": "2026-08-28T19:50:44.756Z",
+      "reason": "缺知识卡片必填参数：individual_csv,sample_csv,t1_csv"
+    },
+    {
+      "tool_id": "her2_pfs_survival",
+      "cromwell_id": "e4f69215-b9ff-4b20-809c-e1ab63ab5215",
+      "workflow_name": "her2_pfs_survival",
+      "submitted_at": "2026-08-28T19:51:52.269Z",
+      "reason": "缺知识卡片必填参数：individual_csv,sample_csv,t1_csv"
+    },
+    {
+      "tool_id": "her2_pfs_survival",
+      "cromwell_id": "50886a5c-2df8-4bc2-95e4-73e17ec486e7",
+      "workflow_name": "her2_pfs_survival",
+      "submitted_at": "2026-08-28T19:52:36.379Z",
+      "reason": "缺知识卡片必填参数：individual_csv,sample_csv,t1_csv"
+    },
+    {
+      "tool_id": "her2_pfs_survival",
+      "cromwell_id": "4de6ef64-3c5f-4065-8f5a-b04c66e22b8f",
+      "workflow_name": "her2_pfs_survival",
+      "submitted_at": "2026-08-28T19:53:09.068Z",
+      "reason": "缺知识卡片必填参数：individual_csv,sample_csv,t1_csv"
+    },
+    {
+      "tool_id": "her2_pfs_survival",
+      "cromwell_id": "e5865e93-a50f-43c1-b386-38ac4895fdf6",
+      "workflow_name": "her2_pfs_survival",
+      "submitted_at": "2026-08-30T09:13:47.520Z",
+      "reason": "缺知识卡片必填参数：individual_csv,sample_csv,t1_csv"
+    },
+    {
+      "tool_id": "immunotherapy_cellchat",
+      "cromwell_id": "9b0dcef7-fbc8-4495-ada0-d2103f132a1e",
+      "workflow_name": "task398_immunotherapy_cellchat",
+      "submitted_at": "2026-09-18T06:49:06.347Z",
+      "reason": "冒烟测试运行（smoke_test=true，抽样），不代表完整分析能跑通"
+    },
+    {
+      "tool_id": "immunotherapy_cellchat",
+      "cromwell_id": "19385f61-3e41-45a7-aef9-6c7eb7d502b8",
+      "workflow_name": "task398_immunotherapy_cellchat",
+      "submitted_at": "2026-09-18T06:49:39.256Z",
+      "reason": "冒烟测试运行（smoke_test=true，抽样），不代表完整分析能跑通"
+    },
+    {
+      "tool_id": "km_survival",
+      "cromwell_id": "d6959566-91a5-4ad3-84bc-84826b4b52ac",
+      "workflow_name": "km_survival",
+      "submitted_at": "2026-10-13T10:17:00.807Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "km_survival",
+      "cromwell_id": "5ee46f07-449c-4462-ab4a-fcdafc666936",
+      "workflow_name": "km_survival",
+      "submitted_at": "2026-10-14T02:13:59.778Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "km_survival",
+      "cromwell_id": "8d226963-b489-4557-b08b-8a23a152722a",
+      "workflow_name": "km_survival",
+      "submitted_at": "2026-10-14T03:18:35.007Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "km_survival",
+      "cromwell_id": "0f30ae19-8c27-4bdd-bafa-0997fc4ea1e7",
+      "workflow_name": "km_survival",
+      "submitted_at": "2026-10-14T03:49:38.972Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "km_survival",
+      "cromwell_id": "af02ad72-9b54-40ca-a1f9-f0ae9921946f",
+      "workflow_name": "km_survival",
+      "submitted_at": "2026-10-14T04:18:40.627Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "km_survival",
+      "cromwell_id": "7598253f-b537-4c52-987e-c1a59bf25dd8",
+      "workflow_name": "km_survival",
+      "submitted_at": "2026-10-14T04:51:03.291Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "km_survival",
+      "cromwell_id": "ba8ad6e6-d154-4f59-a09c-48071d639bb3",
+      "workflow_name": "km_survival",
+      "submitted_at": "2026-10-14T05:55:04.771Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "km_survival",
+      "cromwell_id": "80d5f51f-5430-46e9-b738-cbd4a5302a0f",
+      "workflow_name": "km_survival",
+      "submitted_at": "2026-10-14T07:57:59.093Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "lung_tme_annotation_cnv",
+      "cromwell_id": "e6c5d8bc-46cd-4334-8d07-305ce23ef1bd",
+      "workflow_name": "task395_lung_tme_annotation_cnv",
+      "submitted_at": "2026-09-18T06:48:27.979Z",
+      "reason": "一次运行混用了多个队列：HRA000087/HRA000321"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "26d5085a-72c2-478e-b2b9-215b2c270c97",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-09-04T03:49:07.394Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "4b31dcaa-b08a-4913-9191-ff9c564d1e0e",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-09-04T09:23:18.213Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "9ba67309-a685-4720-a0c8-9ed0db22044e",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-09-09T01:57:20.069Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "58a85588-826d-405d-a212-3eb339e247bd",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-09-09T02:50:56.366Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "e6d915c8-0dc8-4a21-8f6c-3cc7fcee01d4",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-09-09T03:17:40.982Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "c479824c-6f35-48e8-8157-9737c35793fa",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-09-09T03:41:46.755Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "fc644d1b-b11f-4cbd-9653-8273d106fbcc",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-09-10T08:53:22.064Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "a3d36cd1-efc4-4df3-afa5-00dcbcac38dd",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-09-16T08:18:22.174Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "0a3cadee-8f18-4c65-a586-f089f32ccd0d",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-09-17T03:20:17.343Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "36715a8f-498b-4e43-bfe4-ae696d2783cb",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-09-17T03:20:17.343Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "52e97db5-3c16-4536-8404-3362c9312853",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-09-17T03:20:17.343Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "f5894448-cf69-4344-a170-5ed498461236",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-09-17T03:20:17.344Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "625b0120-dcf1-4422-a386-482ab120305a",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-09-17T03:20:17.344Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "cab6df47-8136-415e-9e94-486d6d7008b2",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-09-23T08:17:13.753Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "7b4d207d-27bd-4f4f-9b25-f713cd7f07a0",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-09-23T08:19:53.312Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "paired_fastq_to_unmapped_bam",
+      "cromwell_id": "653aa8b4-cc0e-4ced-8d2a-4635737d9697",
+      "workflow_name": "ConvertPairedFastQsToUnmappedBamWf",
+      "submitted_at": "2026-10-09T09:04:13.635Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "rmats_alternative_splicing",
+      "cromwell_id": "90e08053-485f-44f2-ba5f-5602553d3700",
+      "workflow_name": "RunRmatsPipeline",
+      "submitted_at": "2026-09-08T08:33:23.401Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "rsem",
+      "cromwell_id": "d5b6c849-c248-4221-bf2b-b5bad61c6351",
+      "workflow_name": "RsemQuantificationWorkflow",
+      "submitted_at": "2026-09-15T04:15:46.246Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "stage_heatmap",
+      "cromwell_id": "3dd4a19f-671c-4c46-a96a-37fc6fff7076",
+      "workflow_name": "stage_heatmap",
+      "submitted_at": "2026-10-13T10:05:31.322Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "stage_heatmap",
+      "cromwell_id": "6b34babf-79a8-4df4-94d2-d94a7cd8a0d9",
+      "workflow_name": "stage_heatmap",
+      "submitted_at": "2026-10-14T02:05:18.000Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "stage_heatmap",
+      "cromwell_id": "87ad9010-dda9-45f6-8414-e1a2e3a98757",
+      "workflow_name": "stage_heatmap",
+      "submitted_at": "2026-10-14T03:07:51.390Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "stage_heatmap",
+      "cromwell_id": "426756b9-4037-4c28-bf82-024eb9f640ee",
+      "workflow_name": "stage_heatmap",
+      "submitted_at": "2026-10-14T03:39:52.277Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "stage_heatmap",
+      "cromwell_id": "970e5022-d5c4-4960-b503-594902e6962d",
+      "workflow_name": "stage_heatmap",
+      "submitted_at": "2026-10-14T04:08:50.728Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "stage_heatmap",
+      "cromwell_id": "91e16fe4-b8b3-4c93-adaa-b8dc448cfc09",
+      "workflow_name": "stage_heatmap",
+      "submitted_at": "2026-10-14T04:40:54.011Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "stage_heatmap",
+      "cromwell_id": "a67d4a07-cc07-4426-8434-9da2313ae7a1",
+      "workflow_name": "stage_heatmap",
+      "submitted_at": "2026-10-14T05:42:42.457Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "stage_heatmap",
+      "cromwell_id": "82c4af75-8266-4cf5-aaed-a1228ff41149",
+      "workflow_name": "stage_heatmap",
+      "submitted_at": "2026-10-14T08:06:26.453Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "star",
+      "cromwell_id": "a5f2c44a-6ba2-4fd5-940a-df3ba4103a1e",
+      "workflow_name": "StarRnaSeqWorkflow",
+      "submitted_at": "2026-09-14T21:06:16.255Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "tcell_intervention",
+      "cromwell_id": "4f475478-fb4c-47cd-adc5-05e3853fdf44",
+      "workflow_name": "task528_tcell_intervention",
+      "submitted_at": "2026-09-18T06:53:44.493Z",
+      "reason": "冒烟测试运行（smoke_test=true，抽样），不代表完整分析能跑通"
+    },
+    {
+      "tool_id": "tcell_intervention",
+      "cromwell_id": "a2b967d1-33bc-426f-8dcc-a70344e044ff",
+      "workflow_name": "task528_tcell_intervention",
+      "submitted_at": "2026-09-18T06:54:06.553Z",
+      "reason": "冒烟测试运行（smoke_test=true，抽样），不代表完整分析能跑通"
+    },
+    {
+      "tool_id": "tmb_survival_analysis",
+      "cromwell_id": "4b1b98b2-4176-4f97-ae31-1b492b18a56e",
+      "workflow_name": "TMBSurvivalAnalysis",
+      "submitted_at": "2026-08-29T04:43:53.647Z",
+      "reason": "缺知识卡片必填参数：individual_csv,sample_csv,t1_csv"
+    },
+    {
+      "tool_id": "umap",
+      "cromwell_id": "3321291b-94aa-432d-8e4e-102a3d2cbf94",
+      "workflow_name": "umap",
+      "submitted_at": "2026-10-13T09:31:45.442Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "umap",
+      "cromwell_id": "416a7164-929d-4403-9e3a-7a911d36c361",
+      "workflow_name": "umap",
+      "submitted_at": "2026-10-14T02:01:21.810Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "umap",
+      "cromwell_id": "830be592-0574-4129-86b4-80daf387e1ca",
+      "workflow_name": "umap",
+      "submitted_at": "2026-10-14T03:06:07.619Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "umap",
+      "cromwell_id": "b5528ada-8f22-4ddf-8574-4cc0c2cf9b90",
+      "workflow_name": "umap",
+      "submitted_at": "2026-10-14T03:38:10.506Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "umap",
+      "cromwell_id": "464b5871-780d-4599-af8a-71ef3a3460f5",
+      "workflow_name": "umap",
+      "submitted_at": "2026-10-14T04:07:33.959Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "umap",
+      "cromwell_id": "b7608ff1-1f48-466c-bcce-659700a50f4d",
+      "workflow_name": "umap",
+      "submitted_at": "2026-10-14T04:39:12.105Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "umap",
+      "cromwell_id": "169faeb8-010a-4d0a-bc07-cd8e61287f0c",
+      "workflow_name": "umap",
+      "submitted_at": "2026-10-14T05:10:07.637Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "umap",
+      "cromwell_id": "59a7b67d-d8f4-43af-9a33-323ad08f637c",
+      "workflow_name": "umap",
+      "submitted_at": "2026-10-14T07:49:09.422Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "umap",
+      "cromwell_id": "42dafc75-c682-4bad-aae3-a6206a45bff5",
+      "workflow_name": "umap",
+      "submitted_at": "2026-10-14T08:04:43.965Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_hub",
+      "cromwell_id": "9da39e0f-86a5-4fe1-88a4-d4e4258e8021",
+      "workflow_name": "wgcna_hub",
+      "submitted_at": "2026-10-13T10:36:31.159Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_hub",
+      "cromwell_id": "dbe9b902-5eab-4de0-9170-a1fda4f127ce",
+      "workflow_name": "wgcna_hub",
+      "submitted_at": "2026-10-14T02:28:08.611Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_hub",
+      "cromwell_id": "8371b953-a0e6-439e-824f-3d3cb019ffd1",
+      "workflow_name": "wgcna_hub",
+      "submitted_at": "2026-10-14T03:31:49.720Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_hub",
+      "cromwell_id": "f261308f-c15d-486a-993e-c285c5776e84",
+      "workflow_name": "wgcna_hub",
+      "submitted_at": "2026-10-14T04:02:04.634Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_hub",
+      "cromwell_id": "908fb708-d86f-412c-9616-2de8f7e2d2b1",
+      "workflow_name": "wgcna_hub",
+      "submitted_at": "2026-10-14T04:31:58.453Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_hub",
+      "cromwell_id": "0d5e96d1-cfe1-47e9-adcc-331de3f26603",
+      "workflow_name": "wgcna_hub",
+      "submitted_at": "2026-10-14T05:03:46.080Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_hub",
+      "cromwell_id": "3d540262-7225-47db-80f0-a2d415fc004a",
+      "workflow_name": "wgcna_hub",
+      "submitted_at": "2026-10-14T06:06:35.285Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_module_trait",
+      "cromwell_id": "7cde9c05-09cd-427f-bc0b-84a21d0d1572",
+      "workflow_name": "wgcna_module_trait",
+      "submitted_at": "2026-10-13T10:24:33.407Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_module_trait",
+      "cromwell_id": "00d306e7-b09d-4fae-aa42-313c9b3f852c",
+      "workflow_name": "wgcna_module_trait",
+      "submitted_at": "2026-10-14T02:20:56.970Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_module_trait",
+      "cromwell_id": "567bfac2-07b2-45ee-a1b3-b0a5e278c3ec",
+      "workflow_name": "wgcna_module_trait",
+      "submitted_at": "2026-10-14T03:24:04.871Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_module_trait",
+      "cromwell_id": "5c214dc7-1972-4b15-9a84-cadc8003c169",
+      "workflow_name": "wgcna_module_trait",
+      "submitted_at": "2026-10-14T03:56:34.093Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_module_trait",
+      "cromwell_id": "02552cb2-ef14-45ee-a0a0-7e040b3d3a22",
+      "workflow_name": "wgcna_module_trait",
+      "submitted_at": "2026-10-14T04:25:51.706Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_module_trait",
+      "cromwell_id": "2f87329f-272e-42b6-9c1a-2db733766c9a",
+      "workflow_name": "wgcna_module_trait",
+      "submitted_at": "2026-10-14T04:57:49.920Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_module_trait",
+      "cromwell_id": "ce7e99fe-6c47-4d1b-9477-b3c1044f5145",
+      "workflow_name": "wgcna_module_trait",
+      "submitted_at": "2026-10-14T06:00:33.952Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    }
+  ]
+}

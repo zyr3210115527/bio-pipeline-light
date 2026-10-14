@@ -1,0 +1,68 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "scrna_cell_communication",
+  "card_id": "scrna_cell_communication",
+  "name_cn": "单细胞细胞通讯差异分析与配体靶基因优先级流程",
+  "workflow_names": [
+    "ScrnaCellCommunication"
+  ],
+  "default_study": "HRA000087",
+  "bindings": [
+    {
+      "study": "HRA000087",
+      "execution_params": {
+        "analysis_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/cell-communication-unified@sha256:eed0c91d5e8047f7d58798d28c84e9829b4e002b4cb511e99c1fbb8b06101beb",
+        "auto_generate_receiver_inputs": false,
+        "background_min_sample_fraction": 0.5,
+        "block_column": "patient_id",
+        "case_condition": "metastasis",
+        "cell_type_column": "cell_type",
+        "condition_column": "condition",
+        "control_condition": "primary",
+        "counts_data": "hgnc_symbol",
+        "covariates": "",
+        "hra000087_mode": true,
+        "hra000087_receiver_cluster": "2",
+        "iterations": 1000,
+        "max_geneset_background_ratio": 0.1,
+        "min_cells_per_sample_cell_type": 10,
+        "min_geneset_background_ratio": 0.005,
+        "min_samples_per_group": 3,
+        "output_prefix": "HRA000087_cluster2_exploratory",
+        "receiver_cell_type": "2",
+        "receiver_de_logfc_cutoff": 0.5,
+        "receiver_de_padj_cutoff": 1.0,
+        "sample_column": "sample_id",
+        "sender_cell_types": "",
+        "seurat_assay": "RNA",
+        "seurat_counts_layer": "counts",
+        "seurat_layer": "data",
+        "seurat_rds": "/hpcdisk1/cbb_group/data/analysis/HRA000087/HRA000087-Seurat-RDS-files/HRA000087-merge.rds",
+        "species": "human"
+      },
+      "platform_inputs": {
+        "cellphonedb_memory": "32 GB",
+        "conversion_disk": "local-disk 200 HDD",
+        "conversion_memory": "64 GB",
+        "receiver_de_memory": "32 GB"
+      },
+      "source_run": {
+        "cromwell_id": "e192f3aa-5bb5-490c-abfc-e0ebdb16d99f",
+        "workflow_name": "ScrnaCellCommunication",
+        "submitted_at": "2026-08-22T12:06:07.626Z",
+        "ended_at": "2026-08-22T12:12:04.305Z",
+        "via": "direct",
+        "wdl_sha256": "1356cfc40122abe66ed90be06edeb0750181e4c32f699b09a0892ddc0c733f58",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "ScrnaCellCommunication"
+        ]
+      },
+      "tumor_type": "nasopharynx carcinoma",
+      "verification": null
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "immune_infiltration_iobr",
+  "card_id": "immune_infiltration_iobr",
+  "name_cn": "免疫浸润分析 (IOBR CIBERSORT)",
+  "workflow_names": [
+    "ImmuneInfiltrationIOBRCIBERSORT"
+  ],
+  "default_study": "HRA007167",
+  "bindings": [
+    {
+      "study": "HRA000073",
+      "execution_params": {
+        "arrays": false,
+        "clinical_xls": "/hpcdisk1/cbb_group/data/HRA000073/HRA000073-Clinical-1.0.xlsx",
+        "expression_tsv": "/hpcdisk1/cbb_group/data/analysis/HRA000073/HRA000073-Genes-TPM-1.0.tsv",
+        "max_group_ratio": 4.0,
+        "metainfo_xlsx": "/hpcdisk1/cbb_group/data/HRA000073/HRA000073-MetaInfo-1.0.xlsx",
+        "min_group_size": 5,
+        "output_prefix": "HRA001272_iobr_cibersort",
+        "perm": 200
+      },
+      "platform_inputs": {
+        "cpu": 4,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/immune-infiltration-iobr:10.0",
+        "memory": "24 GB"
+      },
+      "source_run": {
+        "cromwell_id": "5d4d1f7b-23b1-4ffd-af52-58c15fe5cbbe",
+        "workflow_name": "ImmuneInfiltrationIOBRCIBERSORT",
+        "submitted_at": "2026-08-26T09:04:54.248Z",
+        "ended_at": "2026-08-26T09:05:53.948Z",
+        "via": "platform",
+        "wdl_sha256": "08a73f1f7d71e32e7975f0d22310d24d685ee51f2a28c28a31da077d401e7b06",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 2,
+        "workflow_names": [
+          "ImmuneInfiltrationIOBRCIBERSORT"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": {
+        "status": "passed",
+        "workflow_id": "e9ae4a4c-fc98-4eb6-b465-dea02effd5d2",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:20:31+00:00",
+        "ended_at": "2026-10-14T08:23:33+00:00",
+        "duration_s": 182
+      }
+    },
+    {
+      "study": "HRA007167",
+      "execution_params": {
+        "arrays": false,
+        "clinical_xls": "/hpcdisk1/cbb_group/data/HRA007167/HRA007167-Clinical-1.0.xlsx",
+        "expression_tsv": "/hpcdisk1/cbb_group/data/analysis/HRA007167/HRA007167-Genes-counts-1.0.tsv",
+        "max_group_ratio": 4.0,
+        "metainfo_xlsx": "/hpcdisk1/cbb_group/data/HRA007167/HRA007167-MetaInfo-1.0.xlsx",
+        "min_group_size": 5,
+        "output_prefix": "HRA001272_iobr_cibersort",
+        "perm": 200
+      },
+      "platform_inputs": {
+        "cpu": 4,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/immune-infiltration-iobr:10.0",
+        "memory": "24 GB"
+      },
+      "source_run": {
+        "cromwell_id": "6a006d3f-d8d3-46ea-8434-f7d8e14ea15e",
+        "workflow_name": "ImmuneInfiltrationIOBRCIBERSORT",
+        "submitted_at": "2026-09-10T01:58:45.082Z",
+        "ended_at": "2026-09-10T01:59:37.499Z",
+        "via": "platform",
+        "wdl_sha256": "08a73f1f7d71e32e7975f0d22310d24d685ee51f2a28c28a31da077d401e7b06",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 2,
+        "workflow_names": [
+          "ImmuneInfiltrationIOBRCIBERSORT"
+        ]
+      },
+      "tumor_type": "melanoma",
+      "verification": {
+        "status": "passed",
+        "workflow_id": "52b6a28f-430e-407d-9cc7-c36517aaf8ab",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:18:30+00:00",
+        "ended_at": "2026-10-14T08:20:31+00:00",
+        "duration_s": 121
+      }
+    }
+  ]
+}

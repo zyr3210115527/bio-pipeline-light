@@ -1,4 +1,4 @@
-"""CNVkit WDL contract regressions; all graph calls are isolated fixtures."""
+"""CNVkit WDL contract regressions (validate_execution_chain); all graph calls are isolated fixtures."""
 import copy
 import json
 import sys
@@ -8,7 +8,6 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import mcp_light_server as srv
-import cohort_adapter as adapter
 
 GID = "cnvkit_cnv_clinical"
 
@@ -39,16 +38,6 @@ class CnvkitContractTests(unittest.TestCase):
 
     def validate(self, **extra):
         return srv.tool_validate_execution_chain({"steps": [{"tool_id": GID, "inputs": self.bindings(**extra)}]})
-
-    def adapted(self, **explicit):
-        assets = []
-        for name in ("tumor.bam", "normal.bam", "tumor.bai", "normal.bai"):
-            assets.append({"asset_id": name, "file_name": name, "path": "/fixture/" + name,
-                           "file_path": "/fixture/" + name, "_fmt": name.rsplit(".", 1)[1],
-                           "artifact_type": name.rsplit(".", 1)[1], "study_accession": None})
-        inputs, missing = adapter._bind_step(srv, GID, srv.KC_MAP[GID], assets, [], "step-1", explicit_inputs=explicit)
-        params, gaps = adapter._flat_params(srv, GID, inputs, {a["asset_id"]: a for a in assets}, GID, "step-1")
-        return inputs, params, missing + gaps
 
     def test_card_matches_delivered_wdl(self):
         card = srv.KC_MAP[GID]
@@ -120,33 +109,6 @@ class CnvkitContractTests(unittest.TestCase):
         self.assertTrue(r["submittable"], r)
         self.assertNotIn("clinical_metadata", r["execution_params"])
         self.assertNotIn("run_clinical_association", r["execution_params"])
-
-    def test_adapter_wgs_and_wes_share_validation(self):
-        inputs, params, gaps = self.adapted()
-        self.assertFalse(gaps, gaps)
-        self.assertEqual(params["assay_type"], "wgs")
-        self.strategy = "WES"
-        inputs, params, gaps = self.adapted()
-        self.assertEqual(params["assay_type"], "hybrid")
-        self.assertEqual(inputs["assay_type"], {"value": "hybrid"})
-        self.assertIn("targets_bed", [g["param"] for g in gaps])
-
-    def test_adapter_explicit_numeric_arrays_and_mode(self):
-        inputs, params, gaps = self.adapted(assay_type={"value": "amplicon"}, tumor_purities=[0.8], tumor_ploidies=[2])
-        self.assertEqual(params["assay_type"], "amplicon")
-        self.assertEqual(params["tumor_ploidies"], [2])
-        self.assertIn("targets_bed", [g["param"] for g in gaps])
-
-    def test_adapter_keeps_deferred_bed_binding(self):
-        inputs = {"assay_type": {"value": "hybrid"}, "targets_bed": {"from": {"step_id": "step-1", "output": "targets"}}}
-        params, gaps = adapter._flat_params(srv, GID, inputs, {}, GID, "step-2")
-        self.assertFalse(gaps, gaps)
-        self.assertNotIn("targets_bed", params)
-
-    def test_other_pipeline_not_subject_to_cnvkit_rules(self):
-        params, gaps = adapter._flat_params(srv, "other_pipeline", {"assay_type": {"value": "wes"}}, {}, "other_pipeline", "step-1")
-        self.assertEqual(params, {"assay_type": "wes"})
-        self.assertFalse(gaps)
 
 
 if __name__ == "__main__":

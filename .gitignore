@@ -9,3 +9,6 @@ web/config.local
 # 回归轨迹逐例落盘在这里（单次跑 ~10M），只提交 report.md / summary.json
 web/tests/acc_*/c*.json
 web/tests/batch_*/c*.json
+
+# 运行绑定：Cromwell 元数据缓存（scripts/harvest_bindings.py）
+bindings/.cache/

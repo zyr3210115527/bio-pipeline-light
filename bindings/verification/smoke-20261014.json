@@ -1,0 +1,23 @@
+{
+  "batch": "smoke-20261014",
+  "cromwell": "http://192.168.121.231:8088",
+  "updated_at": "2026-10-14T08:18:07+00:00",
+  "summary": {
+    "passed": 1
+  },
+  "results": [
+    {
+      "tool_id": "her2_pfs_survival",
+      "study": "HRA007413",
+      "batch": "smoke-20261014",
+      "source_id": "0cc6c628-3be8-49b6-8c4c-2a1be018747d",
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "cc7d3339-7e2b-483f-887a-aac44211e968",
+      "submitted_at": "2026-10-14T08:17:27+00:00",
+      "ended_at": "2026-10-14T08:18:07+00:00",
+      "duration_s": 40,
+      "cromwell_status": "Succeeded"
+    }
+  ]
+}

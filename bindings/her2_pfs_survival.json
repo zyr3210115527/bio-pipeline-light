@@ -1,0 +1,365 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "her2_pfs_survival",
+  "card_id": "her2_pfs_survival",
+  "name_cn": "HER2 表达与无进展生存期分析",
+  "workflow_names": [
+    "her2_pfs_survival"
+  ],
+  "default_study": "HRA001272",
+  "bindings": [
+    {
+      "study": "HRA000073",
+      "execution_params": {
+        "gene": "HER2",
+        "individual_csv": "/cbb-data/gsa/agent/HRA000073/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA000073/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA000073/T1.csv",
+        "tpm_matrix": "/hpcdisk1/cbb_group/data/analysis/HRA000073/HRA000073-Genes-TPM-1.0.tsv",
+        "winsor_lower": 0.05,
+        "winsor_upper": 0.05
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/her2-pfs-survival-r:1.1"
+      },
+      "source_run": {
+        "cromwell_id": "91cf56f4-37c0-41b4-bd2c-90eab69f07f8",
+        "workflow_name": "her2_pfs_survival",
+        "submitted_at": "2026-08-31T10:16:26.423Z",
+        "ended_at": "2026-08-31T10:17:12.098Z",
+        "via": "direct",
+        "wdl_sha256": "d2513147bcd1dafd5c944700152cda23c1edad0a87936af5ff7f7d5690738535",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "her2_pfs_survival"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": {
+        "status": "passed",
+        "workflow_id": "7ce5623c-544f-46a9-ad0e-c01a3c14cd91",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:18:29+00:00",
+        "ended_at": "2026-10-14T08:20:31+00:00",
+        "duration_s": 122
+      }
+    },
+    {
+      "study": "HRA000074",
+      "execution_params": {
+        "gene": "HER2",
+        "individual_csv": "/cbb-data/gsa/agent/HRA000074/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA000074/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA000074/T1.csv",
+        "tpm_matrix": "/hpcdisk1/cbb_group/data/analysis/HRA000074/HRA000074-Genes-TPM-1.0.tsv",
+        "winsor_lower": 0.05,
+        "winsor_upper": 0.05
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/her2-pfs-survival-r:1.2"
+      },
+      "source_run": {
+        "cromwell_id": "43b433d1-f217-4103-9043-0b661eafee31",
+        "workflow_name": "her2_pfs_survival",
+        "submitted_at": "2026-09-15T05:30:43.203Z",
+        "ended_at": "2026-09-15T05:31:52.813Z",
+        "via": "platform",
+        "wdl_sha256": "ea5c3da005ee7bd0ac0315bd202bc82955b7a21a5c4d7eaba5374c8282cd6c3c",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 2,
+        "workflow_names": [
+          "her2_pfs_survival"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": null
+    },
+    {
+      "study": "HRA000122",
+      "execution_params": {
+        "gene": "HER2",
+        "individual_csv": "/cbb-data/gsa/agent/HRA000122/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA000122/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA000122/T1.csv",
+        "tpm_matrix": "/hpcdisk1/cbb_group/data/analysis/HRA000122/HRA000122-Genes-TPM-1.0.tsv",
+        "winsor_lower": 0.05,
+        "winsor_upper": 0.05
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/her2-pfs-survival-r:1.1"
+      },
+      "source_run": {
+        "cromwell_id": "a40b442c-d3b6-4d1a-abc3-5476ff06b523",
+        "workflow_name": "her2_pfs_survival",
+        "submitted_at": "2026-08-31T10:17:26.233Z",
+        "ended_at": "2026-08-31T10:18:19.305Z",
+        "via": "direct",
+        "wdl_sha256": "d2513147bcd1dafd5c944700152cda23c1edad0a87936af5ff7f7d5690738535",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "her2_pfs_survival"
+        ]
+      },
+      "tumor_type": "acute T cell leukemia",
+      "verification": {
+        "status": "passed",
+        "workflow_id": "04217a74-232f-4261-9258-a00cbfac10bd",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:18:30+00:00",
+        "ended_at": "2026-10-14T08:21:31+00:00",
+        "duration_s": 181
+      }
+    },
+    {
+      "study": "HRA001272",
+      "execution_params": {
+        "gene": "HER2",
+        "individual_csv": "/cbb-data/gsa/agent/HRA001272/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA001272/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA001272/T1.csv",
+        "tpm_matrix": "/hpcdisk1/cbb_group/data/analysis/HRA001272/RNAseq/HRA001272-Genes-counts-1.0.tsv",
+        "winsor_lower": 0.05,
+        "winsor_upper": 0.05
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/her2-pfs-survival-r:1.2"
+      },
+      "source_run": {
+        "cromwell_id": "2eab19bf-814a-439c-a256-c31ba06b2761",
+        "workflow_name": "her2_pfs_survival",
+        "submitted_at": "2026-09-14T17:11:33.995Z",
+        "ended_at": "2026-09-14T17:12:37.529Z",
+        "via": "platform",
+        "wdl_sha256": "ea5c3da005ee7bd0ac0315bd202bc82955b7a21a5c4d7eaba5374c8282cd6c3c",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 7,
+        "workflow_names": [
+          "her2_pfs_survival"
+        ]
+      },
+      "tumor_type": "hepatocellular carcinoma",
+      "verification": {
+        "status": "passed",
+        "workflow_id": "ae4b3d55-b81f-4b9a-80c7-a12d4364f903",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:22:32+00:00",
+        "ended_at": "2026-10-14T08:24:33+00:00",
+        "duration_s": 121
+      }
+    },
+    {
+      "study": "HRA002693",
+      "execution_params": {
+        "gene": "HER2",
+        "individual_csv": "/cbb-data/gsa/agent/HRA002693/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA002693/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA002693/T1.csv",
+        "tpm_matrix": "/hpcdisk1/cbb_group/data/analysis/HRA002693/HRA002693-Genes-TPM-1.0.tsv",
+        "winsor_lower": 0.05,
+        "winsor_upper": 0.05
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/her2-pfs-survival-r:1.1"
+      },
+      "source_run": {
+        "cromwell_id": "dea89ccf-c15b-40d3-9d42-48aa623e5d9b",
+        "workflow_name": "her2_pfs_survival",
+        "submitted_at": "2026-08-31T11:05:55.765Z",
+        "ended_at": "2026-08-31T11:06:59.187Z",
+        "via": "direct",
+        "wdl_sha256": "d2513147bcd1dafd5c944700152cda23c1edad0a87936af5ff7f7d5690738535",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "her2_pfs_survival"
+        ]
+      },
+      "tumor_type": "acute myeloid leukemia",
+      "verification": {
+        "status": "passed",
+        "workflow_id": "514b9450-94a5-4aa7-8e2f-1fad637c7b71",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:22:32+00:00",
+        "ended_at": "2026-10-14T08:24:33+00:00",
+        "duration_s": 121
+      }
+    },
+    {
+      "study": "HRA003107",
+      "execution_params": {
+        "gene": "HER2",
+        "individual_csv": "/cbb-data/gsa/agent/HRA003107/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA003107/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA003107/T1.csv",
+        "tpm_matrix": "/hpcdisk1/cbb_group/data/analysis/HRA003107/HRA003107-Genes-TPM-1.0.tsv",
+        "winsor_lower": 0.05,
+        "winsor_upper": 0.05
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/her2-pfs-survival-r:1.1"
+      },
+      "source_run": {
+        "cromwell_id": "2721de74-f0d5-4893-8fdb-2404fc375f32",
+        "workflow_name": "her2_pfs_survival",
+        "submitted_at": "2026-08-31T11:06:39.279Z",
+        "ended_at": "2026-08-31T11:07:38.206Z",
+        "via": "direct",
+        "wdl_sha256": "d2513147bcd1dafd5c944700152cda23c1edad0a87936af5ff7f7d5690738535",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "her2_pfs_survival"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": {
+        "status": "passed",
+        "workflow_id": "50cdb285-7bf5-4ead-bc18-181c44da79d7",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:20:31+00:00",
+        "ended_at": "2026-10-14T08:22:32+00:00",
+        "duration_s": 121
+      }
+    },
+    {
+      "study": "HRA006117",
+      "execution_params": {
+        "gene": "HER2",
+        "individual_csv": "/cbb-data/gsa/agent/HRA006117/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA006117/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA006117/T1.csv",
+        "tpm_matrix": "/hpcdisk1/cbb_group/data/analysis/HRA006117/HRA006117-Genes-TPM-1.0.tsv",
+        "winsor_lower": 0.05,
+        "winsor_upper": 0.05
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/her2-pfs-survival-r:1.1"
+      },
+      "source_run": {
+        "cromwell_id": "14d3c96f-c0a4-48e3-a651-95e60179703e",
+        "workflow_name": "her2_pfs_survival",
+        "submitted_at": "2026-08-31T11:07:10.596Z",
+        "ended_at": "2026-08-31T11:07:56.195Z",
+        "via": "direct",
+        "wdl_sha256": "d2513147bcd1dafd5c944700152cda23c1edad0a87936af5ff7f7d5690738535",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "her2_pfs_survival"
+        ]
+      },
+      "tumor_type": "acute myeloid leukemia",
+      "verification": {
+        "status": "passed",
+        "workflow_id": "bea885ea-9baf-4d6d-8a00-891fc6f7b97b",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:18:29+00:00",
+        "ended_at": "2026-10-14T08:20:31+00:00",
+        "duration_s": 122
+      }
+    },
+    {
+      "study": "HRA007167",
+      "execution_params": {
+        "gene": "HER2",
+        "individual_csv": "/cbb-data/gsa/agent/HRA007167/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA007167/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA007167/T1.csv",
+        "tpm_matrix": "/hpcdisk1/cbb_group/data/analysis/HRA007167/HRA007167-Genes-TPM-1.0.tsv",
+        "winsor_lower": 0.05,
+        "winsor_upper": 0.05
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/her2-pfs-survival-r:1.1"
+      },
+      "source_run": {
+        "cromwell_id": "54458158-dc92-4320-95e2-60ad6559f1aa",
+        "workflow_name": "her2_pfs_survival",
+        "submitted_at": "2026-08-31T11:07:46.459Z",
+        "ended_at": "2026-08-31T11:08:31.146Z",
+        "via": "direct",
+        "wdl_sha256": "d2513147bcd1dafd5c944700152cda23c1edad0a87936af5ff7f7d5690738535",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "her2_pfs_survival"
+        ]
+      },
+      "tumor_type": "melanoma",
+      "verification": {
+        "status": "passed",
+        "workflow_id": "155f7988-c480-460f-acba-5802e51a95d4",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:18:29+00:00",
+        "ended_at": "2026-10-14T08:19:30+00:00",
+        "duration_s": 61
+      }
+    },
+    {
+      "study": "HRA007413",
+      "execution_params": {
+        "gene": "HER2",
+        "individual_csv": "/cbb-data/gsa/agent/HRA007413/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA007413/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA007413/T1.csv",
+        "tpm_matrix": "/hpcdisk1/cbb_group/data/analysis/HRA007413/HRA007413-Genes-TPM-1.0.tsv",
+        "winsor_lower": 0.05,
+        "winsor_upper": 0.05
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/her2-pfs-survival-r:1.1"
+      },
+      "source_run": {
+        "cromwell_id": "0cc6c628-3be8-49b6-8c4c-2a1be018747d",
+        "workflow_name": "her2_pfs_survival",
+        "submitted_at": "2026-08-31T11:08:13.209Z",
+        "ended_at": "2026-08-31T11:08:25.656Z",
+        "via": "direct",
+        "wdl_sha256": "d2513147bcd1dafd5c944700152cda23c1edad0a87936af5ff7f7d5690738535",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "her2_pfs_survival"
+        ]
+      },
+      "tumor_type": "acute myeloid leukemia",
+      "verification": {
+        "status": "passed",
+        "workflow_id": "cc7d3339-7e2b-483f-887a-aac44211e968",
+        "batch": "smoke-20261014",
+        "submitted_at": "2026-10-14T08:17:27+00:00",
+        "ended_at": "2026-10-14T08:18:07+00:00",
+        "duration_s": 40
+      }
+    }
+  ]
+}

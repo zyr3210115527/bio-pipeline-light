@@ -1,0 +1,73 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "wgcna_hub",
+  "card_id": "wgcna_hub",
+  "name_cn": "WGCNA枢纽基因分析流程",
+  "workflow_names": [
+    "task313_wgcna_hub",
+    "wgcna_hub"
+  ],
+  "default_study": "HRA003107",
+  "bindings": [
+    {
+      "study": "HRA003107",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA003107/HRA003107-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA003107/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA003107/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "caa14405-7da2-49fc-8bca-2c86a5212371",
+        "workflow_name": "task313_wgcna_hub",
+        "submitted_at": "2026-09-17T06:42:19.436Z",
+        "ended_at": "2026-09-17T06:48:48.802Z",
+        "via": "direct",
+        "wdl_sha256": "04791bdb57e7e7f27189747332f15cb8a34a575cfc1ed2a625e6df3152bc6bbe",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 5,
+        "workflow_names": [
+          "task313_wgcna_hub"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": null,
+      "disabled": {
+        "reason": "演示期屏蔽：共表达模块类问题统一走 wgcna_module_trait（删掉本字段即解禁）",
+        "since": "2026-09-29"
+      }
+    },
+    {
+      "study": "HRA007167",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA007167/HRA007167-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA007167/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA007167/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "07ee1dec-1bb1-4603-899a-dd58fb640b55",
+        "workflow_name": "task313_wgcna_hub",
+        "submitted_at": "2026-09-17T06:42:46.536Z",
+        "ended_at": "2026-09-17T06:44:12.641Z",
+        "via": "direct",
+        "wdl_sha256": "04791bdb57e7e7f27189747332f15cb8a34a575cfc1ed2a625e6df3152bc6bbe",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 3,
+        "workflow_names": [
+          "task313_wgcna_hub"
+        ]
+      },
+      "tumor_type": "melanoma",
+      "verification": null,
+      "disabled": {
+        "reason": "演示期屏蔽：共表达模块类问题统一走 wgcna_module_trait（删掉本字段即解禁）",
+        "since": "2026-09-29"
+      }
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "gsea_pathway_enrichment",
+  "card_id": "gsea_pathway_enrichment",
+  "name_cn": "GSEA 通路富集分析",
+  "workflow_names": [
+    "GseaPathwayEnrichment"
+  ],
+  "default_study": "HRA001272",
+  "bindings": [
+    {
+      "study": "HRA001272",
+      "execution_params": {
+        "case_group": "Primary tumor (liver)",
+        "control_group": "Adjacent normal liver tissue",
+        "covariates": "",
+        "expression_matrix": "/hpcdisk1/cbb_group/data/analysis/HRA001272/RNAseq/HRA001272-Genes-counts-1.0.tsv",
+        "fdr_cutoff": 0.05,
+        "file_metadata": "/cbb-data/gsa/agent/HRA001272/T1.csv",
+        "gene_id_type": "Ensembl gene ID",
+        "gene_set_name": "MSigDB Human Hallmark",
+        "gene_set_version": "MSigDB v2026.1.Hs / GENCODE v49",
+        "input_scale": "counts",
+        "metadata_group_column": "sample_description",
+        "metadata_sample_column": "run_accession",
+        "min_gmt_gene_coverage": 0.1,
+        "min_library_size": 1000000,
+        "output_prefix": "hra001272_primary_vs_normal_gsea",
+        "paired_by": "individual_name",
+        "random_seed": 20260720,
+        "sample_metadata": "/cbb-data/gsa/agent/HRA001272/sample.csv",
+        "species": "Homo sapiens",
+        "strip_ensembl_version": true
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/gsea-pathway-enrichment:1.2.2"
+      },
+      "source_run": {
+        "cromwell_id": "bf9f32b0-653d-4411-9e21-347095d1cb06",
+        "workflow_name": "GseaPathwayEnrichment",
+        "submitted_at": "2026-08-22T11:54:23.854Z",
+        "ended_at": "2026-08-22T11:56:48.437Z",
+        "via": "direct",
+        "wdl_sha256": "4ce528f2ac7cc04c32d5dbf762cef8c208fbb6a89508472af35996d64d3f4db5",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 2,
+        "workflow_names": [
+          "GseaPathwayEnrichment"
+        ]
+      },
+      "tumor_type": "hepatocellular carcinoma",
+      "verification": null
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "preprocess_counts",
+  "card_id": "preprocess_counts",
+  "name_cn": "RNA-seq Count矩阵预处理",
+  "workflow_names": [
+    "PreprocessCountsWorkflow"
+  ],
+  "default_study": "HRA006117",
+  "bindings": [
+    {
+      "study": "HRA006117",
+      "execution_params": {
+        "count_tsv": "/hpcdisk1/cbb_group/data/analysis/HRA006117/HRA006117-Genes-counts-1.0.tsv",
+        "min_cpm": 1.0,
+        "min_sample_fraction": 0.2,
+        "min_samples_after_filter": 3,
+        "sample_missing_threshold": 0.9
+      },
+      "platform_inputs": {
+        "cpu": 4,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/rnaseqcluster:1.0",
+        "memory": "16 GB"
+      },
+      "source_run": {
+        "cromwell_id": "ec0347bc-a0fd-4294-afb1-cee8118f55c3",
+        "workflow_name": "PreprocessCountsWorkflow",
+        "submitted_at": "2026-09-28T07:25:37.392Z",
+        "ended_at": "2026-09-28T07:28:03.021Z",
+        "via": "platform",
+        "wdl_sha256": "d59b3cf127c7baccda39110615d6379aa0d7fff3ef38bf828cde440fb111471f",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "PreprocessCountsWorkflow"
+        ]
+      },
+      "tumor_type": "acute myeloid leukemia",
+      "verification": null
+    }
+  ]
+}

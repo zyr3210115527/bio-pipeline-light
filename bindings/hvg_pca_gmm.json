@@ -1,0 +1,47 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "hvg_pca_gmm",
+  "card_id": "hvg_pca_gmm",
+  "name_cn": "高变基因筛选-PCA降维-GMM聚类流程",
+  "workflow_names": [
+    "HvgPcaGmmWorkflow"
+  ],
+  "default_study": "HRA003107",
+  "bindings": [
+    {
+      "study": "HRA003107",
+      "execution_params": {
+        "hvg_n": 1000,
+        "k_max": 15,
+        "k_min": 1,
+        "loess_span": 0.5,
+        "logcpm_tsv": "/hpcdisk1/cbb_group/data/analysis/HRA003107/HRA003107-Genes-counts-1.0.tsv",
+        "pca_n": 20,
+        "seed": 20260329
+      },
+      "platform_inputs": {
+        "cpu": 4,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/rnaseqcluster:1.0",
+        "memory": "16 GB"
+      },
+      "source_run": {
+        "cromwell_id": "106df864-3b55-4574-bfe1-f0ad2bd5ca58",
+        "workflow_name": "HvgPcaGmmWorkflow",
+        "submitted_at": "2026-09-28T10:09:45.276Z",
+        "ended_at": "2026-09-28T10:38:07.881Z",
+        "via": "platform",
+        "wdl_sha256": "465c1fce201c3bae2acbdc7589875acce7a1c50b20dfae5d7e2a252acd135a86",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "HvgPcaGmmWorkflow"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": null
+    }
+  ]
+}

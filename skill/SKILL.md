@@ -139,29 +139,11 @@ has a working default. Bind `expr` and stop.
 - `case_label` / `control_label` — the four label-taking pipelines above. The server supplies the
   literals `case` / `control`; override only if the user names different groups.
 
-**Data selection is restricted per pipeline, not per family.** The 26 proven Cromwell runs are recorded
-in `references/bulk10_proven_runs.tsv` (one row per run). Each pipeline may only be paired with the
-cohorts *it* has run on:
-
-| tool_id | cohorts with a proven run |
-|---|---|
-| `de_enrichment`, `deg_enrichment`, `deg_trend`, `gene_boxplot`, `stage_heatmap` | `HRA003107` only |
-| `wgcna_module_trait`, `wgcna_hub` | `HRA003107`, `HRA007167` |
-| `cox_model`, `km_survival` | `HRA003107`, `HRA000073`, `HRA000074`, `HRA002693`, `HRA006117` |
-| `umap` | all seven: `HRA003107`, `HRA000073`, `HRA000074`, `HRA000122`, `HRA002693`, `HRA006117`, `HRA007167` |
-
-The union is seven cohorts, but **do not plan against the union** — `de_enrichment` on `HRA007167`, or
-`km_survival` on `HRA000122`, are combinations that have never been run, and the server rejects them.
-`HRA003107` is the only cohort every one of the ten has run on; when the user does not name a cohort,
-it is the safe default. `HRA000122` is reachable by `umap` alone.
-
-Two further studies (`HRA001272`, `HRA007413`) do have a `Genes-counts` file in the graph and will look
-like valid candidates — they are not: no bulk10 pipeline has ever run on either, HRA001272's path
-carries an extra `/RNAseq/` segment, and HRA007413's matrix is 1.2 MB. If the user asks for a
-pipeline×cohort pair outside the table, say which cohorts that pipeline does support and offer one of
-them rather than substituting silently. **`validate_plan` now checks this table on every
-recommendation**, not just at submission time: an unproven pipeline×cohort pair is a violation and
-sends the plan back for repair.
+**Data selection is restricted per pipeline, not per family.** Each pipeline may only be paired with
+the cohorts it has a run binding for (§3.2) — the union of the ten is seven cohorts, but **do not plan
+against the union**: `de_enrichment` on `HRA007167` has never run, and the server rejects it. If the user
+asks for a pipeline×cohort pair that is not bound, say which cohorts that pipeline does support and offer
+one of them rather than substituting silently. `validate_plan` checks this on every recommendation.
 
 **Quantification flavour: counts, always.** Not a methodological inference — every proven run of all ten
 pipelines used `{STUDY}-Genes-counts-1.0.tsv`. Normalisation happens inside the pipeline. Do not pick the
@@ -172,52 +154,29 @@ manifest), `run_summary` (run summary table).
 
 **One per-study exception**: `cox_model` reads survival status from `native_status_source_col` and the
 proven runs set it to `13_vital_status` for `HRA000073`, `HRA000074`, `HRA002693`, `HRA006117`. On
-`HRA003107` — cox_model's fifth and last proven cohort — the default applies. The server fills this in.
+`HRA003107` the default applies. The run binding carries this value; never write it yourself.
 
-## 3.2 The proven-run whitelist beyond bulk10 (`references/succeeded_runs.tsv`)
+## 3.2 Run bindings — the only runnable tool × cohort pairs (`bindings/`)
 
-**Every tool with a real-run record may only be paired with the cohorts it has actually run on** —
-the same per-combination rule as bulk10, enforced by the same two gates (`validate_plan` flags an
-unlisted pair as a violation; `validate_execution_chain` marks it unsubmittable). The table below is
-the planning-side copy; `references/succeeded_runs.tsv` is the machine-checked truth (49 tools, 233
-combinations, from the 2026-09 run-test reflux). A tool with **no** rows in that file (e.g. `gatk`,
-`multiqc`, `samtools`, `rsem`, `featurecounts`, `rnaseq_singletask`) is unconstrained by this
-whitelist. The blacklist `failed_runs.tsv` is the other side: combinations that ran and failed stay
-banned until the data is fixed upstream.
+**A tool may only be recommended on a cohort it has a run binding for.** A run binding is one
+Cromwell run that succeeded on real cohort data (not test data, not a smoke-test subsample), recorded
+with the exact inputs the platform submitted; `scripts/harvest_bindings.py` builds them and
+`scripts/verify_bindings.py` re-runs them. Since 2026-10 this replaces the old whitelist/blacklist
+files, and it is stricter in one place: **a tool with no binding at all is not runnable** (the old
+"no rows = unconstrained" exemption is gone — `gatk_germline_cohort` went out through it and failed at
+the executor).
 
-| Cohort set | Tools |
-|---|---|
-| `HRA000073`, `HRA000074` | `wgcna` |
-| `HRA003107` | (bulk10 five: `de_enrichment` `deg_enrichment` `deg_trend` `gene_boxplot` `stage_heatmap` — §3.1) |
-| `HRA003107`, `HRA007167` | `wgcna_hub`, `wgcna_module_trait` (bulk10, §3.1) |
-| `HRA003107`, `HRA000073`, `HRA000074`, `HRA002693`, `HRA006117` | `cox_model`, `km_survival` (bulk10, §3.1) |
-| that five + `HRA000122` | `bootstrap_stability`, `hvg_pca_gmm` |
-| that six + `HRA007167` | `umap` (bulk10, §3.1), `diff_expr_go`, `diff_expr_kegg`, `rnaseq_unsupervised_cluster` |
-| those seven + `HRA007413` | `preprocess_counts` |
-| those eight + `HRA001272` | `her2_pfs_survival`, `immune_infiltration_iobr` |
-| `HRA000071`, `HRA000873`, `HRA001272`, `HRA001749`, `HRA006499`, `HRA007169`, `HRA016026` | `tmb_survival_analysis`, `wes_somatic_maf_landscape` |
-| that seven minus `HRA006499` | `driver_gene_gender_analysis` |
-| `HRA001272`, `HRA001749`, `HRA007169`, `HRA016026` | `survival_analysis` |
-| `HRA000021`, `HRA000071`, `HRA000873`, `HRA001272`, `HRA001749`, `HRA006499`, `HRA007169` | `cnvkit_cnv_clinical` |
-| that seven + `HRA016026` | `manta_structural_variants` |
-| that eight + `HRA000087` | `gatk_germline_cohort` |
-| `HRA001749`, `HRA007169` | `wes_somatic_pair`, `bcftools`, `snpeff` |
-| `HRA000073`, `HRA000074`, `HRA001272`, `HRA002693`, `HRA003107`, `HRA006117`, `HRA007167`, `HRA016026` | `rmats_alternative_splicing` |
-| `HRA000087`, `HRA000321` | `breast_cellchat`, `celltype_case_control_de`, `dataset_downstream`, `dataset_matrix_annotation`, `immunotherapy_cellchat`, `lung_tme_annotation_cnv`, `tcell_intervention` |
-| `HRA000087` | `scrna_cell_communication`, `ipf_trajectory_regulon` |
-| `HRA001272` | `gsea_pathway_enrichment`, `tumor_evolution_inference` |
-| `HRA001748`, `HRA005191` | `cellranger_workflow` |
-| `HRA000071`, `HRA000073`, `HRA000074`, `HRA000087`, `HRA000127`, `HRA000321`, `HRA000873` | `bwa` |
-| that seven minus `HRA000873` | `fastqc` |
-| that six minus `HRA000321` | `paired_fastq_to_unmapped_bam` |
-| `bwa`'s seven minus `HRA000873`, plus `HRA002693` | `star` |
-| `HRA000071`, `HRA000073`, `HRA000074` | `trim_galore` |
-| 17 cohorts (see tsv) | `star_fusion` |
-| 19 cohorts (see tsv) | `fastp` |
-
-The same rule as §3.1 applies when the user names a pair outside the list: say which cohorts the tool
-has run on and offer one of them — do not substitute silently, and do not leave the named cohort in
-place. When the user names no cohort, pick from the tool's own row here (not from the union).
+- The authoritative list of bound tools and their cohorts is **appended at the end of this guide**
+  ("运行绑定（硬约束）"), generated from `bindings/` at read time. Pick from it; do not plan against
+  the union of cohorts, and do not substitute a similar tool when the user's tool is not listed.
+- **Execution parameters come from the binding, verbatim.** `route_pipeline_request` replaces whatever
+  inputs the plan proposes with the bound ones; your job is to pick the tool and, if the user names
+  one, the cohort. You still select real assets for `validate_plan`, but never invent paths.
+- When the user names a tool or cohort that is not bound, say which cohorts that tool does support (or
+  that it has no verified data yet) — do not move the request to another tool or another cancer type.
+- Both gates enforce this: `validate_plan` flags an unbound pair as a violation (repair round), and
+  `validate_execution_chain` marks it unsubmittable. A binding can be disabled by hand (`disabled` with
+  a reason in `bindings/<tool>.json`); a disabled pair is rejected with that reason.
 
 ## 4. Query cookbook
 

@@ -1,0 +1,277 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "deg_trend",
+  "card_id": "deg_trend",
+  "name_cn": "差异表达趋势分析",
+  "workflow_names": [
+    "deg_trend",
+    "task423_deg_trend"
+  ],
+  "default_study": "HRA003107",
+  "bindings": [
+    {
+      "study": "HRA000073",
+      "execution_params": {
+        "case_label": "case",
+        "control_label": "control",
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA000073/HRA000073-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA000073/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA000073/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "dbfd2489-1d2d-4118-a743-2a7de9158e47",
+        "workflow_name": "task423_deg_trend",
+        "submitted_at": "2026-08-21T13:29:59.299Z",
+        "ended_at": "2026-08-21T13:30:54.590Z",
+        "via": "direct",
+        "wdl_sha256": "d9c41b5ee5ec328ecc36563c839ca9b917678600cd442347e4d591938e0e2bc6",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task423_deg_trend"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": {
+        "status": "passed",
+        "workflow_id": "df04330e-dcf4-4856-bc76-3b38afd2ce34",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:20:31+00:00",
+        "ended_at": "2026-10-14T08:23:33+00:00",
+        "duration_s": 182
+      }
+    },
+    {
+      "study": "HRA000074",
+      "execution_params": {
+        "case_label": "case",
+        "control_label": "control",
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA000074/HRA000074-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA000074/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA000074/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "be12de23-e623-4ea1-92a0-88a140c95198",
+        "workflow_name": "task423_deg_trend",
+        "submitted_at": "2026-08-22T06:21:21.851Z",
+        "ended_at": "2026-08-22T06:23:09.624Z",
+        "via": "direct",
+        "wdl_sha256": "45b865c05f9f299fe023afc6c781a188825df44925ea7398e6a05826320e1acd",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task423_deg_trend"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": null
+    },
+    {
+      "study": "HRA000122",
+      "execution_params": {
+        "case_label": "case",
+        "control_label": "control",
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA000122/HRA000122-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA000122/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA000122/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "4a47f4ef-4f00-46b1-901a-d3982c0a5337",
+        "workflow_name": "task423_deg_trend",
+        "submitted_at": "2026-08-21T13:32:39.159Z",
+        "ended_at": "2026-08-21T13:33:33.728Z",
+        "via": "direct",
+        "wdl_sha256": "d9c41b5ee5ec328ecc36563c839ca9b917678600cd442347e4d591938e0e2bc6",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task423_deg_trend"
+        ]
+      },
+      "tumor_type": "acute T cell leukemia",
+      "verification": {
+        "status": "passed",
+        "workflow_id": "e9b9d59f-ba2a-4653-a606-1cffa27685ca",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:18:30+00:00",
+        "ended_at": "2026-10-14T08:22:32+00:00",
+        "duration_s": 242
+      }
+    },
+    {
+      "study": "HRA002693",
+      "execution_params": {
+        "case_label": "case",
+        "control_label": "control",
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA002693/HRA002693-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA002693/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA002693/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "ebb54175-740d-4f87-a885-f272473bd109",
+        "workflow_name": "task423_deg_trend",
+        "submitted_at": "2026-08-21T13:33:05.105Z",
+        "ended_at": "2026-08-21T13:34:48.461Z",
+        "via": "direct",
+        "wdl_sha256": "d9c41b5ee5ec328ecc36563c839ca9b917678600cd442347e4d591938e0e2bc6",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task423_deg_trend"
+        ]
+      },
+      "tumor_type": "acute myeloid leukemia",
+      "verification": null
+    },
+    {
+      "study": "HRA003107",
+      "execution_params": {
+        "boxplot_top_n": 12,
+        "case_label": "case",
+        "clinical_individual_col": "Individual Accession",
+        "clinical_sheet": "Sheet1",
+        "control_label": "control",
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA003107/HRA003107-Genes-counts-1.0.tsv",
+        "files_sample_col": "Sample",
+        "files_sheet": "Files",
+        "group_col": "group",
+        "heatmap_top_n": 20,
+        "individual_csv": "/cbb-data/gsa/agent/HRA003107/individual.csv",
+        "individual_id_col": "Individual Accession",
+        "individual_sample_col": "Sample Accession",
+        "individuals_sheet": "Individuals & samples",
+        "logfc_cutoff": 1.0,
+        "native_case_label": "case",
+        "native_case_regex": "tumou?r|case|disease|primary|treated|T$",
+        "native_control_label": "control",
+        "native_control_regex": "normal|control|healthy|peritumou?ral|adjacent|untreated|N$",
+        "native_group_mode": "auto",
+        "native_group_source_col": "tissue_type",
+        "native_require_group": true,
+        "native_require_stage": false,
+        "native_require_survival": false,
+        "native_sample_filter": "all",
+        "native_stage_source_col": "Tumor Stage",
+        "native_status_part": 1,
+        "native_status_source_col": "Survival information",
+        "native_time_part": 1,
+        "native_time_source_col": "Survival Days",
+        "padj_cutoff": 0.05,
+        "run_col": "Run accession",
+        "sample_col": "sample_id",
+        "sample_csv": "/cbb-data/gsa/agent/HRA003107/sample.csv",
+        "sample_individual_col": "individual_accession",
+        "sample_name_col": "Sample Name",
+        "trend_top_n": 12,
+        "volcano_label_top_n": 10,
+        "xlrd_vendor_zip": "/cromwell-share/cromwell_building_group/liuq/bulk10_dependencies/xlrd_vendor.zip"
+      },
+      "platform_inputs": {
+        "cpu": 4,
+        "disk_gb": 50,
+        "docker_image": "image.cncb.ac.cn/singlespatial/data_process/visualization/task423_deg_trend:v1",
+        "memory_gb": 16
+      },
+      "source_run": {
+        "cromwell_id": "723fda10-5e69-4690-b374-7fe09ceae48d",
+        "workflow_name": "deg_trend",
+        "submitted_at": "2026-09-29T04:32:06.570Z",
+        "ended_at": "2026-09-29T04:33:40.413Z",
+        "via": "platform",
+        "wdl_sha256": "d86c66bdd434b79f1e371fb51e629b64cba6c5ba75cde588b3a4609004d6332d",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 20,
+        "workflow_names": [
+          "deg_trend",
+          "task423_deg_trend"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA006117",
+      "execution_params": {
+        "case_label": "case",
+        "control_label": "control",
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA006117/HRA006117-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA006117/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA006117/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "7460b3d6-321a-4e1c-9e9e-c6b3b8a0b7f8",
+        "workflow_name": "task423_deg_trend",
+        "submitted_at": "2026-08-21T13:33:26.990Z",
+        "ended_at": "2026-08-21T13:35:11.551Z",
+        "via": "direct",
+        "wdl_sha256": "d9c41b5ee5ec328ecc36563c839ca9b917678600cd442347e4d591938e0e2bc6",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task423_deg_trend"
+        ]
+      },
+      "tumor_type": "acute myeloid leukemia",
+      "verification": null
+    },
+    {
+      "study": "HRA007167",
+      "execution_params": {
+        "case_label": "case",
+        "control_label": "control",
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA007167/HRA007167-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA007167/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA007167/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "d068716d-32c9-4354-8c69-8f8a66cd9577",
+        "workflow_name": "task423_deg_trend",
+        "submitted_at": "2026-08-21T13:30:30.775Z",
+        "ended_at": "2026-08-21T13:31:32.568Z",
+        "via": "direct",
+        "wdl_sha256": "d9c41b5ee5ec328ecc36563c839ca9b917678600cd442347e4d591938e0e2bc6",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task423_deg_trend"
+        ]
+      },
+      "tumor_type": "melanoma",
+      "verification": {
+        "status": "passed",
+        "workflow_id": "8a0dfd3b-054e-47db-a938-bb7c6db86e0f",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:21:32+00:00",
+        "ended_at": "2026-10-14T08:24:33+00:00",
+        "duration_s": 181
+      }
+    }
+  ]
+}

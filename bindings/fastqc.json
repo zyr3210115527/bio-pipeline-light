@@ -1,0 +1,75 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "fastqc",
+  "card_id": "fastqc",
+  "name_cn": "FASTQ 质量评估",
+  "workflow_names": [
+    "FastQcWorkflow"
+  ],
+  "default_study": "HRA001748",
+  "bindings": [
+    {
+      "study": "HRA001748",
+      "execution_params": {
+        "fastqs": [
+          "/hpcdisk1/cbb_group/data/HRA001748/HRR572934/HRR572934_f1.fq.gz",
+          "/hpcdisk1/cbb_group/data/HRA001748/HRR572934/HRR572934_r2.fq.gz"
+        ]
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5",
+        "memory": "4 GB",
+        "threads": 4
+      },
+      "source_run": {
+        "cromwell_id": "b0aa1efc-a938-4364-a39f-ff4b824cd166",
+        "workflow_name": "FastQcWorkflow",
+        "submitted_at": "2026-09-14T15:07:47.206Z",
+        "ended_at": "2026-09-14T15:45:20.242Z",
+        "via": "platform",
+        "wdl_sha256": "f483779303c032997fa378bb6bc5eebf730b80eb8086e522cadbe2a08c1d4f5c",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "FastQcWorkflow"
+        ]
+      },
+      "tumor_type": "liver cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA003107",
+      "execution_params": {
+        "fastqs": [
+          "/hpcdisk1/cbb_group/data/HRA003107/HRR757543/HRR757543_f1.fastq.gz"
+        ]
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5",
+        "memory": "4 GB",
+        "threads": 4
+      },
+      "source_run": {
+        "cromwell_id": "0f86a932-a869-4440-8a24-0ecd9e8d5f54",
+        "workflow_name": "FastQcWorkflow",
+        "submitted_at": "2026-09-14T15:05:42.442Z",
+        "ended_at": "2026-09-14T16:03:49.960Z",
+        "via": "platform",
+        "wdl_sha256": "f483779303c032997fa378bb6bc5eebf730b80eb8086e522cadbe2a08c1d4f5c",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "FastQcWorkflow"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": null
+    }
+  ]
+}

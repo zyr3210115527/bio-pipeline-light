@@ -1,0 +1,42 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "lung_tme_annotation_cnv",
+  "card_id": "lung_tme_annotation_cnv",
+  "name_cn": "肺癌肿瘤微环境注释与CNV分析",
+  "workflow_names": [
+    "task395_lung_tme_annotation_cnv"
+  ],
+  "default_study": "HRA000087",
+  "bindings": [
+    {
+      "study": "HRA000087",
+      "execution_params": {
+        "assay": "RNA",
+        "cell_type_col": "",
+        "counts_layer": "counts",
+        "gene_order": "/hpcdisk1/cbb_group/data/analysis/HRA000087/hg38_gene_order.tsv",
+        "input_rds": "/hpcdisk1/cbb_group/data/analysis/HRA000087/HRA000087-Seurat-RDS-files/HRA000087-merge.rds"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/cncb-cohort-agent/singlecell/scrna-production-r:1.1.1"
+      },
+      "source_run": {
+        "cromwell_id": "e8d27a31-80a6-43e6-8633-b8c4c1b9bfd5",
+        "workflow_name": "task395_lung_tme_annotation_cnv",
+        "submitted_at": "2026-09-18T06:47:47.191Z",
+        "ended_at": "2026-09-18T07:26:38.718Z",
+        "via": "direct",
+        "wdl_sha256": "c0eb15eece9deb561cbd6a894d89a51bd20dd850b551ff6f3436fd909c63be75",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task395_lung_tme_annotation_cnv"
+        ]
+      },
+      "tumor_type": "nasopharynx carcinoma",
+      "verification": null
+    }
+  ]
+}

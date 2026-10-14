@@ -1,0 +1,188 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "rnaseq_unsupervised_cluster",
+  "card_id": "rnaseq_unsupervised_cluster",
+  "name_cn": "RNA-seq 无监督聚类分析流程",
+  "workflow_names": [
+    "rnaseq_unsupervised_cluster"
+  ],
+  "default_study": "HRA007167",
+  "bindings": [
+    {
+      "study": "HRA000073",
+      "execution_params": {
+        "ari_high_threshold": 0.8,
+        "bootstrap_n": 100,
+        "bootstrap_perm_n": 100,
+        "bootstrap_retain_fraction": 0.8,
+        "count_tsv": "/hpcdisk1/cbb_group/data/analysis/HRA000073/HRA000073-Genes-counts-1.0.tsv",
+        "hvg_n": 1000,
+        "k_max": 15,
+        "k_min": 1,
+        "loess_span": 0.5,
+        "min_cpm": 1.0,
+        "min_sample_fraction": 0.2,
+        "min_samples_after_filter": 3,
+        "nmi_high_threshold": 0.8,
+        "pca_n": 20,
+        "sample_missing_threshold": 0.9,
+        "seed": 20260329
+      },
+      "platform_inputs": {
+        "cpu": 4,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/rnaseqcluster:1.0",
+        "memory": "16 GB"
+      },
+      "source_run": {
+        "cromwell_id": "6cbd04e9-3174-4bd3-8c24-40e9c0da6722",
+        "workflow_name": "rnaseq_unsupervised_cluster",
+        "submitted_at": "2026-08-24T03:10:12.412Z",
+        "ended_at": "2026-08-24T04:53:45.987Z",
+        "via": "platform",
+        "wdl_sha256": "cc39e63e885d32f4fb6d834c7a29c33593cb4b180481ab910c0e97950c7a6abe",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "rnaseq_unsupervised_cluster"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": null
+    },
+    {
+      "study": "HRA001272",
+      "execution_params": {
+        "ari_high_threshold": 0.8,
+        "bootstrap_n": 100,
+        "bootstrap_perm_n": 100,
+        "bootstrap_retain_fraction": 0.8,
+        "count_tsv": "/hpcdisk1/cbb_group/data/analysis/HRA001272/RNAseq/HRA001272-Genes-counts-1.0.tsv",
+        "hvg_n": 1000,
+        "k_max": 15,
+        "k_min": 1,
+        "loess_span": 0.5,
+        "min_cpm": 1.0,
+        "min_sample_fraction": 0.2,
+        "min_samples_after_filter": 3,
+        "nmi_high_threshold": 0.8,
+        "pca_n": 20,
+        "sample_missing_threshold": 0.9,
+        "seed": 20260329
+      },
+      "platform_inputs": {
+        "cpu": 4,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/rnaseqcluster:1.0",
+        "memory": "16 GB"
+      },
+      "source_run": {
+        "cromwell_id": "fbb7562a-817d-4e95-acf8-3d9a4a419fc6",
+        "workflow_name": "rnaseq_unsupervised_cluster",
+        "submitted_at": "2026-08-27T02:29:04.049Z",
+        "ended_at": "2026-08-27T04:01:10.733Z",
+        "via": "platform",
+        "wdl_sha256": "cc39e63e885d32f4fb6d834c7a29c33593cb4b180481ab910c0e97950c7a6abe",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 9,
+        "workflow_names": [
+          "rnaseq_unsupervised_cluster"
+        ]
+      },
+      "tumor_type": "hepatocellular carcinoma",
+      "verification": null
+    },
+    {
+      "study": "HRA003107",
+      "execution_params": {
+        "ari_high_threshold": 0.8,
+        "bootstrap_n": 100,
+        "bootstrap_perm_n": 100,
+        "bootstrap_retain_fraction": 0.8,
+        "count_tsv": "/hpcdisk1/cbb_group/data/analysis/HRA003107/HRA003107-Genes-counts-1.0.tsv",
+        "hvg_n": 1000,
+        "k_max": 15,
+        "k_min": 1,
+        "loess_span": 0.5,
+        "min_cpm": 1.0,
+        "min_sample_fraction": 0.2,
+        "min_samples_after_filter": 3,
+        "nmi_high_threshold": 0.8,
+        "pca_n": 20,
+        "sample_missing_threshold": 0.9,
+        "seed": 20260329
+      },
+      "platform_inputs": {
+        "cpu": 4,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/rnaseqcluster:1.0",
+        "memory": "16 GB"
+      },
+      "source_run": {
+        "cromwell_id": "f0b47f08-6270-462d-926d-1d4c0d0b82e5",
+        "workflow_name": "rnaseq_unsupervised_cluster",
+        "submitted_at": "2026-09-18T02:20:00.330Z",
+        "ended_at": "2026-09-18T05:36:49.516Z",
+        "via": "platform",
+        "wdl_sha256": "cc39e63e885d32f4fb6d834c7a29c33593cb4b180481ab910c0e97950c7a6abe",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "rnaseq_unsupervised_cluster"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA007167",
+      "execution_params": {
+        "ari_high_threshold": 0.8,
+        "bootstrap_n": 100,
+        "bootstrap_perm_n": 100,
+        "bootstrap_retain_fraction": 0.8,
+        "count_tsv": "/hpcdisk1/cbb_group/data/analysis/HRA007167/HRA007167-Genes-counts-1.0.tsv",
+        "hvg_n": 1000,
+        "k_max": 15,
+        "k_min": 1,
+        "loess_span": 0.5,
+        "min_cpm": 1.0,
+        "min_sample_fraction": 0.2,
+        "min_samples_after_filter": 3,
+        "nmi_high_threshold": 0.8,
+        "pca_n": 20,
+        "sample_missing_threshold": 0.9,
+        "seed": 20260329
+      },
+      "platform_inputs": {
+        "cpu": 4,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/rnaseqcluster:1.0",
+        "memory": "16 GB"
+      },
+      "source_run": {
+        "cromwell_id": "d64d8865-0f58-4ad2-a7b5-5ce054aafbe1",
+        "workflow_name": "rnaseq_unsupervised_cluster",
+        "submitted_at": "2026-09-22T03:52:01.840Z",
+        "ended_at": "2026-09-22T08:52:38.991Z",
+        "via": "platform",
+        "wdl_sha256": "cc39e63e885d32f4fb6d834c7a29c33593cb4b180481ab910c0e97950c7a6abe",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 24,
+        "workflow_names": [
+          "rnaseq_unsupervised_cluster"
+        ]
+      },
+      "tumor_type": "melanoma",
+      "verification": null
+    }
+  ]
+}

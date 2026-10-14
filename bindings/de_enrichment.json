@@ -1,0 +1,114 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "de_enrichment",
+  "card_id": "de_enrichment",
+  "name_cn": "差异表达与富集分析",
+  "workflow_names": [
+    "de_enrichment",
+    "task283_de_enrichment"
+  ],
+  "default_study": "HRA003107",
+  "bindings": [
+    {
+      "study": "HRA000073",
+      "execution_params": {
+        "case_label": "case",
+        "control_label": "control",
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA000073/HRA000073-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA000073/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA000073/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "f6d9c254-0d65-42cd-ab2c-652ad9744ffd",
+        "workflow_name": "task283_de_enrichment",
+        "submitted_at": "2026-08-22T06:09:55.421Z",
+        "ended_at": "2026-08-22T06:14:38.633Z",
+        "via": "direct",
+        "wdl_sha256": "914da9321d4b0cf0bc1ca2dca8105135743d4c836466cc75cc8004526b6000ad",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task283_de_enrichment"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": null
+    },
+    {
+      "study": "HRA003107",
+      "execution_params": {
+        "case_label": "case",
+        "clinical_individual_col": "Individual Accession",
+        "clinical_sheet": "Sheet1",
+        "control_label": "control",
+        "enrich_fallback_top_n": 30,
+        "enrich_min_genes": 3,
+        "enrich_show_category": 20,
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA003107/HRA003107-Genes-counts-1.0.tsv",
+        "files_sample_col": "Sample",
+        "files_sheet": "Files",
+        "gene_id_type": "auto",
+        "group_col": "group",
+        "heatmap_top_n": 20,
+        "individual_csv": "/cbb-data/gsa/agent/HRA003107/individual.csv",
+        "individual_id_col": "Individual Accession",
+        "individual_sample_col": "Sample Accession",
+        "individuals_sheet": "Individuals & samples",
+        "logfc_cutoff": 1.0,
+        "native_case_label": "case",
+        "native_case_regex": "tumou?r|case|disease|primary|treated|T$",
+        "native_control_label": "control",
+        "native_control_regex": "normal|control|healthy|peritumou?ral|adjacent|untreated|N$",
+        "native_group_mode": "auto",
+        "native_group_source_col": "tissue_type",
+        "native_require_group": true,
+        "native_require_stage": false,
+        "native_require_survival": false,
+        "native_sample_filter": "all",
+        "native_stage_source_col": "Tumor Stage",
+        "native_status_part": 1,
+        "native_status_source_col": "Survival information",
+        "native_time_part": 1,
+        "native_time_source_col": "Survival Days",
+        "organism": "human",
+        "padj_cutoff": 0.05,
+        "run_col": "Run accession",
+        "sample_col": "sample_id",
+        "sample_csv": "/cbb-data/gsa/agent/HRA003107/sample.csv",
+        "sample_individual_col": "individual_accession",
+        "sample_name_col": "Sample Name",
+        "volcano_label_top_n": 10,
+        "xlrd_vendor_zip": "/cromwell-share/cromwell_building_group/liuq/bulk10_dependencies/xlrd_vendor.zip"
+      },
+      "platform_inputs": {
+        "cpu": 4,
+        "disk_gb": 50,
+        "docker_image": "image.cncb.ac.cn/singlespatial/data_process/visualization/task283_de_enrichment:v1",
+        "memory_gb": 16
+      },
+      "source_run": {
+        "cromwell_id": "b2fec7b9-8e07-4c5e-a10f-213fc31e878c",
+        "workflow_name": "de_enrichment",
+        "submitted_at": "2026-09-29T04:34:13.162Z",
+        "ended_at": "2026-09-29T04:43:42.294Z",
+        "via": "platform",
+        "wdl_sha256": "b82b7a6084a5cb4fe00f2dbd15027cbf34b90adbb4eddc43f56da7bbccf7024d",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 6,
+        "workflow_names": [
+          "de_enrichment",
+          "task283_de_enrichment"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": null
+    }
+  ]
+}

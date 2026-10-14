@@ -1,0 +1,65 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "stage_heatmap",
+  "card_id": "stage_heatmap",
+  "name_cn": "肿瘤分期热图分析",
+  "workflow_names": [
+    "stage_heatmap",
+    "task305_stage_heatmap"
+  ],
+  "default_study": "HRA003107",
+  "bindings": [
+    {
+      "study": "HRA003107",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA003107/HRA003107-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA003107/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA003107/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "37248ef8-8c1e-4a2d-bddc-0c86718af6ad",
+        "workflow_name": "task305_stage_heatmap",
+        "submitted_at": "2026-09-17T06:39:13.154Z",
+        "ended_at": "2026-09-17T06:42:13.778Z",
+        "via": "direct",
+        "wdl_sha256": "1166b356472d73aa8cb8620cc416851c95f1c65b712a03fc63f2d07aec2ee148",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 6,
+        "workflow_names": [
+          "task305_stage_heatmap"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA007167",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA007167/HRA007167-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA007167/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA007167/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "7cb54a73-e920-486b-8155-cdeabb9209de",
+        "workflow_name": "task305_stage_heatmap",
+        "submitted_at": "2026-08-21T12:52:04.976Z",
+        "ended_at": "2026-08-21T12:54:54.156Z",
+        "via": "direct",
+        "wdl_sha256": "ccd6df2be9426191274a6c2a2c79c0f81b83c7c66d8011f34de2d1cd73cf1111",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task305_stage_heatmap"
+        ]
+      },
+      "tumor_type": "melanoma",
+      "verification": null
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "ipf_trajectory_regulon",
+  "card_id": "ipf_trajectory_regulon",
+  "name_cn": "IPF轨迹推断与调控子分析",
+  "workflow_names": [
+    "task547_ipf_trajectory_regulon"
+  ],
+  "default_study": "HRA000087",
+  "bindings": [
+    {
+      "study": "HRA000087",
+      "execution_params": {
+        "assay": "RNA",
+        "cell_type_col": "cell_type",
+        "counts_layer": "counts",
+        "disease_col": "disease",
+        "input_rds": "/hpcdisk1/cbb_group/data/analysis/HRA000087/HRA000087-Seurat-RDS-files/HRA000087-merge.rds",
+        "root_label": "AT2"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/cncb-cohort-agent/singlecell/scrna-production-r:1.1.1"
+      },
+      "source_run": {
+        "cromwell_id": "22d9ef0e-58e5-4b64-a68a-fc0cb56b04be",
+        "workflow_name": "task547_ipf_trajectory_regulon",
+        "submitted_at": "2026-09-18T06:54:43.837Z",
+        "ended_at": "2026-09-18T07:03:15.047Z",
+        "via": "direct",
+        "wdl_sha256": "42b295389c5f192758460e3173e18159498a0d282b38c62bdfa840023116634f",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task547_ipf_trajectory_regulon"
+        ]
+      },
+      "tumor_type": "nasopharynx carcinoma",
+      "verification": null
+    }
+  ]
+}

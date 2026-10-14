@@ -1,0 +1,202 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "umap",
+  "card_id": "umap",
+  "name_cn": "表达矩阵 UMAP 降维可视化",
+  "workflow_names": [
+    "task383_umap",
+    "umap"
+  ],
+  "default_study": "HRA003107",
+  "bindings": [
+    {
+      "study": "HRA000073",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA000073/HRA000073-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA000073/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA000073/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "5befa536-48ee-4048-979c-eadf75a9c8a5",
+        "workflow_name": "task383_umap",
+        "submitted_at": "2026-09-17T06:56:40.955Z",
+        "ended_at": "2026-09-17T06:58:31.212Z",
+        "via": "direct",
+        "wdl_sha256": "f1909ee9106c24dc309e5e781655e0654059e973e214a457e33868183cd784a1",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 3,
+        "workflow_names": [
+          "task383_umap"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": null
+    },
+    {
+      "study": "HRA000074",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA000074/HRA000074-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA000074/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA000074/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "c24253e7-e94e-4391-9be1-127f068eb93f",
+        "workflow_name": "task383_umap",
+        "submitted_at": "2026-09-17T06:57:19.412Z",
+        "ended_at": "2026-09-17T07:00:04.311Z",
+        "via": "direct",
+        "wdl_sha256": "f1909ee9106c24dc309e5e781655e0654059e973e214a457e33868183cd784a1",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 3,
+        "workflow_names": [
+          "task383_umap"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": null
+    },
+    {
+      "study": "HRA000122",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA000122/HRA000122-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA000122/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA000122/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "67835543-0ac5-4d11-aa6b-eda6739df49b",
+        "workflow_name": "task383_umap",
+        "submitted_at": "2026-09-17T06:57:53.488Z",
+        "ended_at": "2026-09-17T06:58:48.458Z",
+        "via": "direct",
+        "wdl_sha256": "f1909ee9106c24dc309e5e781655e0654059e973e214a457e33868183cd784a1",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 3,
+        "workflow_names": [
+          "task383_umap"
+        ]
+      },
+      "tumor_type": "acute T cell leukemia",
+      "verification": {
+        "status": "passed",
+        "workflow_id": "98029f4e-b9b4-4ba7-b59d-baabd1883833",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:19:31+00:00",
+        "ended_at": "2026-10-14T08:22:32+00:00",
+        "duration_s": 181
+      }
+    },
+    {
+      "study": "HRA002693",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA002693/HRA002693-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA002693/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA002693/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "3a99a852-c2b2-45a6-ad3b-803d0bd95fe4",
+        "workflow_name": "task383_umap",
+        "submitted_at": "2026-09-17T06:58:18.418Z",
+        "ended_at": "2026-09-17T06:59:59.108Z",
+        "via": "direct",
+        "wdl_sha256": "f1909ee9106c24dc309e5e781655e0654059e973e214a457e33868183cd784a1",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 3,
+        "workflow_names": [
+          "task383_umap"
+        ]
+      },
+      "tumor_type": "acute myeloid leukemia",
+      "verification": null
+    },
+    {
+      "study": "HRA003107",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA003107/HRA003107-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA003107/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA003107/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "12b34c11-f68a-415e-be02-51bc54f8a268",
+        "workflow_name": "task383_umap",
+        "submitted_at": "2026-09-17T06:40:39.151Z",
+        "ended_at": "2026-09-17T06:41:55.539Z",
+        "via": "direct",
+        "wdl_sha256": "f1909ee9106c24dc309e5e781655e0654059e973e214a457e33868183cd784a1",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 5,
+        "workflow_names": [
+          "task383_umap"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA006117",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA006117/HRA006117-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA006117/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA006117/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "e26e9c9c-fbd7-46da-9155-14db430568ab",
+        "workflow_name": "task383_umap",
+        "submitted_at": "2026-09-17T06:58:46.802Z",
+        "ended_at": "2026-09-17T07:00:26.271Z",
+        "via": "direct",
+        "wdl_sha256": "f1909ee9106c24dc309e5e781655e0654059e973e214a457e33868183cd784a1",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 3,
+        "workflow_names": [
+          "task383_umap"
+        ]
+      },
+      "tumor_type": "acute myeloid leukemia",
+      "verification": null
+    },
+    {
+      "study": "HRA007167",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA007167/HRA007167-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA007167/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA007167/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "174afc03-be76-4287-b150-be0b679b5c6d",
+        "workflow_name": "task383_umap",
+        "submitted_at": "2026-09-17T06:59:21.315Z",
+        "ended_at": "2026-09-17T07:00:31.638Z",
+        "via": "direct",
+        "wdl_sha256": "f1909ee9106c24dc309e5e781655e0654059e973e214a457e33868183cd784a1",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 3,
+        "workflow_names": [
+          "task383_umap"
+        ]
+      },
+      "tumor_type": "melanoma",
+      "verification": null
+    }
+  ]
+}

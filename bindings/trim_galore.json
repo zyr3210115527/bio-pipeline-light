@@ -1,0 +1,73 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "trim_galore",
+  "card_id": "trim_galore",
+  "name_cn": "FASTQ 接头和低质量序列修剪",
+  "workflow_names": [
+    "TrimGaloreWorkflow"
+  ],
+  "default_study": "HRA001748",
+  "bindings": [
+    {
+      "study": "HRA001748",
+      "execution_params": {
+        "read1": "/hpcdisk1/cbb_group/data/HRA001748/HRR572934/HRR572934_f1.fq.gz",
+        "read2": "/hpcdisk1/cbb_group/data/HRA001748/HRR572934/HRR572934_r2.fq.gz",
+        "sample_id": "HRS321572"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/cncb-cohort-agent/rnaseq:latest",
+        "memory": "8 GB",
+        "threads": 4
+      },
+      "source_run": {
+        "cromwell_id": "364b2f36-2e47-48ef-9225-2fbd023707ff",
+        "workflow_name": "TrimGaloreWorkflow",
+        "submitted_at": "2026-09-14T15:07:49.609Z",
+        "ended_at": "2026-09-14T21:05:50.220Z",
+        "via": "platform",
+        "wdl_sha256": "621998db474eb14dd40586fe12d13f7f1ca07f6b94b07430fe9ad76330c418d4",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "TrimGaloreWorkflow"
+        ]
+      },
+      "tumor_type": "liver cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA003107",
+      "execution_params": {
+        "read1": "/hpcdisk1/cbb_group/data/HRA003107/HRR757543/HRR757543_f1.fastq.gz",
+        "sample_id": "HRS449726"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/cncb-cohort-agent/rnaseq:latest",
+        "memory": "8 GB",
+        "threads": 4
+      },
+      "source_run": {
+        "cromwell_id": "b21ae100-f985-4cc8-8020-5a912dee7bfe",
+        "workflow_name": "TrimGaloreWorkflow",
+        "submitted_at": "2026-09-14T15:05:44.551Z",
+        "ended_at": "2026-09-14T19:36:07.144Z",
+        "via": "platform",
+        "wdl_sha256": "621998db474eb14dd40586fe12d13f7f1ca07f6b94b07430fe9ad76330c418d4",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "TrimGaloreWorkflow"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": null
+    }
+  ]
+}

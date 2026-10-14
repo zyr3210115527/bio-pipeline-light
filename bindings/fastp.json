@@ -1,0 +1,105 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "fastp",
+  "card_id": "fastp_paired_end",
+  "name_cn": "双端 FASTQ 过滤与接头修剪",
+  "workflow_names": [
+    "FastpPairedEndWorkflow"
+  ],
+  "default_study": "HRA001749",
+  "bindings": [
+    {
+      "study": "HRA000873",
+      "execution_params": {
+        "read1": "/hpcdisk1/cbb_group/data/HRA000873/HRR232644/HRR232644_f1.fastq.gz",
+        "read2": "/hpcdisk1/cbb_group/data/HRA000873/HRR232644/HRR232644_r2.fastq.gz",
+        "sample_id": "HRS169394"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5",
+        "memory": "8 GB",
+        "threads": 8
+      },
+      "source_run": {
+        "cromwell_id": "4259a173-f177-4376-9510-ce9388738b2b",
+        "workflow_name": "FastpPairedEndWorkflow",
+        "submitted_at": "2026-09-18T08:30:15.154Z",
+        "ended_at": "2026-09-18T08:41:00.679Z",
+        "via": "platform",
+        "wdl_sha256": "7afe2861701bc73ebeb9441a5f7e5e5b235e58a9d73617a6a6cb05d1189ea74b",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "FastpPairedEndWorkflow"
+        ]
+      },
+      "tumor_type": "colorectal adenocarcinoma",
+      "verification": null
+    },
+    {
+      "study": "HRA001272",
+      "execution_params": {
+        "read1": "/hpcdisk1/cbb_group/data/HRA001272/WES/HRR1402616/HRR1402616_f1.fastq.gz",
+        "read2": "/hpcdisk1/cbb_group/data/HRA001272/WES/HRR1402616/HRR1402616_r2.fastq.gz",
+        "sample_id": "HRS959806"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5",
+        "memory": "8 GB",
+        "threads": 8
+      },
+      "source_run": {
+        "cromwell_id": "b8ed35bb-4ee4-4222-9bd3-1a269a24674b",
+        "workflow_name": "FastpPairedEndWorkflow",
+        "submitted_at": "2026-09-18T08:51:16.458Z",
+        "ended_at": "2026-09-18T09:02:59.134Z",
+        "via": "platform",
+        "wdl_sha256": "7afe2861701bc73ebeb9441a5f7e5e5b235e58a9d73617a6a6cb05d1189ea74b",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "FastpPairedEndWorkflow"
+        ]
+      },
+      "tumor_type": "hepatocellular carcinoma",
+      "verification": null
+    },
+    {
+      "study": "HRA001749",
+      "execution_params": {
+        "read1": "/hpcdisk1/cbb_group/data/HRA001749/HRR573094/HRR573094_f1.fq.gz",
+        "read2": "/hpcdisk1/cbb_group/data/HRA001749/HRR573094/HRR573094_r2.fq.gz",
+        "sample_id": "HRS321732"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5",
+        "memory": "8 GB",
+        "threads": 8
+      },
+      "source_run": {
+        "cromwell_id": "275b43bf-91ef-4e23-b1fd-3133c25079b1",
+        "workflow_name": "FastpPairedEndWorkflow",
+        "submitted_at": "2026-09-28T06:10:42.496Z",
+        "ended_at": "2026-09-28T06:19:07.705Z",
+        "via": "platform",
+        "wdl_sha256": "7afe2861701bc73ebeb9441a5f7e5e5b235e58a9d73617a6a6cb05d1189ea74b",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "FastpPairedEndWorkflow"
+        ]
+      },
+      "tumor_type": "liver cancer",
+      "verification": null
+    }
+  ]
+}

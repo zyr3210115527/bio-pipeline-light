@@ -52,6 +52,23 @@
 
 **数据面**（96 例，已拆含水）：期望文件图内可查 174/186（93.5%），其中**精确命中 138/186（74.2%）**，仅宽匹配命中 36（19.4%）；6 例（q052–057）期望数据是 demo 文件（`NVM0598_*`、`ENCSR142YZV_chr19only_*`），不在 Neo4j 图内——以图为准如实报 `missing_from_graph`。
 
+## 运行绑定：能跑的流程和数据定死（2026-10）
+
+2026-09-28 的运行测试（17 条「我想用 X 数据进行 Y 分析」）里，选对流程且跑通的只有 6 条：6 条点名了流程
+还被模型换成别的，5 条流程对了但现场从图谱拼出来的输入是错的。现在 `route_pipeline_request` 改成：
+
+1. **点名即锁定**：问句里出现流程 id / 中文名 / 平台展示名 / WDL 名，直接锁定该流程，不经过模型。
+2. **参数照搬跑通过的那次**：每个「流程 × 队列」绑定一次 Cromwell 上用真实数据跑通的运行，执行合同的
+   `execution_params` 原样取自那次运行提交的参数（资源类参数由平台自己填）。不再查图现拼。
+3. **没有绑定就直说**：流程或点名的队列/癌种没有绑定时回 `unsupported`，附上可选队列，不换成别的流程。
+4. **模型只在没点名流程时判断意图**，且只能在已绑定的流程与队列里选；`validate_plan` /
+   `validate_execution_chain` 对未绑定的组合一律判违规 / 不可提交。
+
+绑定表在 `bindings/`（说明见 [bindings/README.md](bindings/README.md)），由 `scripts/harvest_bindings.py`
+从 Cromwell 生成、`scripts/verify_bindings.py` 复跑验证。它取代了原来的
+`succeeded_runs.tsv` / `failed_runs.tsv` / `bulk10_proven_runs.tsv` / `default_studies.json`。
+回归：`python tests/test_run_bindings.py`（离线，含那 17 条问句）。
+
 ## 给前端 agent 的 MCP 接口（stdio，同机/局域网）
 
 仓库自带 `mcp_light_server.py`（无第三方依赖的 stdio MCP server，v2.2），前端 agent 直接接。**服务端没有规则规划器，推理只能来自模型**——默认是调用方自己的模型；实在没有的，用最后那个兼容层借服务端配的那个，两条路都无词表降级：
@@ -66,7 +83,7 @@
 - `validate_plan(plan)` —— 接地校验：整份 Plan 的工具/文件/路径/队列号逐一到图与目录核验，`grounded=false` 即含编造内容
 - `hydrate_plan(plan)` —— 确定性补全：把模型给的文件名补成图内真实路径与资产字段，补不出的如实留空
 - `health_check()` —— Neo4j 连通、规模、atomic 闭集
-- `route_pipeline_request(query, top_k, data_matcher_mode)` —— **兼容层**：一次调用跑完整轮模型循环，返回顶层 `tool-chain/v2` 执行合同。只给「一个 query 换一个答案」的客户端用；已经自己在跑 agent 循环的别用（两个模型套娃）。详见 `docs/frontend-mcp-connection.md`
+- `route_pipeline_request(query, top_k, data_matcher_mode)` —— **兼容层**：一次调用返回顶层 `tool-chain/v2` 执行合同；点名了流程的直接按运行绑定出合同，没点名的才跑一轮模型循环（见上文「运行绑定」）。只给「一个 query 换一个答案」的客户端用；已经自己在跑 agent 循环的别用（两个模型套娃）。详见 `docs/frontend-mcp-connection.md`
 
 ```json
 { "mcpServers": { "bio-pipeline-light": {
@@ -105,6 +122,8 @@
 ## 目录结构
 
 ```
+├── run_bindings.py                 # 运行绑定：加载、点名识别、按绑定出执行合同
+├── bindings/                       # 运行绑定表（每个流程一个 JSON，见 bindings/README.md）
 ├── skill/                          # bio-pipeline-planning skill 本体（装到 ~/.dsh/skills/）
 │   ├── SKILL.md                    #   词汇表 + 闭集目录规则 + 15 配方 + tool-chain/v2 契约
 │   └── references/
@@ -117,6 +136,8 @@
 ├── examples/
 │   └── plan_immune_infiltration_v2.json  # tool-chain/v2 示例 plan（真实数据）
 ├── scripts/
+│   ├── harvest_bindings.py         # 从 Cromwell 成功运行生成 bindings/（只读）
+│   ├── verify_bindings.py          # 把绑定逐条重新提交 Cromwell 复跑（占集群）
 │   └── load_graph.cypher           # 从 import/ 的 CSV 全量重建图谱（数据本身不入库，见下节）
 ├── web/                            # Kimi 风格网页前端（思考段 + 工具调用可视化，见 web/README.md）
 │   ├── server.py                   #   纯标准库后端：MCP stdio 桥接 + Gemini SSE agent 循环
