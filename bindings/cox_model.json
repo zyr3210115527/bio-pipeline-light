@@ -1,0 +1,186 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "cox_model",
+  "card_id": "cox_model",
+  "name_cn": "Cox 生存预后分析",
+  "workflow_names": [
+    "cox_model",
+    "task310_cox_model"
+  ],
+  "default_study": "HRA003107",
+  "bindings": [
+    {
+      "study": "HRA000073",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA000073/HRA000073-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA000073/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA000073/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "cd0f5249-f739-4aef-a955-029b94570abe",
+        "workflow_name": "task310_cox_model",
+        "submitted_at": "2026-08-23T12:18:05.554Z",
+        "ended_at": "2026-08-23T12:28:32.209Z",
+        "via": "direct",
+        "wdl_sha256": "21429d440f1fe2d542a1a6ae74c5825556a5bdd57a2d1a3201d251822bb92ec3",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task310_cox_model"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": null
+    },
+    {
+      "study": "HRA000074",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA000074/HRA000074-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA000074/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA000074/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "b79e50fb-84fb-4d69-9378-29493fa20c8c",
+        "workflow_name": "task310_cox_model",
+        "submitted_at": "2026-08-23T12:18:35.066Z",
+        "ended_at": "2026-08-23T12:30:45.885Z",
+        "via": "direct",
+        "wdl_sha256": "21429d440f1fe2d542a1a6ae74c5825556a5bdd57a2d1a3201d251822bb92ec3",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task310_cox_model"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": null
+    },
+    {
+      "study": "HRA002693",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA002693/HRA002693-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA002693/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA002693/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "4728f714-7728-47e1-b6ce-3f23173d4f5b",
+        "workflow_name": "task310_cox_model",
+        "submitted_at": "2026-08-23T12:19:40.949Z",
+        "ended_at": "2026-08-23T12:29:25.400Z",
+        "via": "direct",
+        "wdl_sha256": "21429d440f1fe2d542a1a6ae74c5825556a5bdd57a2d1a3201d251822bb92ec3",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task310_cox_model"
+        ]
+      },
+      "tumor_type": "acute myeloid leukemia",
+      "verification": null
+    },
+    {
+      "study": "HRA003107",
+      "execution_params": {
+        "clinical_individual_col": "Individual Accession",
+        "clinical_sheet": "Sheet1",
+        "cox_model_top_n": 10,
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA003107/HRA003107-Genes-counts-1.0.tsv",
+        "files_sample_col": "Sample",
+        "files_sheet": "Files",
+        "individual_csv": "/cbb-data/gsa/agent/HRA003107/individual.csv",
+        "individual_id_col": "Individual Accession",
+        "individual_sample_col": "Sample Accession",
+        "individuals_sheet": "Individuals & samples",
+        "km_top_n": 5,
+        "native_case_label": "case",
+        "native_case_regex": "tumou?r|case|disease|primary|treated|T$",
+        "native_control_label": "control",
+        "native_control_regex": "normal|control|healthy|peritumou?ral|adjacent|untreated|N$",
+        "native_group_mode": "auto",
+        "native_group_source_col": "tissue_type",
+        "native_require_group": false,
+        "native_require_stage": false,
+        "native_require_survival": true,
+        "native_sample_filter": "case_only",
+        "native_stage_source_col": "Tumor Stage",
+        "native_status_part": 1,
+        "native_status_source_col": "Survival information",
+        "native_time_part": 1,
+        "native_time_source_col": "Survival Days",
+        "run_col": "Run accession",
+        "sample_col": "sample_id",
+        "sample_csv": "/cbb-data/gsa/agent/HRA003107/sample.csv",
+        "sample_individual_col": "individual_accession",
+        "sample_name_col": "Sample Name",
+        "status_col": "OS_status",
+        "status_event": "1",
+        "time_col": "OS_time",
+        "xlrd_vendor_zip": "/cromwell-share/cromwell_building_group/liuq/bulk10_dependencies/xlrd_vendor.zip"
+      },
+      "platform_inputs": {
+        "cpu": 4,
+        "disk_gb": 50,
+        "docker_image": "image.cncb.ac.cn/singlespatial/data_process/visualization/task310_cox_model:v1",
+        "memory_gb": 16
+      },
+      "source_run": {
+        "cromwell_id": "03b2f303-499b-436d-8a21-6a2afe774f17",
+        "workflow_name": "cox_model",
+        "submitted_at": "2026-09-17T01:18:30.955Z",
+        "ended_at": "2026-09-17T01:26:14.891Z",
+        "via": "platform",
+        "wdl_sha256": "a861db7cffb6b9a6f8c2c831281e19da002321f43727d79dea4341765f740dfe",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 18,
+        "workflow_names": [
+          "cox_model",
+          "task310_cox_model"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA006117",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA006117/HRA006117-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA006117/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA006117/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "3590227e-80b8-478e-92a7-8e8bf0c3f292",
+        "workflow_name": "task310_cox_model",
+        "submitted_at": "2026-08-23T12:20:09.531Z",
+        "ended_at": "2026-08-23T12:29:13.823Z",
+        "via": "direct",
+        "wdl_sha256": "21429d440f1fe2d542a1a6ae74c5825556a5bdd57a2d1a3201d251822bb92ec3",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task310_cox_model"
+        ]
+      },
+      "tumor_type": "acute myeloid leukemia",
+      "verification": null
+    }
+  ]
+}

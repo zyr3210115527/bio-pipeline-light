@@ -1,0 +1,264 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "tmb_survival_analysis",
+  "card_id": "tmb_survival_analysis",
+  "name_cn": "肿瘤突变负荷生存分析流程",
+  "workflow_names": [
+    "TMBSurvivalAnalysis"
+  ],
+  "default_study": "HRA007169",
+  "bindings": [
+    {
+      "study": "HRA000071",
+      "execution_params": {
+        "analyze_cpu": 2,
+        "capture_size_mb": 38.0,
+        "individual_csv": "/cbb-data/gsa/agent/HRA000071/individual.csv",
+        "maf_file": "/hpcdisk1/cbb_group/data/analysis/HRA000071/HRA000071-SomaticSNV-1.0.maf",
+        "min_group_size": 2,
+        "output_prefix": "HRA000071_tmb",
+        "prepare_cpu": 2,
+        "sample_csv": "/cbb-data/gsa/agent/HRA000071/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA000071/T1.csv"
+      },
+      "platform_inputs": {
+        "analyze_memory": "8 GB",
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/tmb-survival:9.1.2",
+        "prepare_memory": "8 GB"
+      },
+      "source_run": {
+        "cromwell_id": "8aed0192-8935-44cb-9b17-bad0ead6a95d",
+        "workflow_name": "TMBSurvivalAnalysis",
+        "submitted_at": "2026-09-02T07:46:51.437Z",
+        "ended_at": "2026-09-02T07:47:56.981Z",
+        "via": "direct",
+        "wdl_sha256": "a38d67243276a3a8caf490da7e5b13dd7c2c793e87a5508fe34b46778a18f9f6",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 2,
+        "workflow_names": [
+          "TMBSurvivalAnalysis"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": null
+    },
+    {
+      "study": "HRA000873",
+      "execution_params": {
+        "analyze_cpu": 2,
+        "capture_size_mb": 38.0,
+        "individual_csv": "/cbb-data/gsa/agent/HRA000873/individual.csv",
+        "maf_file": "/hpcdisk1/cbb_group/data/analysis/HRA000873/HRA000873-SomaticSNV-1.0.maf",
+        "min_group_size": 2,
+        "output_prefix": "HRA000873_tmb",
+        "prepare_cpu": 2,
+        "sample_csv": "/cbb-data/gsa/agent/HRA000873/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA000873/T1.csv"
+      },
+      "platform_inputs": {
+        "analyze_memory": "8 GB",
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/tmb-survival:9.1.2",
+        "prepare_memory": "8 GB"
+      },
+      "source_run": {
+        "cromwell_id": "06d96872-e776-4ff2-b2b1-152666746543",
+        "workflow_name": "TMBSurvivalAnalysis",
+        "submitted_at": "2026-09-02T07:47:30.711Z",
+        "ended_at": "2026-09-02T08:33:42.181Z",
+        "via": "direct",
+        "wdl_sha256": "a38d67243276a3a8caf490da7e5b13dd7c2c793e87a5508fe34b46778a18f9f6",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 2,
+        "workflow_names": [
+          "TMBSurvivalAnalysis"
+        ]
+      },
+      "tumor_type": "colorectal adenocarcinoma",
+      "verification": null
+    },
+    {
+      "study": "HRA001272",
+      "execution_params": {
+        "analyze_cpu": 2,
+        "capture_size_mb": 38.0,
+        "individual_csv": "/cbb-data/gsa/agent/HRA001272/individual.csv",
+        "maf_file": "/hpcdisk1/cbb_group/data/analysis/HRA001272/HRA001272-SomaticSNV-1.0.maf",
+        "min_group_size": 2,
+        "output_prefix": "HRA001272_tmb",
+        "prepare_cpu": 2,
+        "sample_csv": "/cbb-data/gsa/agent/HRA001272/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA001272/T1.csv"
+      },
+      "platform_inputs": {
+        "analyze_memory": "8 GB",
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/tmb-survival:9.1.2",
+        "prepare_memory": "8 GB"
+      },
+      "source_run": {
+        "cromwell_id": "2e687e99-3695-4bc2-b07e-2ff7fb0f9cec",
+        "workflow_name": "TMBSurvivalAnalysis",
+        "submitted_at": "2026-09-02T07:47:53.927Z",
+        "ended_at": "2026-09-02T07:58:41.650Z",
+        "via": "direct",
+        "wdl_sha256": "a38d67243276a3a8caf490da7e5b13dd7c2c793e87a5508fe34b46778a18f9f6",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "TMBSurvivalAnalysis"
+        ]
+      },
+      "tumor_type": "hepatocellular carcinoma",
+      "verification": null
+    },
+    {
+      "study": "HRA001749",
+      "execution_params": {
+        "analyze_cpu": 2,
+        "capture_size_mb": 38.0,
+        "individual_csv": "/cbb-data/gsa/agent/HRA001749/individual.csv",
+        "maf_file": "/hpcdisk1/cbb_group/data/analysis/HRA001749/HRA001749-SomaticSNV-1.0.maf",
+        "min_group_size": 2,
+        "output_prefix": "HRA001749_tmb",
+        "prepare_cpu": 2,
+        "sample_csv": "/cbb-data/gsa/agent/HRA001749/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA001749/T1.csv"
+      },
+      "platform_inputs": {
+        "analyze_memory": "8 GB",
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/tmb-survival:9.1.2",
+        "prepare_memory": "8 GB"
+      },
+      "source_run": {
+        "cromwell_id": "94cacbfc-a44c-4846-b128-968d3e6189a0",
+        "workflow_name": "TMBSurvivalAnalysis",
+        "submitted_at": "2026-09-02T07:48:18.377Z",
+        "ended_at": "2026-09-02T07:50:02.353Z",
+        "via": "direct",
+        "wdl_sha256": "a38d67243276a3a8caf490da7e5b13dd7c2c793e87a5508fe34b46778a18f9f6",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 2,
+        "workflow_names": [
+          "TMBSurvivalAnalysis"
+        ]
+      },
+      "tumor_type": "liver cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA006499",
+      "execution_params": {
+        "analyze_cpu": 2,
+        "capture_size_mb": 38.0,
+        "individual_csv": "/cbb-data/gsa/agent/HRA006499/individual.csv",
+        "maf_file": "/hpcdisk1/cbb_group/data/analysis/HRA006499/HRA006499-SomaticSNV-1.0.maf",
+        "min_group_size": 2,
+        "output_prefix": "HRA006499_tmb",
+        "prepare_cpu": 2,
+        "sample_csv": "/cbb-data/gsa/agent/HRA006499/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA006499/T1.csv"
+      },
+      "platform_inputs": {
+        "analyze_memory": "8 GB",
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/tmb-survival:9.1.2",
+        "prepare_memory": "8 GB"
+      },
+      "source_run": {
+        "cromwell_id": "93f71acf-72fc-4be6-9f3a-74ed7ad2c74f",
+        "workflow_name": "TMBSurvivalAnalysis",
+        "submitted_at": "2026-09-02T07:48:38.165Z",
+        "ended_at": "2026-09-02T08:22:06.747Z",
+        "via": "direct",
+        "wdl_sha256": "a38d67243276a3a8caf490da7e5b13dd7c2c793e87a5508fe34b46778a18f9f6",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "TMBSurvivalAnalysis"
+        ]
+      },
+      "tumor_type": "liver cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA007169",
+      "execution_params": {
+        "analyze_cpu": 2,
+        "capture_size_mb": 38.0,
+        "individual_csv": "/cbb-data/gsa/agent/HRA007169/individual.csv",
+        "maf_file": "/hpcdisk1/cbb_group/data/analysis/HRA007169/HRA007169-SomaticSNV-1.0.maf",
+        "min_group_size": 2,
+        "output_prefix": "HRA007169_tmb",
+        "prepare_cpu": 2,
+        "sample_csv": "/cbb-data/gsa/agent/HRA007169/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA007169/T1.csv"
+      },
+      "platform_inputs": {
+        "analyze_memory": "8 GB",
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/tmb-survival:9.1.2",
+        "prepare_memory": "8 GB"
+      },
+      "source_run": {
+        "cromwell_id": "39921563-f4ae-486f-8807-53b44c73b391",
+        "workflow_name": "TMBSurvivalAnalysis",
+        "submitted_at": "2026-09-02T07:48:59.204Z",
+        "ended_at": "2026-09-02T07:50:41.401Z",
+        "via": "direct",
+        "wdl_sha256": "a38d67243276a3a8caf490da7e5b13dd7c2c793e87a5508fe34b46778a18f9f6",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 3,
+        "workflow_names": [
+          "TMBSurvivalAnalysis"
+        ]
+      },
+      "tumor_type": "melanoma",
+      "verification": null
+    },
+    {
+      "study": "HRA016026",
+      "execution_params": {
+        "analyze_cpu": 2,
+        "capture_size_mb": 38.0,
+        "individual_csv": "/cbb-data/gsa/agent/HRA016026/individual.csv",
+        "maf_file": "/hpcdisk1/cbb_group/data/analysis/HRA016026/HRA016026-SomaticSNV-1.0.maf",
+        "min_group_size": 2,
+        "output_prefix": "HRA016026_tmb",
+        "prepare_cpu": 2,
+        "sample_csv": "/cbb-data/gsa/agent/HRA016026/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA016026/T1.csv"
+      },
+      "platform_inputs": {
+        "analyze_memory": "8 GB",
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/tmb-survival:9.1.2",
+        "prepare_memory": "8 GB"
+      },
+      "source_run": {
+        "cromwell_id": "3937fdd8-62f1-4c18-9189-819b3464f07a",
+        "workflow_name": "TMBSurvivalAnalysis",
+        "submitted_at": "2026-09-02T07:49:17.613Z",
+        "ended_at": "2026-09-02T08:11:43.059Z",
+        "via": "direct",
+        "wdl_sha256": "a38d67243276a3a8caf490da7e5b13dd7c2c793e87a5508fe34b46778a18f9f6",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "TMBSurvivalAnalysis"
+        ]
+      },
+      "tumor_type": "lung cancer",
+      "verification": null
+    }
+  ]
+}

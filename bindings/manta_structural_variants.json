@@ -1,0 +1,164 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "manta_structural_variants",
+  "card_id": "manta_structural_variants",
+  "name_cn": "Manta结构变异检测流程",
+  "workflow_names": [
+    "MantaStructuralVariants"
+  ],
+  "default_study": "HRA016026",
+  "bindings": [
+    {
+      "study": "HRA000873",
+      "execution_params": {
+        "config_manta_path": "configManta.py",
+        "filter_script": "/opt/manta_pipeline/filter_manta_sv.py",
+        "min_supporting_reads": 5,
+        "normal_bai": "/hpcdisk1/cbb_group/data/analysis/HRA000873/BAM-files/HRR232645.BQSR.bam.bai",
+        "normal_bam": "/hpcdisk1/cbb_group/data/analysis/HRA000873/BAM-files/HRR232645.BQSR.bam",
+        "output_prefix": "manta_sv",
+        "reference_fai": "/hpcdisk1/cbb_group/data/reference/GRCh38.fasta.fai",
+        "reference_fasta": "/hpcdisk1/cbb_group/data/reference/GRCh38.fasta",
+        "sample_id": "CRC1_T1",
+        "tumor_bai": "/hpcdisk1/cbb_group/data/analysis/HRA000873/BAM-files/HRR232644.BQSR.bam.bai",
+        "tumor_bam": "/hpcdisk1/cbb_group/data/analysis/HRA000873/BAM-files/HRR232644.BQSR.bam"
+      },
+      "platform_inputs": {
+        "cpu": 16,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/manta-structural-variants:1.1.0",
+        "memory": "32 GB"
+      },
+      "source_run": {
+        "cromwell_id": "57c4a71b-22e9-499f-b2a1-d70275919b42",
+        "workflow_name": "MantaStructuralVariants",
+        "submitted_at": "2026-09-28T06:28:20.268Z",
+        "ended_at": "2026-09-28T06:38:25.664Z",
+        "via": "platform",
+        "wdl_sha256": "788faec5a1ccc7a6488c825af8897855636fe4ff8cbd250c47f87f8eec0d3e8c",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "MantaStructuralVariants"
+        ]
+      },
+      "tumor_type": "colorectal adenocarcinoma",
+      "verification": null
+    },
+    {
+      "study": "HRA001272",
+      "execution_params": {
+        "config_manta_path": "configManta.py",
+        "filter_script": "/opt/manta_pipeline/filter_manta_sv.py",
+        "min_supporting_reads": 5,
+        "output_prefix": "manta_sv",
+        "reference_fai": "/hpcdisk1/cbb_group/data/reference/GRCh38.fasta.fai",
+        "reference_fasta": "/hpcdisk1/cbb_group/data/reference/GRCh38.fasta",
+        "sample_id": "M161_LM_21S11104_1",
+        "tumor_bai": "/hpcdisk1/cbb_group/data/analysis/HRA001272/BAM/HRR1402616.BQSR.bai",
+        "tumor_bam": "/hpcdisk1/cbb_group/data/analysis/HRA001272/BAM/HRR1402616.BQSR.bam"
+      },
+      "platform_inputs": {
+        "cpu": 16,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/manta-structural-variants:1.1.0",
+        "memory": "32 GB"
+      },
+      "source_run": {
+        "cromwell_id": "74cc3606-90fa-41e7-a3f0-0a5d9269c2c2",
+        "workflow_name": "MantaStructuralVariants",
+        "submitted_at": "2026-09-23T12:37:35.969Z",
+        "ended_at": "2026-09-23T12:46:51.037Z",
+        "via": "platform",
+        "wdl_sha256": "788faec5a1ccc7a6488c825af8897855636fe4ff8cbd250c47f87f8eec0d3e8c",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 2,
+        "workflow_names": [
+          "MantaStructuralVariants"
+        ]
+      },
+      "tumor_type": "hepatocellular carcinoma",
+      "verification": null
+    },
+    {
+      "study": "HRA006499",
+      "execution_params": {
+        "config_manta_path": "configManta.py",
+        "filter_script": "/opt/manta_pipeline/filter_manta_sv.py",
+        "min_supporting_reads": 5,
+        "normal_bai": "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files-unmerge/HRR1493846.BQSR.bai",
+        "normal_bam": "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files-unmerge/HRR1493846.BQSR.bam",
+        "output_prefix": "manta_sv",
+        "reference_fai": "/hpcdisk1/cbb_group/data/reference/GRCh38.fasta.fai",
+        "reference_fasta": "/hpcdisk1/cbb_group/data/reference/GRCh38.fasta",
+        "sample_id": "P1C2_T",
+        "tumor_bai": "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files-unmerge/HRR1493845.BQSR.bai",
+        "tumor_bam": "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files-unmerge/HRR1493845.BQSR.bam"
+      },
+      "platform_inputs": {
+        "cpu": 16,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/manta-structural-variants:1.1.0",
+        "memory": "32 GB"
+      },
+      "source_run": {
+        "cromwell_id": "f282d492-4893-402b-8bda-491ef3ebe500",
+        "workflow_name": "MantaStructuralVariants",
+        "submitted_at": "2026-09-28T03:54:35.492Z",
+        "ended_at": "2026-09-28T04:01:03.013Z",
+        "via": "platform",
+        "wdl_sha256": "788faec5a1ccc7a6488c825af8897855636fe4ff8cbd250c47f87f8eec0d3e8c",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "MantaStructuralVariants"
+        ]
+      },
+      "tumor_type": "liver cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA016026",
+      "execution_params": {
+        "config_manta_path": "configManta.py",
+        "filter_script": "/opt/manta_pipeline/filter_manta_sv.py",
+        "min_supporting_reads": 5,
+        "output_prefix": "manta_sv",
+        "reference_fai": "/hpcdisk1/cbb_group/data/reference/GRCh38.fasta.fai",
+        "reference_fasta": "/hpcdisk1/cbb_group/data/reference/GRCh38.fasta",
+        "sample_id": "HRR2996498",
+        "tumor_bai": "/hpcdisk1/cbb_group/data/analysis/HRA016026/BAM-files/HRR2996498.BQSR.bam.bai",
+        "tumor_bam": "/hpcdisk1/cbb_group/data/analysis/HRA016026/BAM-files/HRR2996498.BQSR.bam"
+      },
+      "platform_inputs": {
+        "cpu": 16,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/manta-structural-variants:1.1.0",
+        "memory": "32 GB"
+      },
+      "source_run": {
+        "cromwell_id": "7e03f06c-b188-44f6-8d16-c99df602c5ba",
+        "workflow_name": "MantaStructuralVariants",
+        "submitted_at": "2026-08-31T02:09:17.045Z",
+        "ended_at": "2026-08-31T02:21:24.194Z",
+        "via": "platform",
+        "wdl_sha256": "788faec5a1ccc7a6488c825af8897855636fe4ff8cbd250c47f87f8eec0d3e8c",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 3,
+        "workflow_names": [
+          "MantaStructuralVariants"
+        ]
+      },
+      "tumor_type": "lung cancer",
+      "verification": null
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "dataset_matrix_annotation",
+  "card_id": "dataset_matrix_annotation",
+  "name_cn": "数据集矩阵注释流程",
+  "workflow_names": [
+    "task403_dataset_matrix_annotation"
+  ],
+  "default_study": "HRA000321",
+  "bindings": [
+    {
+      "study": "HRA000087",
+      "execution_params": {
+        "assay": "RNA",
+        "cell_type_col": "",
+        "counts_layer": "counts",
+        "dataset_id": "HRA000087",
+        "input_rds": "/hpcdisk1/cbb_group/data/analysis/HRA000087/HRA000087-Seurat-RDS-files/HRA000087-merge.rds"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/cncb-cohort-agent/singlecell/scrna-production-r:1.1.1"
+      },
+      "source_run": {
+        "cromwell_id": "fdb073a9-8ad6-4489-8ea8-f91108752fd4",
+        "workflow_name": "task403_dataset_matrix_annotation",
+        "submitted_at": "2026-09-18T06:50:17.231Z",
+        "ended_at": "2026-09-18T06:58:18.176Z",
+        "via": "direct",
+        "wdl_sha256": "7f30fe7ad5c9ef00d7d612b057306d60e2c525e4d1dc962008ee99a71adce092",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task403_dataset_matrix_annotation"
+        ]
+      },
+      "tumor_type": "nasopharynx carcinoma",
+      "verification": null
+    },
+    {
+      "study": "HRA000321",
+      "execution_params": {
+        "assay": "RNA",
+        "cell_type_col": "",
+        "counts_layer": "counts",
+        "dataset_id": "HRA000321",
+        "input_rds": "/hpcdisk1/cbb_group/data/analysis/HRA000321/HRA000321-Seurat-RDS-files/HRA000321-BC-merge.rds"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/cncb-cohort-agent/singlecell/scrna-production-r:1.1.1"
+      },
+      "source_run": {
+        "cromwell_id": "48023f19-b625-4c80-a9e4-cf5460e71534",
+        "workflow_name": "task403_dataset_matrix_annotation",
+        "submitted_at": "2026-09-18T06:50:44.833Z",
+        "ended_at": "2026-09-18T07:12:47.580Z",
+        "via": "direct",
+        "wdl_sha256": "7f30fe7ad5c9ef00d7d612b057306d60e2c525e4d1dc962008ee99a71adce092",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task403_dataset_matrix_annotation"
+        ]
+      },
+      "tumor_type": null,
+      "verification": null
+    }
+  ]
+}

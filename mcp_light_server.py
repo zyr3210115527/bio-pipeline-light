@@ -29,7 +29,32 @@ import sys
 import tempfile
 import time
 
+import run_bindings as _rb
+
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def _load_local_config() -> None:
+    """从 web/config.local（KEY=VALUE，已 gitignore）补 NEO4J_* 三项，只补环境里没有的。
+
+    web/server.py 启动时会读这份文件，但 MCP server 被单独拉起（Claude Code、测试、
+    cohort_adapter 命令行）时不经过它，NEO4J_* 就丢了。只认 NEO4J_ 前缀：同一份文件里
+    还有 LLM key，不需要模型的进程不该被顺手注入。环境变量优先，文件只兜底；空值不算
+    配置（模板里留空的密码行不会盖掉什么）。
+    """
+    path = os.path.join(HERE, "web", "config.local")
+    if not os.path.exists(path):
+        return
+    for line in open(path, encoding="utf-8"):
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            k, v = k.strip(), v.strip().strip('"').strip("'")
+            if k.startswith("NEO4J_") and v:
+                os.environ.setdefault(k, v)
+
+
+_load_local_config()
 NEO4J_URL = os.environ.get("NEO4J_URL", "http://127.0.0.1:7474/db/neo4j/tx/commit")
 NEO4J_USER = os.environ.get("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "")
@@ -411,7 +436,10 @@ def neo4j_q(statements):
 # ---------- 工具 ----------
 def tool_get_planning_guide(args):
     try:
-        text = open(SKILL_MD, encoding="utf-8").read()
+        # 已绑定流程/队列清单从 bindings/ 现生成、拼在手册末尾：手册里不再手抄这张表，
+        # 绑定表一更新，模型看到的就是新的（手抄的那份 9 月白名单就是这么过期的）
+        with open(SKILL_MD, encoding="utf-8") as f:
+            text = f.read() + _rb.prompt_section()
         return {"status": "ok", "skill": text, "source": SKILL_MD}
     except Exception as e:
         return {"status": "error", "detail": str(e)}
@@ -945,13 +973,12 @@ def tool_validate_execution_chain(args):
         # （编了也不会报错，是最危险的一种幻觉）。图内事实覆盖调用方给的值（与 file_path
         # 的处置一致）；补不出来且调用方没给的，如实报 literal_required。
         # （_study 已在执行参数解析前定好，见上）
-        # 实跑失败黑名单：该「流程 × 队列」组合明确跑挂过（数据侧原因），直接判不可提交
+        # 运行绑定闸门：只有绑定表里的「流程 × 队列」可提交（见 run_bindings.py）
         _fail = _failed_run(gid, _study)
         if _fail:
-            errors.append(f"{tool_key} × {_study} 有实跑失败记录（{_fail}）——不可提交，"
-                          f"请改选别的队列（failed_runs.tsv，解禁就删行）")
+            errors.append(f"{tool_key} × {_study} 的运行绑定已停用（{_fail}）——不可提交，"
+                          f"请改选别的队列（bindings/{gid}.json 去掉 disabled 即解禁）")
         else:
-            # 白名单闸门：有成功记录的工具只放行表内组合（「只推实跑验证过的」）
             _unp = _unproven_combo(gid, _study)
             if _unp:
                 errors.append(f"{tool_key}: {_unp}")
@@ -1234,18 +1261,18 @@ def tool_validate_plan(args):
         gid = meta_to_graph.get(pid, pid)
         if gid not in CATALOG:
             v.append(f"recommendations[{i}] 工具不在闭集目录（疑似模型编造）: {pid}")
-        # 实跑失败黑名单：该「流程 × 队列」组合明确跑挂过（数据侧原因），不可交付，
-        # 让模型修正轮改选别的队列——别等执行端再烧一次（failed_runs.tsv，解禁就删行）。
-        for _st in _rec_studies(rec):
+        # 运行绑定闸门：没有绑定的流程、或绑定表外的队列都不可交付，让模型修正轮改荐
+        # 已绑定的流程/队列——别等执行端再烧一次（见 run_bindings.py）。
+        _sts = sorted(_rec_studies(rec)) or [None]
+        for _st in _sts:
             _reason = _failed_run(gid, _st)
             if _reason:
-                v.append(f"recommendations[{i}] {gid} × {_st} 有实跑失败记录（{_reason}）。"
+                v.append(f"recommendations[{i}] {gid} × {_st} 的运行绑定已停用（{_reason}）。"
                          f"该组合不可交付：请改选其它队列重出 Plan")
             else:
-                # 白名单闸门：有成功记录的工具只放行表内组合（「只推实跑验证过的」）
                 _unp = _unproven_combo(gid, _st)
                 if _unp:
-                    v.append(f"recommendations[{i}] 未过实跑白名单：{_unp}")
+                    v.append(f"recommendations[{i}] 没有运行绑定：{_unp}")
         # 没有数据的推荐不可执行：selection_status 说 ok 就必须指出图内的具体文件。
         # 实测调用方对「我有 10x 单细胞 FASTQ」这类没点名队列的问题会直接交空 assets——
         # 等于把选数据这一半的活儿留给了用户。
@@ -2166,27 +2193,18 @@ _BULK10 = {"de_enrichment", "deg_enrichment", "deg_trend", "gene_boxplot", "stag
            "umap", "wgcna_module_trait", "wgcna_hub", "cox_model", "km_survival"}
 _FLAVOR_FALLBACK.update({t: "counts" for t in _BULK10})
 
-# 已验证组合是**逐流程**的，不是十条共用一份队列白名单。真值表在
-# skill/references/bulk10_proven_runs.tsv（26 条 Succeeded 的 Cromwell 记录，一行一次实跑）。
-# union 恰好是 7 个队列，但按 union 放行就会批准 de_enrichment×HRA007167 这类从没跑过的组合
-# ——那条流程只在 HRA003107 上跑过。HRA000122 更极端：十条里只有 umap 碰过它。
-# 图内另有 HRA001272 / HRA007413 两份 Genes-counts，任何一条 bulk10 都没在上面跑过
-# （HRA001272 的 counts 多一层 `/RNAseq/` 目录，HRA007413 只有 1.2MB），一律不放行。
+# 已验证组合是**逐流程**的，不是十条共用一份队列白名单：按七队列并集放行就会批准
+# de_enrichment×HRA007167 这类从没跑过的组合。真值是运行绑定表（bindings/，见
+# run_bindings.py），这里只取 bulk10 十条各自的已绑定队列。
 _BULK10_RUNS: dict = {}
 
 def load_bulk10_runs() -> None:
-    """加载 bulk10 已验证的 (tool_id, study) 组合。文件缺失则留空 = 不放行任何组合。"""
-    path = os.path.join(SKILL_REF, "bulk10_proven_runs.tsv")
-    if not os.path.exists(path):
-        return
-    try:
-        with open(path, newline="", encoding="utf-8") as f:
-            for row in csv.DictReader(f, delimiter="\t"):
-                t, s = (row.get("tool_id") or "").strip(), (row.get("study") or "").strip()
-                if t and s:
-                    _BULK10_RUNS.setdefault(t, set()).add(s)
-    except Exception:
-        _BULK10_RUNS.clear()
+    """从运行绑定表取 bulk10 已验证的 (tool_id, study) 组合。没有绑定 = 不放行任何组合。"""
+    _BULK10_RUNS.clear()
+    for t in _BULK10:
+        studies = {b["study"] for b in _rb.bindings_for(t)}
+        if studies:
+            _BULK10_RUNS[t] = studies
 
 load_bulk10_runs()
 
@@ -2357,79 +2375,32 @@ def load_legacy5_runs() -> None:
 
 load_legacy5_runs()
 
-# 实跑失败黑名单（skill/references/failed_runs.tsv）：与 bulk10/legacy5 的白名单互为反面——
-# 「流程 × 队列」明确跑挂过（数据侧原因）的组合，validate_plan 判违规、
-# validate_execution_chain 判不可提交，让模型改选别的队列，别把已知跑不了的交出去。
-# 上游数据修好后从表里删行即解禁。
-_FAILED_RUNS: dict = {}     # tool_id -> {study: reason}
-
-
-def load_failed_runs() -> None:
-    path = os.path.join(SKILL_REF, "failed_runs.tsv")
-    _FAILED_RUNS.clear()
-    if not os.path.exists(path):
-        return
-    try:
-        with open(path, newline="", encoding="utf-8") as f:
-            lines = [ln for ln in f if not ln.startswith("#")]
-        for row in csv.DictReader(lines, delimiter="\t"):
-            t = (row.get("tool_id") or "").strip()
-            s = (row.get("study") or "").strip()
-            if t and s:
-                _FAILED_RUNS.setdefault(t, {})[s] = (row.get("reason") or "").strip()
-    except Exception:
-        _FAILED_RUNS.clear()
+# 运行绑定闸门（bindings/，见 run_bindings.py）。2026-10 起口径收紧为「**只放行已绑定的**」：
+# 每个「流程 × 队列」必须有一条 Cromwell 用真实队列数据跑通过的绑定，没有绑定的流程整体
+# 不可交付——旧白名单里「一条记录都没有的工具不受约束」那条口子已经堵上，09-28 测试里
+# gatk_germline_cohort 就是从这条口子里出去、到执行端才跑挂的。
+# validate_plan 判违规（模型修正轮改荐已绑定的队列/流程），validate_execution_chain 判不可提交。
+# 原 failed_runs.tsv / succeeded_runs.tsv / bulk10_proven_runs.tsv 已并入绑定表。
 
 
 def _failed_run(gid, acc):
-    """该「流程 × 队列」在实跑黑名单里吗？在则返回原因，不在返回 None。"""
+    """该「流程 × 队列」的绑定被人工停用了吗？停用返回原因，否则 None。"""
     if not gid or not acc:
         return None
-    return (_FAILED_RUNS.get(gid) or {}).get(acc)
-
-
-load_failed_runs()
-
-# 实跑成功白名单（skill/references/succeeded_runs.tsv）：与黑名单互为正面。
-# 口径是「**只推实跑验证过的**」：凡是有成功记录的工具（2026-09 运行测试表回流，
-# 49 个工具 233 条组合，pipeline 与原子工具都有），只放行表内的「流程/工具 × 队列」——
-# validate_plan 判违规（模型修正轮改荐表内队列）、validate_execution_chain 判不可提交。
-# 没有任何成功记录的工具不受此约束（不添乱）。bulk10 十条另受 bulk10_proven_runs.tsv
-# 一道同口径闸门，两表组合保持一致。
-_SUCCEEDED_RUNS: dict = {}     # tool_id -> {study: cromwell_id}
-
-
-def load_succeeded_runs() -> None:
-    path = os.path.join(SKILL_REF, "succeeded_runs.tsv")
-    _SUCCEEDED_RUNS.clear()
-    if not os.path.exists(path):
-        return
-    try:
-        with open(path, newline="", encoding="utf-8") as f:
-            lines = [ln for ln in f if not ln.startswith("#")]
-        for row in csv.DictReader(lines, delimiter="\t"):
-            t = (row.get("tool_id") or "").strip()
-            s = (row.get("study") or "").strip()
-            if t and s:
-                _SUCCEEDED_RUNS.setdefault(t, {})[s] = (row.get("cromwell_id") or "").strip()
-    except Exception:
-        _SUCCEEDED_RUNS.clear()
+    b = _rb.get(gid, acc)
+    if b and b.get("disabled"):
+        return b["disabled"].get("reason") or "已停用"
+    return None
 
 
 def _unproven_combo(gid, acc):
-    """白名单判定。返回 None=放行；否则返回一句可用的违规理由。
+    """绑定判定。返回 None=放行；否则返回一句可用的违规理由。
 
-    只有「这个工具有成功记录、而该组合不在表里」才拦——工具一条记录都没有时
-    白名单对它不构成约束（不然等于把这些工具整体关掉）。"""
-    ok = _SUCCEEDED_RUNS.get(gid)
-    if not ok or not acc:
+    acc 为空时只判流程本身有没有绑定（没有队列也就谈不上组合）。人工停用的组合由
+    `_failed_run` 报，这里不重复。"""
+    if not gid or _failed_run(gid, acc):
         return None
-    if acc in ok:
-        return None
-    return f"{gid} 只在实跑验证过的队列上放行：{'/'.join(sorted(ok))}（{acc} 不在其中）"
-
-
-load_succeeded_runs()
+    return _rb.block_reason(gid, acc)
 
 def _legacy5_pair(gid, acc):
     """五个旧版工具在该队列的旧版临床对：{语义格式: (file_name, file_path)}。不适用则空。"""

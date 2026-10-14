@@ -1,0 +1,200 @@
+{
+  "_comment": "队列 → 癌种。tumor_type 取自图谱 study 节点（0826 交付，见 skill/SKILL.md §12.2）；labels 是用户问句里常见的中文/英文叫法，用来把「用食管鳞癌数据」这类说法落到队列上。同一个词可以对应多个队列，由流程的绑定再筛一次。",
+  "studies": {
+    "HRA000001": {
+      "tumor_type": null,
+      "label_cn": "健康人群",
+      "labels": [
+        "健康",
+        "健康人",
+        "healthy"
+      ]
+    },
+    "HRA000021": {
+      "tumor_type": "esophageal cancer",
+      "label_cn": "食管癌",
+      "labels": [
+        "食管癌",
+        "食管鳞癌",
+        "食管鳞状细胞癌",
+        "食道癌",
+        "ESCC"
+      ]
+    },
+    "HRA000071": {
+      "tumor_type": "malignant glioma",
+      "label_cn": "恶性胶质瘤",
+      "labels": [
+        "胶质瘤",
+        "恶性胶质瘤",
+        "脑胶质瘤",
+        "glioma"
+      ]
+    },
+    "HRA000073": {
+      "tumor_type": "malignant glioma",
+      "label_cn": "恶性胶质瘤",
+      "labels": [
+        "胶质瘤",
+        "恶性胶质瘤",
+        "脑胶质瘤",
+        "glioma"
+      ]
+    },
+    "HRA000074": {
+      "tumor_type": "malignant glioma",
+      "label_cn": "恶性胶质瘤",
+      "labels": [
+        "胶质瘤",
+        "恶性胶质瘤",
+        "脑胶质瘤",
+        "glioma"
+      ]
+    },
+    "HRA000087": {
+      "tumor_type": "nasopharynx carcinoma",
+      "label_cn": "鼻咽癌",
+      "labels": [
+        "鼻咽癌",
+        "nasopharyngeal carcinoma"
+      ]
+    },
+    "HRA000122": {
+      "tumor_type": "acute T cell leukemia",
+      "label_cn": "急性T细胞白血病",
+      "labels": [
+        "急性T细胞白血病",
+        "T细胞白血病",
+        "T-ALL",
+        "白血病"
+      ]
+    },
+    "HRA000321": {
+      "tumor_type": null,
+      "label_cn": null,
+      "labels": [],
+      "_todo": "癌种待从图谱 study 节点补（SKILL.md §12.2 的 20 个队列里没有它）"
+    },
+    "HRA000873": {
+      "tumor_type": "colorectal adenocarcinoma",
+      "label_cn": "结直肠腺癌",
+      "labels": [
+        "结直肠癌",
+        "结直肠腺癌",
+        "直肠癌",
+        "结肠癌",
+        "肠癌",
+        "colorectal",
+        "CRC"
+      ]
+    },
+    "HRA001272": {
+      "tumor_type": "hepatocellular carcinoma",
+      "label_cn": "肝细胞癌",
+      "labels": [
+        "肝细胞癌",
+        "肝癌",
+        "HCC",
+        "hepatocellular"
+      ]
+    },
+    "HRA001748": {
+      "tumor_type": "liver cancer",
+      "label_cn": "肝癌",
+      "labels": [
+        "肝癌",
+        "liver cancer"
+      ]
+    },
+    "HRA001749": {
+      "tumor_type": "liver cancer",
+      "label_cn": "肝癌",
+      "labels": [
+        "肝癌",
+        "liver cancer"
+      ]
+    },
+    "HRA002693": {
+      "tumor_type": "acute myeloid leukemia",
+      "label_cn": "急性髓系白血病",
+      "labels": [
+        "急性髓系白血病",
+        "髓系白血病",
+        "AML",
+        "白血病"
+      ]
+    },
+    "HRA003107": {
+      "tumor_type": "esophageal cancer",
+      "label_cn": "食管癌",
+      "labels": [
+        "食管癌",
+        "食管鳞癌",
+        "食管鳞状细胞癌",
+        "食道癌",
+        "ESCC"
+      ]
+    },
+    "HRA005191": {
+      "tumor_type": "non-small cell lung carcinoma",
+      "label_cn": "非小细胞肺癌",
+      "labels": [
+        "非小细胞肺癌",
+        "NSCLC",
+        "肺癌"
+      ]
+    },
+    "HRA006117": {
+      "tumor_type": "acute myeloid leukemia",
+      "label_cn": "急性髓系白血病",
+      "labels": [
+        "急性髓系白血病",
+        "髓系白血病",
+        "AML",
+        "白血病"
+      ]
+    },
+    "HRA006499": {
+      "tumor_type": "liver cancer",
+      "label_cn": "肝癌",
+      "labels": [
+        "肝癌",
+        "liver cancer"
+      ]
+    },
+    "HRA007167": {
+      "tumor_type": "melanoma",
+      "label_cn": "黑色素瘤",
+      "labels": [
+        "黑色素瘤",
+        "melanoma"
+      ]
+    },
+    "HRA007169": {
+      "tumor_type": "melanoma",
+      "label_cn": "黑色素瘤",
+      "labels": [
+        "黑色素瘤",
+        "melanoma"
+      ]
+    },
+    "HRA007413": {
+      "tumor_type": "acute myeloid leukemia",
+      "label_cn": "急性髓系白血病",
+      "labels": [
+        "急性髓系白血病",
+        "髓系白血病",
+        "AML",
+        "白血病"
+      ]
+    },
+    "HRA016026": {
+      "tumor_type": "lung cancer",
+      "label_cn": "肺癌",
+      "labels": [
+        "肺癌",
+        "lung cancer"
+      ]
+    }
+  }
+}

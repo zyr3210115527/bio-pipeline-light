@@ -78,53 +78,28 @@ atomic 闭集：`bwa` `fastp` `fastqc` `featurecounts` `gatk` `bcftools` `snpeff
 `stage_heatmap` `umap` `wgcna_module_trait` `wgcna_hub` `cox_model` `km_survival`
 
 - **只有 `expr` 一个必填输入**，且**一律 counts**（`{STUDY}-Genes-counts-1.0.tsv`）。WDL 另有 40+ 参数，全有默认值，别写。
-- **已验证队列是逐流程的，不是十条共用一份名单**（26 条实跑记录见 `references/bulk10_proven_runs.tsv`）：
-  | 流程 | 只能配这些队列 |
-  |---|---|
-  | `de_enrichment` `deg_enrichment` `deg_trend` `gene_boxplot` `stage_heatmap` | `HRA003107` |
-  | `wgcna_module_trait` `wgcna_hub` | `HRA003107` `HRA007167` |
-  | `cox_model` `km_survival` | `HRA003107` `HRA000073` `HRA000074` `HRA002693` `HRA006117` |
-  | `umap` | 上述七个全可：另加 `HRA000122` |
-  并集是七个队列，但**不许按并集选**——`de_enrichment`+`HRA007167`、`km_survival`+`HRA000122`
-  这种组合从没跑过，服务端会拒。`HRA003107` 是十条唯一都跑过的队列，用户没点名时选它。
-  `HRA000122` 只有 `umap` 能用。`HRA001272`/`HRA007413` 图里也有 Genes-counts 但一条都没跑过，一律不选。
-  用户点名的组合不在表内，直说该流程支持哪几个队列、改荐其一，别静默替换。
-  **这张表 `validate_plan` 会逐条核**（不只是提交时核）：组合没跑过就判违规、退回修正轮。
+- **已验证队列是逐流程的，不是十条共用一份名单**：每条流程只能配它自己有运行绑定的队列（见 §3.2 与
+  手册末尾的「运行绑定（硬约束）」清单）。并集是七个队列，但**不许按并集选**——`de_enrichment`+`HRA007167`
+  这种组合从没跑过，服务端会拒。用户点名的组合不在清单内，直说该流程支持哪几个队列、改荐其一，别静默替换。
 - `sample_csv`/`individual_csv`（CNCB 原生元数据）**不写进 inputs 也不查图**——服务端按队列号推，
   与临床表/样本元信息表同一处置（都不用你管）。但这两张 CSV 与临床表不同——**它们不在图内**，
   写进 assets 会被判 `file_path 与图内记录不符`；临床表/样本元信息表在图内，只是不用你去找（见 §9）。
 - **`taskNNN_` 只是 docker 作业名前缀，不是 tool_id**：写 `cox_model`，不是 `task310_cox_model`。
 
-其余（镜像标签、产出三件套、按队列的 `native_status_source_col`）是执行端契约，服务端补，规划时不用管。
+其余（镜像标签、产出三件套、按队列的 `native_status_source_col`）由运行绑定或执行端补，规划时不用管。
 
-### 3.2 bulk10 之外的实跑白名单（`references/succeeded_runs.tsv`）
+### 3.2 运行绑定：只有绑定过的「流程 × 队列」能推荐（`bindings/`）
 
-**凡是有实跑记录的工具，只放行它真跑过的「工具 × 队列」组合**——与 bulk10 同口径、同两道闸
-（`validate_plan` 判违规、`validate_execution_chain` 判不可提交）。机器判定的真值在
-`references/succeeded_runs.tsv`（2026-09 运行测试表回流，49 个工具 233 条组合，含原子工具）；
-下表是规划侧速查。**一条记录都没有的工具**（`gatk`/`multiqc`/`samtools`/`rsem`/`featurecounts`/
-`rnaseq_singletask`）不受白名单约束。反面是黑名单 `failed_runs.tsv`：跑挂过的组合封禁到上游修好。
+**流程只能配它有运行绑定的队列。** 一条运行绑定 = Cromwell 上一次用真实队列数据跑通的运行（不含测试数据、
+不含冒烟测试抽样），连同平台当时提交的整套参数。2026-10 起它取代旧的黑白名单，而且更严：**一条绑定都没有的
+流程不能推荐**（旧白名单「没记录就不约束」的口子已经堵上——`gatk_germline_cohort` 就是从那里出去、到执行端
+才跑挂的）。
 
-- `wgcna`：仅 `HRA000073`/`HRA000074`
-- `bootstrap_stability`/`hvg_pca_gmm`：`HRA003107`/`000073`/`000074`/`000122`/`002693`/`006117`
-- `umap`/`diff_expr_go`/`diff_expr_kegg`/`rnaseq_unsupervised_cluster`：上述六个 + `HRA007167`
-- `preprocess_counts`：上述七个 + `HRA007413`
-- `her2_pfs_survival`/`immune_infiltration_iobr`：上述八个 + `HRA001272`
-- `tmb_survival_analysis`/`wes_somatic_maf_landscape`：`HRA000071`/`000873`/`001272`/`001749`/`006499`/`007169`/`016026`
-- `driver_gene_gender_analysis`：上述七个 − `HRA006499`
-- `survival_analysis`：`HRA001272`/`001749`/`007169`/`016026`
-- `cnvkit_cnv_clinical`：`HRA000021`/`000071`/`000873`/`001272`/`001749`/`006499`/`007169`
-- `manta_structural_variants`：上述七个 + `HRA016026`
-- `gatk_germline_cohort`：上述八个 + `HRA000087`
-- `wes_somatic_pair`/`bcftools`/`snpeff`：`HRA001749`/`007169`
-- `rmats_alternative_splicing`：`HRA000073`/`000074`/`001272`/`002693`/`003107`/`006117`/`007167`/`016026`
-- 单细胞任务流（`breast_cellchat`/`celltype_case_control_de`/`dataset_downstream`/`dataset_matrix_annotation`/`immunotherapy_cellchat`/`lung_tme_annotation_cnv`/`tcell_intervention`）：`HRA000087`/`000321`；`scrna_cell_communication`/`ipf_trajectory_regulon`：仅 `HRA000087`
-- `gsea_pathway_enrichment`/`tumor_evolution_inference`：仅 `HRA001272`
-- `cellranger_workflow`：`HRA001748`/`HRA005191`
-- 原子工具：`bwa` `HRA000071`/`000073`/`000074`/`000087`/`000127`/`000321`/`000873`；`fastqc` 同此七个 − `HRA000873`；`paired_fastq_to_unmapped_bam` 再 − `HRA000321`；`star` 同 bwa 七个但 `HRA000873`→`HRA002693`；`trim_galore` 仅 `HRA000071`/`000073`/`000074`；`star_fusion`（17 个）、`fastp`（19 个）见 tsv
-
-用户点名的组合不在表内：直说该工具跑过哪几个队列、改荐其一，别静默替换。没点名队列时从
-该工具自己那行里选（别按并集）。
+- 已绑定的流程和队列清单**附在手册末尾「运行绑定（硬约束）」**，按 `bindings/` 现生成；只从里面选。
+- **执行参数由服务端按绑定原样下发**，你只负责选流程，用户点名了队列就照点名的来；不要编路径。
+- 用户点名的流程/队列没有绑定：直说该流程支持哪些队列（或暂无已验证数据），**不要换成意思相近的流程或别的癌种**。
+- 两道闸都按它判：`validate_plan` 判违规走修正轮，`validate_execution_chain` 判不可提交。人工停用的绑定
+  （`bindings/<流程>.json` 里的 `disabled`）按停用原因拒。
 
 ## 4. 查询配方
 

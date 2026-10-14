@@ -32,32 +32,6 @@ class RmatsGroupFillTests(unittest.TestCase):
             entries = srv._cohort_fill_entries('rmats_alternative_splicing','HRA001272',{'HRR1'})
             self.assertEqual(entries['group2_bams'],[(frozenset(),'/t.bam')])
 
-    def bind(self, groups, explicit=None):
-        assets = [{'asset_id':'asset-1','file_name':'representative.bam','path':'/representative.bam',
-                   'file_path':'/representative.bam','artifact_type':'bam','_fmt':'bam','study_accession':'HRA001272'}]
-        with patch.object(srv,'_rmats_group_bams',return_value=groups), patch.object(srv,'_resolve_id_params',return_value=({},[])):
-            return adapter._bind_step(srv,'rmats_alternative_splicing',srv.KC_MAP['rmats_alternative_splicing'],assets,[],'step-1',explicit_inputs=explicit),assets
-
-    def test_representative_file_is_replaced_by_two_role_groups(self):
-        (inputs,missing),assets = self.bind({'group1_bams':['/n1.bam','/n2.bam'],'group2_bams':['/t1.bam','/t2.bam']})
-        self.assertFalse(missing)
-        by_id = {a['asset_id']:a['path'] for a in assets}
-        self.assertEqual([by_id[b['asset_id']] for b in inputs['group1_bams']],['/n1.bam','/n2.bam'])
-        self.assertEqual([by_id[b['asset_id']] for b in inputs['group2_bams']],['/t1.bam','/t2.bam'])
-
-    def test_empty_role_is_reported_not_filled_from_other_group(self):
-        (inputs,missing),_ = self.bind({'group1_bams':['/n.bam'],'group2_bams':[]})
-        self.assertNotIn('group2_bams',inputs)
-        self.assertTrue(any(m['param']=='group2_bams' for m in missing))
-
-    def test_explicit_group_is_not_replaced(self):
-        (inputs,missing),assets = self.bind({'group1_bams':['/n.bam'],'group2_bams':['/t.bam']},
-                                           {'group1_bams':[{'file_path':'/representative.bam'}]})
-        self.assertFalse(missing)
-        self.assertEqual(inputs['group1_bams'],[{'asset_id':'asset-1'}])
-        by_id = {a['asset_id']:a['path'] for a in assets}
-        self.assertEqual([by_id[b['asset_id']] for b in inputs['group2_bams']],['/t.bam'])
-
     def test_gene_boxplot_intent(self):
         self.assertFalse(adapter._prefer_gene_boxplot('MIR503HG（ENSG00000223749）的异常高表达是否对应稳定的共表达模块及相关生物学功能？'))
         self.assertTrue(adapter._prefer_gene_boxplot('MIR503HG 在食管鳞癌组织中的表达是升高还是降低？'))

@@ -1,0 +1,353 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "cnvkit_cnv_clinical",
+  "card_id": "cnvkit_cnv_clinical",
+  "name_cn": "配对肿瘤-正常样本 CNVkit 拷贝数变异分析",
+  "workflow_names": [
+    "CnvkitCnvClinical"
+  ],
+  "default_study": "HRA000021",
+  "bindings": [
+    {
+      "study": "HRA000021",
+      "execution_params": {
+        "assay_type": "wgs",
+        "normal_bais": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA000021/BAM-files/HRR067347.BQSR.bam.bai"
+        ],
+        "normal_bams": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA000021/BAM-files/HRR067347.BQSR.bam"
+        ],
+        "sample_ids": [
+          "HRR067348"
+        ],
+        "tumor_bais": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA000021/BAM-files/HRR067348.BQSR.bam.bai"
+        ],
+        "tumor_bams": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA000021/BAM-files/HRR067348.BQSR.bam"
+        ]
+      },
+      "platform_inputs": {
+        "cpu": 8,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/cnvkit-cnv-clinical:1.1.0",
+        "memory": "24 GB"
+      },
+      "source_run": {
+        "cromwell_id": "6a259681-7c08-4168-bc64-06d48db57761",
+        "workflow_name": "CnvkitCnvClinical",
+        "submitted_at": "2026-09-22T06:38:21.112Z",
+        "ended_at": "2026-09-22T08:19:38.282Z",
+        "via": "platform",
+        "wdl_sha256": "534f03c6fc63bdc084e928f812663862883beb81c09d162a13192d073d54625d",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 5,
+        "workflow_names": [
+          "CnvkitCnvClinical"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA000071",
+      "execution_params": {
+        "assay_type": "wgs",
+        "normal_bais": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024685.BQSR.bam.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024686.BQSR.bam.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024687.BQSR.bam.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024688.BQSR.bam.bai"
+        ],
+        "normal_bams": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024685.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024686.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024687.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024688.BQSR.bam"
+        ],
+        "sample_ids": [
+          "HRR024971",
+          "HRR024972",
+          "HRR024973",
+          "HRR024974"
+        ],
+        "tumor_bais": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024971.BQSR.bam.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024972.BQSR.bam.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024973.BQSR.bam.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024974.BQSR.bam.bai"
+        ],
+        "tumor_bams": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024971.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024972.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024973.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000071/BAM-files/HRR024974.BQSR.bam"
+        ]
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/cnvkit-cnv-clinical:1.1.0"
+      },
+      "source_run": {
+        "cromwell_id": "f69f50c8-93b8-4142-8d7f-772953f591c2",
+        "workflow_name": "CnvkitCnvClinical",
+        "submitted_at": "2026-09-29T04:33:09.551Z",
+        "ended_at": "2026-09-29T04:44:44.873Z",
+        "via": "direct",
+        "wdl_sha256": "534f03c6fc63bdc084e928f812663862883beb81c09d162a13192d073d54625d",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 2,
+        "workflow_names": [
+          "CnvkitCnvClinical"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": null
+    },
+    {
+      "study": "HRA000873",
+      "execution_params": {
+        "assay_type": "wgs",
+        "normal_bais": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA000873/BAM-files/HRR232645.BQSR.bam.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000873/BAM-files/HRR232647.BQSR.bam.bai"
+        ],
+        "normal_bams": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA000873/BAM-files/HRR232645.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000873/BAM-files/HRR232647.BQSR.bam"
+        ],
+        "sample_ids": [
+          "HRR232644",
+          "HRR232646"
+        ],
+        "tumor_bais": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA000873/BAM-files/HRR232644.BQSR.bam.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000873/BAM-files/HRR232646.BQSR.bam.bai"
+        ],
+        "tumor_bams": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA000873/BAM-files/HRR232644.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA000873/BAM-files/HRR232646.BQSR.bam"
+        ]
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/cnvkit-cnv-clinical:1.1.0"
+      },
+      "source_run": {
+        "cromwell_id": "d623a992-137e-431c-8aeb-8289ddaaf679",
+        "workflow_name": "CnvkitCnvClinical",
+        "submitted_at": "2026-08-22T11:14:48.617Z",
+        "ended_at": "2026-08-22T11:47:18.334Z",
+        "via": "direct",
+        "wdl_sha256": "534f03c6fc63bdc084e928f812663862883beb81c09d162a13192d073d54625d",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "CnvkitCnvClinical"
+        ]
+      },
+      "tumor_type": "colorectal adenocarcinoma",
+      "verification": null
+    },
+    {
+      "study": "HRA001272",
+      "execution_params": {
+        "assay_type": "wgs",
+        "normal_bais": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA001272/BAM/HRR365786.BQSR.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA001272/BAM/HRR365897.BQSR.bai"
+        ],
+        "normal_bams": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA001272/BAM/HRR365786.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA001272/BAM/HRR365897.BQSR.bam"
+        ],
+        "sample_ids": [
+          "HRR365787",
+          "HRR365898"
+        ],
+        "tumor_bais": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA001272/BAM/HRR365787.BQSR.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA001272/BAM/HRR365898.BQSR.bai"
+        ],
+        "tumor_bams": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA001272/BAM/HRR365787.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA001272/BAM/HRR365898.BQSR.bam"
+        ]
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/cnvkit-cnv-clinical:1.1.0"
+      },
+      "source_run": {
+        "cromwell_id": "705fc736-d2a7-4ff2-aee3-a1565f3f6332",
+        "workflow_name": "CnvkitCnvClinical",
+        "submitted_at": "2026-09-29T04:21:42.352Z",
+        "ended_at": "2026-09-29T04:33:59.115Z",
+        "via": "direct",
+        "wdl_sha256": "534f03c6fc63bdc084e928f812663862883beb81c09d162a13192d073d54625d",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 2,
+        "workflow_names": [
+          "CnvkitCnvClinical"
+        ]
+      },
+      "tumor_type": "hepatocellular carcinoma",
+      "verification": null
+    },
+    {
+      "study": "HRA001749",
+      "execution_params": {
+        "assay_type": "wgs",
+        "normal_bais": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA001749/BAM-files/HRR573095.BQSR.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA001749/BAM-files/HRR573097.BQSR.bai"
+        ],
+        "normal_bams": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA001749/BAM-files/HRR573095.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA001749/BAM-files/HRR573097.BQSR.bam"
+        ],
+        "sample_ids": [
+          "HRR573094",
+          "HRR573096"
+        ],
+        "tumor_bais": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA001749/BAM-files/HRR573094.BQSR.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA001749/BAM-files/HRR573096.BQSR.bai"
+        ],
+        "tumor_bams": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA001749/BAM-files/HRR573094.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA001749/BAM-files/HRR573096.BQSR.bam"
+        ]
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/cnvkit-cnv-clinical:1.1.0"
+      },
+      "source_run": {
+        "cromwell_id": "6cba553b-75d0-4063-b1b8-cd957ed419d4",
+        "workflow_name": "CnvkitCnvClinical",
+        "submitted_at": "2026-08-22T11:28:14.074Z",
+        "ended_at": "2026-08-22T12:01:56.663Z",
+        "via": "direct",
+        "wdl_sha256": "534f03c6fc63bdc084e928f812663862883beb81c09d162a13192d073d54625d",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "CnvkitCnvClinical"
+        ]
+      },
+      "tumor_type": "liver cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA006499",
+      "execution_params": {
+        "assay_type": "wgs",
+        "normal_bais": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files/HRS1029915.BQSR.bam.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files/HRS1029936.BQSR.bam.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files/HRS1029943.BQSR.bam.bai"
+        ],
+        "normal_bams": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files/HRS1029915.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files/HRS1029936.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files/HRS1029943.BQSR.bam"
+        ],
+        "sample_ids": [
+          "HRS1029913",
+          "HRS1029934",
+          "HRS1029941"
+        ],
+        "tumor_bais": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files/HRS1029913.BQSR.bam.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files/HRS1029934.BQSR.bam.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files/HRS1029941.BQSR.bam.bai"
+        ],
+        "tumor_bams": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files/HRS1029913.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files/HRS1029934.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA006499/BAM-files/HRS1029941.BQSR.bam"
+        ]
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/cnvkit-cnv-clinical:1.1.0"
+      },
+      "source_run": {
+        "cromwell_id": "69d7ddda-0a6d-4aba-b4a9-ae0eedf935e4",
+        "workflow_name": "CnvkitCnvClinical",
+        "submitted_at": "2026-08-22T11:28:52.567Z",
+        "ended_at": "2026-08-22T12:07:07.079Z",
+        "via": "direct",
+        "wdl_sha256": "534f03c6fc63bdc084e928f812663862883beb81c09d162a13192d073d54625d",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "CnvkitCnvClinical"
+        ]
+      },
+      "tumor_type": "liver cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA007169",
+      "execution_params": {
+        "assay_type": "wgs",
+        "normal_bais": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA007169/BAM-files/HRR1725088.BQSR.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA007169/BAM-files/HRR1725092.BQSR.bai"
+        ],
+        "normal_bams": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA007169/BAM-files/HRR1725088.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA007169/BAM-files/HRR1725092.BQSR.bam"
+        ],
+        "sample_ids": [
+          "HRR1725089",
+          "HRR1725093"
+        ],
+        "tumor_bais": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA007169/BAM-files/HRR1725089.BQSR.bai",
+          "/hpcdisk1/cbb_group/data/analysis/HRA007169/BAM-files/HRR1725093.BQSR.bai"
+        ],
+        "tumor_bams": [
+          "/hpcdisk1/cbb_group/data/analysis/HRA007169/BAM-files/HRR1725089.BQSR.bam",
+          "/hpcdisk1/cbb_group/data/analysis/HRA007169/BAM-files/HRR1725093.BQSR.bam"
+        ]
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/cnvkit-cnv-clinical:1.1.0"
+      },
+      "source_run": {
+        "cromwell_id": "ce0c1a9d-9f1e-4cb4-b948-03c2da32dd07",
+        "workflow_name": "CnvkitCnvClinical",
+        "submitted_at": "2026-08-22T11:29:22.327Z",
+        "ended_at": "2026-08-22T12:06:52.414Z",
+        "via": "direct",
+        "wdl_sha256": "534f03c6fc63bdc084e928f812663862883beb81c09d162a13192d073d54625d",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "CnvkitCnvClinical"
+        ]
+      },
+      "tumor_type": "melanoma",
+      "verification": null
+    }
+  ]
+}

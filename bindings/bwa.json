@@ -1,0 +1,46 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "bwa",
+  "card_id": "bwa_mem_paired",
+  "name_cn": "BWA-MEM 双端序列比对",
+  "workflow_names": [
+    "BwaMain",
+    "BwaMemWorkflow"
+  ],
+  "default_study": "HRA000074",
+  "bindings": [
+    {
+      "study": "HRA000074",
+      "execution_params": {
+        "read1": "/hpcdisk1/cbb_group/data/HRA000074/HRR025859_f1.fq.gz",
+        "read2": "/hpcdisk1/cbb_group/data/HRA000074/HRR025859_r2.fq.gz",
+        "read_group_platform": "ILLUMINA",
+        "reference_fasta": "/opt/wes_resources/Homo_sapiens_assembly38.chr1-22XY.fasta",
+        "sample_id": "HRR025859"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/wes-somatic:6.5",
+        "memory": "24 GB",
+        "threads": 16
+      },
+      "source_run": {
+        "cromwell_id": "9e4c8ec3-9d2f-4727-87e0-9bfe92757436",
+        "workflow_name": "BwaMemWorkflow",
+        "submitted_at": "2026-09-28T10:55:44.273Z",
+        "ended_at": "2026-09-28T12:11:58.787Z",
+        "via": "platform",
+        "wdl_sha256": "c3be3eaf5852918f43e9d0bfd4db0716bd5d942948844588437d08a46f5d0e2c",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "BwaMemWorkflow"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": null
+    }
+  ]
+}

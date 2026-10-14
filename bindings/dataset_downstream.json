@@ -1,0 +1,45 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "dataset_downstream",
+  "card_id": "dataset_downstream",
+  "name_cn": "单细胞数据集下游分析流程",
+  "workflow_names": [
+    "task404_dataset_downstream"
+  ],
+  "default_study": "HRA000087",
+  "bindings": [
+    {
+      "study": "HRA000087",
+      "execution_params": {
+        "assay": "RNA",
+        "cell_type_col": "",
+        "counts_layer": "counts",
+        "dataset_id": "HRA000087",
+        "gene_order": "/hpcdisk1/cbb_group/data/analysis/HRA000087/hg38_gene_order.tsv",
+        "input_rds": "/hpcdisk1/cbb_group/data/analysis/HRA000087/HRA000087-Seurat-RDS-files/HRA000087-merge.rds",
+        "malignant_label": "Malignant",
+        "reference_labels": "CD8_T,Endothelial"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/cncb-cohort-agent/singlecell/scrna-production-r:1.1.1"
+      },
+      "source_run": {
+        "cromwell_id": "2795c943-0468-4027-9bec-0b8f7a000cff",
+        "workflow_name": "task404_dataset_downstream",
+        "submitted_at": "2026-09-18T06:51:25.453Z",
+        "ended_at": "2026-09-18T07:37:31.149Z",
+        "via": "direct",
+        "wdl_sha256": "c64d19b6562c1d6467b60c157a89f556df86a6a3780572ec53a8c558883aa0ac",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "task404_dataset_downstream"
+        ]
+      },
+      "tumor_type": "nasopharynx carcinoma",
+      "verification": null
+    }
+  ]
+}

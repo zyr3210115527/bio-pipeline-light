@@ -226,6 +226,11 @@ def load_system_prompt():
     guide = open(guide_path, encoding="utf-8").read()
     prompt += ("\n\n【手册已内联】规划手册（即 get_planning_guide 返回内容）全文已在下方给出，"
                "本会话**不需要**再调用 get_planning_guide，直接从下文手册行事：\n\n" + guide)
+    # 已绑定流程/队列清单（bindings/ 现生成，见 run_bindings.py）：推荐只能落在这张表里
+    if REPO not in sys.path:
+        sys.path.insert(0, REPO)
+    import run_bindings
+    prompt += run_bindings.prompt_section()
     # 契约在长上下文中要放在末尾（近因位置），防长手册稀释
     prompt += (
         "\n\n【最终输出契约——最高优先级，覆盖一切】你的最后一条消息必须且只能是一个"

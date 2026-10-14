@@ -1,0 +1,132 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "survival_analysis",
+  "card_id": "survival_analysis",
+  "name_cn": "生存分析流程",
+  "workflow_names": [
+    "SurvivalAnalysis"
+  ],
+  "default_study": "HRA001272",
+  "bindings": [
+    {
+      "study": "HRA001272",
+      "execution_params": {
+        "gene_symbol": "EGFR",
+        "individual_csv": "/cbb-data/gsa/agent/HRA001272/individual.csv",
+        "maf_file": "/hpcdisk1/cbb_group/data/analysis/HRA001272/HRA001272-SomaticSNV-1.0.maf",
+        "sample_csv": "/cbb-data/gsa/agent/HRA001272/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA001272/T1.csv"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/survival-analysis:6.1"
+      },
+      "source_run": {
+        "cromwell_id": "147ccaf2-dbab-46d3-8679-bcab76ac0298",
+        "workflow_name": "SurvivalAnalysis",
+        "submitted_at": "2026-08-31T11:26:37.214Z",
+        "ended_at": "2026-08-31T11:30:15.592Z",
+        "via": "direct",
+        "wdl_sha256": "75053ed99dd8166dc2eae1cce0182c0ff44c822b430f2139729bba51a7b9ec54",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 2,
+        "workflow_names": [
+          "SurvivalAnalysis"
+        ]
+      },
+      "tumor_type": "hepatocellular carcinoma",
+      "verification": null
+    },
+    {
+      "study": "HRA001749",
+      "execution_params": {
+        "gene_symbol": "EGFR",
+        "individual_csv": "/cbb-data/gsa/agent/HRA001749/individual.csv",
+        "maf_file": "/hpcdisk1/cbb_group/data/analysis/HRA001749/HRA001749-SomaticSNV-1.0.maf",
+        "sample_csv": "/cbb-data/gsa/agent/HRA001749/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA001749/T1.csv"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/survival-analysis:6.1"
+      },
+      "source_run": {
+        "cromwell_id": "8164d3b1-0d41-4fcf-b8f4-8bcb7afae73a",
+        "workflow_name": "SurvivalAnalysis",
+        "submitted_at": "2026-08-31T11:27:01.773Z",
+        "ended_at": "2026-08-31T11:30:06.073Z",
+        "via": "direct",
+        "wdl_sha256": "75053ed99dd8166dc2eae1cce0182c0ff44c822b430f2139729bba51a7b9ec54",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "SurvivalAnalysis"
+        ]
+      },
+      "tumor_type": "liver cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA007169",
+      "execution_params": {
+        "gene_symbol": "EGFR",
+        "individual_csv": "/cbb-data/gsa/agent/HRA007169/individual.csv",
+        "maf_file": "/hpcdisk1/cbb_group/data/analysis/HRA007169/HRA007169-SomaticSNV-1.0.maf",
+        "sample_csv": "/cbb-data/gsa/agent/HRA007169/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA007169/T1.csv"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/survival-analysis:6.1"
+      },
+      "source_run": {
+        "cromwell_id": "847e4a7f-a561-4731-b8a2-83672e32401b",
+        "workflow_name": "SurvivalAnalysis",
+        "submitted_at": "2026-08-31T11:27:55.428Z",
+        "ended_at": "2026-08-31T11:30:27.423Z",
+        "via": "direct",
+        "wdl_sha256": "75053ed99dd8166dc2eae1cce0182c0ff44c822b430f2139729bba51a7b9ec54",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "SurvivalAnalysis"
+        ]
+      },
+      "tumor_type": "melanoma",
+      "verification": null
+    },
+    {
+      "study": "HRA016026",
+      "execution_params": {
+        "gene_symbol": "EGFR",
+        "individual_csv": "/cbb-data/gsa/agent/HRA016026/individual.csv",
+        "maf_file": "/hpcdisk1/cbb_group/data/analysis/HRA016026/HRA016026-SomaticSNV-1.0.maf",
+        "sample_csv": "/cbb-data/gsa/agent/HRA016026/sample.csv",
+        "t1_csv": "/cbb-data/gsa/agent/HRA016026/T1.csv"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/survival-analysis:6.1"
+      },
+      "source_run": {
+        "cromwell_id": "7e229fcc-ddda-44e9-bf99-e32b38575395",
+        "workflow_name": "SurvivalAnalysis",
+        "submitted_at": "2026-08-31T11:28:25.946Z",
+        "ended_at": "2026-08-31T11:32:16.595Z",
+        "via": "direct",
+        "wdl_sha256": "75053ed99dd8166dc2eae1cce0182c0ff44c822b430f2139729bba51a7b9ec54",
+        "wdl_has_imports": false
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "SurvivalAnalysis"
+        ]
+      },
+      "tumor_type": "lung cancer",
+      "verification": null
+    }
+  ]
+}

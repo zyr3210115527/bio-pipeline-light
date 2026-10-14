@@ -1,0 +1,82 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "wes_somatic_maf_landscape",
+  "card_id": "wes_somatic_maf_landscape",
+  "name_cn": "WES 体细胞突变 MAF 景观分析流程",
+  "workflow_names": [
+    "wes_somatic_maf_landscape"
+  ],
+  "default_study": "HRA001272",
+  "bindings": [
+    {
+      "study": "HRA000873",
+      "execution_params": {
+        "coding_only": true,
+        "maf_file": "/hpcdisk1/cbb_group/data/analysis/HRA000873/HRA000873-SomaticSNV-1.0.maf",
+        "output_prefix": "HRA000873",
+        "pass_only": true,
+        "plot_cpu": 4,
+        "prepare_cpu": 4,
+        "top_n": 30
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/maflandscape:1.0",
+        "plot_memory": "32 GB",
+        "prepare_memory": "16 GB"
+      },
+      "source_run": {
+        "cromwell_id": "7b4a7038-8e5f-4da2-ac47-74512e0596e0",
+        "workflow_name": "wes_somatic_maf_landscape",
+        "submitted_at": "2026-09-28T06:34:01.484Z",
+        "ended_at": "2026-09-28T06:43:08.291Z",
+        "via": "platform",
+        "wdl_sha256": "eec678a9107c3084e38157b6f9f710f9582307814881d5c273440802e4ef1d1d",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "wes_somatic_maf_landscape"
+        ]
+      },
+      "tumor_type": "colorectal adenocarcinoma",
+      "verification": null
+    },
+    {
+      "study": "HRA001272",
+      "execution_params": {
+        "coding_only": true,
+        "maf_file": "/hpcdisk1/cbb_group/data/analysis/HRA001272/HRA001272-SomaticSNV-1.0.maf",
+        "output_prefix": "HRA001272",
+        "pass_only": true,
+        "plot_cpu": 4,
+        "prepare_cpu": 4,
+        "top_n": 30
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/maflandscape:1.0",
+        "plot_memory": "32 GB",
+        "prepare_memory": "16 GB"
+      },
+      "source_run": {
+        "cromwell_id": "9f35e53a-8cfa-4f13-958b-51656425f19f",
+        "workflow_name": "wes_somatic_maf_landscape",
+        "submitted_at": "2026-10-11T07:04:37.966Z",
+        "ended_at": "2026-10-11T07:06:37.480Z",
+        "via": "platform",
+        "wdl_sha256": "eec678a9107c3084e38157b6f9f710f9582307814881d5c273440802e4ef1d1d",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 143,
+        "workflow_names": [
+          "wes_somatic_maf_landscape"
+        ]
+      },
+      "tumor_type": "hepatocellular carcinoma",
+      "verification": null
+    }
+  ]
+}

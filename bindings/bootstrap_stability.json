@@ -1,0 +1,52 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "bootstrap_stability",
+  "card_id": "bootstrap_stability",
+  "name_cn": "Bootstrap聚类稳定性评估",
+  "workflow_names": [
+    "BootstrapStabilityWorkflow"
+  ],
+  "default_study": "HRA003107",
+  "bindings": [
+    {
+      "study": "HRA003107",
+      "execution_params": {
+        "ari_high_threshold": 0.8,
+        "bootstrap_n": 100,
+        "hvg_n": 1000,
+        "k_max": 15,
+        "k_min": 1,
+        "loess_span": 0.5,
+        "logcpm_tsv": "/hpcdisk1/cbb_group/data/analysis/HRA003107/HRA003107-Genes-counts-1.0.tsv",
+        "nmi_high_threshold": 0.8,
+        "pca_n": 20,
+        "perm_n": 100,
+        "retain_fraction": 0.8,
+        "seed": 20260329
+      },
+      "platform_inputs": {
+        "cpu": 4,
+        "docker_image": "image.cncb.ac.cn/diff_expr_kegg/jieniqianqian/rnaseqcluster:1.0",
+        "memory": "16 GB"
+      },
+      "source_run": {
+        "cromwell_id": "085d05cd-039f-42dd-a93f-3527f2955999",
+        "workflow_name": "BootstrapStabilityWorkflow",
+        "submitted_at": "2026-09-28T10:33:30.907Z",
+        "ended_at": "2026-09-30T07:33:42.397Z",
+        "via": "platform",
+        "wdl_sha256": "0268e924a5ac1a7588c1e8c63943a4071e1d38f5887c18509800402b1854795a",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "BootstrapStabilityWorkflow"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": null
+    }
+  ]
+}

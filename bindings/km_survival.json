@@ -1,0 +1,224 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "km_survival",
+  "card_id": "km_survival",
+  "name_cn": "Kaplan-Meier生存分析",
+  "workflow_names": [
+    "km_survival",
+    "task438_km_survival"
+  ],
+  "default_study": "HRA003107",
+  "bindings": [
+    {
+      "study": "HRA000073",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA000073/HRA000073-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA000073/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA000073/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "92c2ff2d-c306-4461-81f4-05d4e55f1a49",
+        "workflow_name": "task438_km_survival",
+        "submitted_at": "2026-09-17T07:01:50.251Z",
+        "ended_at": "2026-09-17T07:12:07.742Z",
+        "via": "direct",
+        "wdl_sha256": "58684ddf226bc12a32ed96f00d8d51dc2514fcc5d8b1fb8760e4508d315e4ed8",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 3,
+        "workflow_names": [
+          "task438_km_survival"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": null
+    },
+    {
+      "study": "HRA000074",
+      "execution_params": {
+        "clinical_individual_col": "Individual Accession",
+        "clinical_sheet": "Sheet1",
+        "cox_model_top_n": 10,
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA000074/HRA000074-Genes-counts-1.0.tsv",
+        "files_sample_col": "Sample",
+        "files_sheet": "Files",
+        "individual_csv": "/cbb-data/gsa/agent/HRA000074/individual.csv",
+        "individual_id_col": "Individual Accession",
+        "individual_sample_col": "Sample Accession",
+        "individuals_sheet": "Individuals & samples",
+        "km_top_n": 5,
+        "native_case_label": "case",
+        "native_case_regex": "tumou?r|case|disease|primary|treated|T$",
+        "native_control_label": "control",
+        "native_control_regex": "normal|control|healthy|peritumou?ral|adjacent|untreated|N$",
+        "native_group_mode": "auto",
+        "native_group_source_col": "tissue_type",
+        "native_require_group": false,
+        "native_require_stage": false,
+        "native_require_survival": true,
+        "native_sample_filter": "case_only",
+        "native_stage_source_col": "Tumor Stage",
+        "native_status_part": 1,
+        "native_status_source_col": "Survival information",
+        "native_time_part": 1,
+        "native_time_source_col": "Survival Days",
+        "run_col": "Run accession",
+        "sample_col": "sample_id",
+        "sample_csv": "/cbb-data/gsa/agent/HRA000074/sample.csv",
+        "sample_individual_col": "individual_accession",
+        "sample_name_col": "Sample Name",
+        "status_col": "OS_status",
+        "status_event": "1",
+        "time_col": "OS_time",
+        "xlrd_vendor_zip": "/cromwell-share/cromwell_building_group/liuq/bulk10_dependencies/xlrd_vendor.zip"
+      },
+      "platform_inputs": {
+        "cpu": 4,
+        "disk_gb": 50,
+        "docker_image": "image.cncb.ac.cn/singlespatial/data_process/visualization/task438_km_survival:v1",
+        "memory_gb": 16
+      },
+      "source_run": {
+        "cromwell_id": "73b7ea89-6868-41fb-81ef-a9566506befe",
+        "workflow_name": "km_survival",
+        "submitted_at": "2026-08-27T08:08:25.371Z",
+        "ended_at": "2026-08-27T08:20:18.695Z",
+        "via": "platform",
+        "wdl_sha256": "1055749970ef5ee87ad87c640bf1809e4f5a69405a2efd8ed1ce379e767eb940",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 3,
+        "workflow_names": [
+          "km_survival",
+          "task438_km_survival"
+        ]
+      },
+      "tumor_type": "malignant glioma",
+      "verification": null
+    },
+    {
+      "study": "HRA002693",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA002693/HRA002693-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA002693/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA002693/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "b938e80b-c04b-4185-bbfe-3f44a2543b6c",
+        "workflow_name": "task438_km_survival",
+        "submitted_at": "2026-09-17T07:02:44.725Z",
+        "ended_at": "2026-09-17T07:12:10.701Z",
+        "via": "direct",
+        "wdl_sha256": "58684ddf226bc12a32ed96f00d8d51dc2514fcc5d8b1fb8760e4508d315e4ed8",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 2,
+        "workflow_names": [
+          "task438_km_survival"
+        ]
+      },
+      "tumor_type": "acute myeloid leukemia",
+      "verification": null
+    },
+    {
+      "study": "HRA003107",
+      "execution_params": {
+        "clinical_individual_col": "Individual Accession",
+        "clinical_sheet": "Sheet1",
+        "cox_model_top_n": 10,
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA003107/HRA003107-Genes-counts-1.0.tsv",
+        "files_sample_col": "Sample",
+        "files_sheet": "Files",
+        "individual_csv": "/cbb-data/gsa/agent/HRA003107/individual.csv",
+        "individual_id_col": "Individual Accession",
+        "individual_sample_col": "Sample Accession",
+        "individuals_sheet": "Individuals & samples",
+        "km_top_n": 5,
+        "native_case_label": "case",
+        "native_case_regex": "tumou?r|case|disease|primary|treated|T$",
+        "native_control_label": "control",
+        "native_control_regex": "normal|control|healthy|peritumou?ral|adjacent|untreated|N$",
+        "native_group_mode": "auto",
+        "native_group_source_col": "tissue_type",
+        "native_require_group": false,
+        "native_require_stage": false,
+        "native_require_survival": true,
+        "native_sample_filter": "case_only",
+        "native_stage_source_col": "Tumor Stage",
+        "native_status_part": 1,
+        "native_status_source_col": "Survival information",
+        "native_time_part": 1,
+        "native_time_source_col": "Survival Days",
+        "run_col": "Run accession",
+        "sample_col": "sample_id",
+        "sample_csv": "/cbb-data/gsa/agent/HRA003107/sample.csv",
+        "sample_individual_col": "individual_accession",
+        "sample_name_col": "Sample Name",
+        "status_col": "OS_status",
+        "status_event": "1",
+        "time_col": "OS_time",
+        "xlrd_vendor_zip": "/cromwell-share/cromwell_building_group/liuq/bulk10_dependencies/xlrd_vendor.zip"
+      },
+      "platform_inputs": {
+        "cpu": 8,
+        "disk_gb": 50,
+        "docker_image": "image.cncb.ac.cn/singlespatial/data_process/visualization/task438_km_survival:v1",
+        "memory_gb": 16
+      },
+      "source_run": {
+        "cromwell_id": "d9bb5c93-0d6d-4432-860f-1d9d1aac335a",
+        "workflow_name": "km_survival",
+        "submitted_at": "2026-09-18T02:16:47.618Z",
+        "ended_at": "2026-09-18T02:25:00.787Z",
+        "via": "platform",
+        "wdl_sha256": "f66510f9b3c9f705ab15ed1dc617f570fb899bb85d72c00eb635672ae03e31ee",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 10,
+        "workflow_names": [
+          "km_survival",
+          "task438_km_survival"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA006117",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA006117/HRA006117-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA006117/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA006117/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "1bd1e70f-f78d-4c98-a4f9-33f594c2d892",
+        "workflow_name": "task438_km_survival",
+        "submitted_at": "2026-09-17T07:03:09.942Z",
+        "ended_at": "2026-09-17T07:14:35.176Z",
+        "via": "direct",
+        "wdl_sha256": "58684ddf226bc12a32ed96f00d8d51dc2514fcc5d8b1fb8760e4508d315e4ed8",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 2,
+        "workflow_names": [
+          "task438_km_survival"
+        ]
+      },
+      "tumor_type": "acute myeloid leukemia",
+      "verification": null
+    }
+  ]
+}

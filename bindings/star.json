@@ -1,0 +1,78 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "star",
+  "card_id": "star_rrna_and_genome_alignment",
+  "name_cn": "STAR rRNA 去除与基因组比对",
+  "workflow_names": [
+    "StarRnaSeqWorkflow"
+  ],
+  "default_study": "HRA006117",
+  "bindings": [
+    {
+      "study": "HRA003107",
+      "execution_params": {
+        "genome_star_index": "/cromwell-share/cromwell_building_group/wenx/testdata/reference/reference_data/star_reference",
+        "read1": "/hpcdisk1/cbb_group/data/HRA003107/HRR757543/HRR757543_f1.fastq.gz",
+        "read2": "/hpcdisk1/cbb_group/data/HRA003107/HRR757543/HRR757543_r2.fastq.gz",
+        "rrna_star_index": "/cromwell-share/cromwell_building_group/wenx/testdata/reference/reference_data/rRNA_reference/star_rrna_reference",
+        "sample_id": "HRS449726"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/cncb-cohort-agent/rnaseq:latest",
+        "memory": "48 GB",
+        "threads": 8
+      },
+      "source_run": {
+        "cromwell_id": "f5e1e7ff-ac41-4789-b38a-54db8e08a0f4",
+        "workflow_name": "StarRnaSeqWorkflow",
+        "submitted_at": "2026-09-02T09:33:15.107Z",
+        "ended_at": "2026-09-03T05:07:19.286Z",
+        "via": "platform",
+        "wdl_sha256": "06b75529c15b48fe72852002482a33818284b7ab627883ba64148d6642984322",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "StarRnaSeqWorkflow"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA006117",
+      "execution_params": {
+        "genome_star_index": "/cromwell-share/cromwell_building_group/wenx/testdata/reference/reference_data/star_reference",
+        "read1": "/hpcdisk1/cbb_group/data/HRA006117/HRR1464788/HRR1464788_f1.fq.gz",
+        "read2": "/hpcdisk1/cbb_group/data/HRA006117/HRR1464788/HRR1464788_r2.fq.gz",
+        "rrna_star_index": "/cromwell-share/cromwell_building_group/wenx/testdata/reference/reference_data/rRNA_reference/star_rrna_reference",
+        "sample_id": "HRS1008013"
+      },
+      "platform_inputs": {
+        "docker_image": "image.cncb.ac.cn/cncb-cohort-agent/rnaseq:latest",
+        "memory": "48 GB",
+        "threads": 8
+      },
+      "source_run": {
+        "cromwell_id": "57b63633-63c8-4847-91ee-b12171c20976",
+        "workflow_name": "StarRnaSeqWorkflow",
+        "submitted_at": "2026-09-02T13:28:59.751Z",
+        "ended_at": "2026-09-02T16:45:59.304Z",
+        "via": "platform",
+        "wdl_sha256": "06b75529c15b48fe72852002482a33818284b7ab627883ba64148d6642984322",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 1,
+        "workflow_names": [
+          "StarRnaSeqWorkflow"
+        ]
+      },
+      "tumor_type": "acute myeloid leukemia",
+      "verification": null
+    }
+  ]
+}

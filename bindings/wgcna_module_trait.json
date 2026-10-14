@@ -1,0 +1,118 @@
+{
+  "schema_version": "run-bindings/v1",
+  "tool_id": "wgcna_module_trait",
+  "card_id": "wgcna_module_trait",
+  "name_cn": "WGCNA模块-性状关联分析",
+  "workflow_names": [
+    "task294_wgcna_module_trait",
+    "wgcna_module_trait"
+  ],
+  "default_study": "HRA003107",
+  "bindings": [
+    {
+      "study": "HRA003107",
+      "execution_params": {
+        "clinical_individual_col": "Individual Accession",
+        "clinical_sheet": "Sheet1",
+        "enrich_fallback_top_n": 30,
+        "enrich_min_genes": 3,
+        "enrich_show_category": 20,
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA003107/HRA003107-Genes-counts-1.0.tsv",
+        "files_sample_col": "Sample",
+        "files_sheet": "Files",
+        "gene_id_type": "auto",
+        "individual_csv": "/cbb-data/gsa/agent/HRA003107/individual.csv",
+        "individual_id_col": "Individual Accession",
+        "individual_sample_col": "Sample Accession",
+        "individuals_sheet": "Individuals & samples",
+        "native_case_label": "case",
+        "native_case_regex": "tumou?r|case|disease|primary|treated|T$",
+        "native_control_label": "control",
+        "native_control_regex": "normal|control|healthy|peritumou?ral|adjacent|untreated|N$",
+        "native_group_mode": "auto",
+        "native_group_source_col": "tissue_type",
+        "native_require_group": false,
+        "native_require_stage": true,
+        "native_require_survival": false,
+        "native_sample_filter": "case_only",
+        "native_stage_source_col": "Tumor Stage",
+        "native_status_part": 1,
+        "native_status_source_col": "Survival information",
+        "native_time_part": 1,
+        "native_time_source_col": "Survival Days",
+        "organism": "human",
+        "run_col": "Run accession",
+        "sample_col": "sample_id",
+        "sample_csv": "/cbb-data/gsa/agent/HRA003107/sample.csv",
+        "sample_individual_col": "individual_accession",
+        "sample_name_col": "Sample Name",
+        "trait_col": "stage",
+        "wgcna_hub_top_n": 50,
+        "wgcna_max_genes": 5000,
+        "wgcna_merge_cut_height": 0.25,
+        "wgcna_min_module_size": 20,
+        "wgcna_power": "auto",
+        "xlrd_vendor_zip": "/cromwell-share/cromwell_building_group/liuq/bulk10_dependencies/xlrd_vendor.zip"
+      },
+      "platform_inputs": {
+        "cpu": 4,
+        "disk_gb": 50,
+        "docker_image": "image.cncb.ac.cn/singlespatial/data_process/visualization/task294_wgcna_module_trait:v1",
+        "memory_gb": 16
+      },
+      "source_run": {
+        "cromwell_id": "ad70c580-299f-42c9-ac33-b45a1ac35283",
+        "workflow_name": "wgcna_module_trait",
+        "submitted_at": "2026-09-29T06:11:23.010Z",
+        "ended_at": "2026-09-29T06:17:02.245Z",
+        "via": "platform",
+        "wdl_sha256": "6bc875863cefb957bcf97adf3f411f4e4e39dab1101262053d1c3670d2e64d07",
+        "wdl_has_imports": false,
+        "wdl_is_latest": true
+      },
+      "evidence": {
+        "succeeded_runs": 12,
+        "workflow_names": [
+          "task294_wgcna_module_trait",
+          "wgcna_module_trait"
+        ]
+      },
+      "tumor_type": "esophageal cancer",
+      "verification": null
+    },
+    {
+      "study": "HRA007167",
+      "execution_params": {
+        "expr": "/hpcdisk1/cbb_group/data/analysis/HRA007167/HRA007167-Genes-counts-1.0.tsv",
+        "individual_csv": "/cbb-data/gsa/agent/HRA007167/individual.csv",
+        "sample_csv": "/cbb-data/gsa/agent/HRA007167/sample.csv"
+      },
+      "platform_inputs": {},
+      "source_run": {
+        "cromwell_id": "0841d3df-6a80-4185-957b-2c1406878a50",
+        "workflow_name": "task294_wgcna_module_trait",
+        "submitted_at": "2026-09-17T06:38:14.645Z",
+        "ended_at": "2026-09-17T06:39:08.219Z",
+        "via": "direct",
+        "wdl_sha256": "dcb9df1855f4c8000e806906e8d05babb27dbb62f02feab438f33460ab79c5f6",
+        "wdl_has_imports": false,
+        "wdl_is_latest": false
+      },
+      "evidence": {
+        "succeeded_runs": 3,
+        "workflow_names": [
+          "task294_wgcna_module_trait"
+        ]
+      },
+      "tumor_type": "melanoma",
+      "verification": {
+        "status": "passed",
+        "workflow_id": "c3c6b439-8b89-4094-9cdc-9698087d80b4",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:18:30+00:00",
+        "ended_at": "2026-10-14T08:21:31+00:00",
+        "duration_s": 181
+      }
+    }
+  ]
+}
