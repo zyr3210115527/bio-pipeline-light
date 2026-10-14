@@ -70,10 +70,15 @@
       ]
     },
     "HRA000321": {
-      "tumor_type": null,
-      "label_cn": null,
-      "labels": [],
-      "_todo": "图谱里没有这个队列（2026-10-14 查过，53 个 study 节点里不含 HRA000321）。绑定文件名是 HRA000321-BC-merge.rds，BC 可能指乳腺癌，未核实，故不设癌种标签"
+      "tumor_type": "multiple cancer types",
+      "label_cn": "多癌种（泛癌）",
+      "labels": [
+        "泛癌",
+        "多癌种",
+        "pan-cancer"
+      ],
+      "source": "NGDC GSA-Human 公开页面（2026-10-14 查）：Comprehensive Characterization of Tumor Infiltrating Lymphocyte of Multiple Cancer Types，多癌种肿瘤浸润淋巴细胞单细胞测序，2022-03-31 发布。当前图谱里没有这个队列（study/project/sample/T1/T2/患者节点逐字段查过）",
+      "_todo": "绑定用的文件是 HRA000321-BC-merge.rds，BC 可能是其中的乳腺癌子集，未核实"
     },
     "HRA000873": {
       "tumor_type": "colorectal adenocarcinoma",
