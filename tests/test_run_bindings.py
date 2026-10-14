@@ -142,7 +142,8 @@ class DeckRegressionTests(unittest.TestCase):
     def test_every_tool_resolves_by_id_and_chinese_name(self):
         """55 个流程逐个点名：认对流程；有绑定的出合同，没绑定的如实拒绝。"""
         for gid in rb.all_tool_ids():
-            for q in (f"我想用癌症数据进行{gid}分析", f"我想用癌症数据进行{rb.name_cn(gid)}分析"):
+            ids = [rb.card(gid)["meta_id"]] if gid in rb.AMBIGUOUS_NAMES else [gid]
+            for q in [f"我想用癌症数据进行{x}分析" for x in ids] + [f"我想用癌症数据进行{rb.name_cn(gid)}分析"]:
                 with self.subTest(q=q):
                     r = self.route(q)
                     self.assertEqual(r["intent"].get("tool_id"), gid)
@@ -160,6 +161,12 @@ class DeckRegressionTests(unittest.TestCase):
         for q, gid in cases.items():
             with self.subTest(q=q):
                 self.assertEqual(self.route(q)["intent"].get("tool_id"), gid)
+
+    def test_toolkit_name_alone_is_not_a_pick(self):
+        """GATK 是好几条流程共用的工具包：单说 GATK 交给模型，说全了（平台展示名）才锁定。"""
+        self.assertEqual(rb.resolve_tool("对一批胚系样本做 GATK 联合分型"), (None, None))
+        self.assertEqual(rb.resolve_tool("我想用癌症数据进行GATK 胚系队列分析"), ("tool", "gatk_germline_cohort"))
+        self.assertEqual(rb.resolve_tool("我想用 gatk_wes_somatic 做配对体细胞"), ("tool", "gatk"))
 
     def test_word_boundary_keeps_short_names_from_matching_inside_words(self):
         self.assertEqual(rb.resolve_tool("start the analysis please"), (None, None))

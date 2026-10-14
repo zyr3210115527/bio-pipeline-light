@@ -124,6 +124,10 @@ SOFTWARE_ALIASES = {
     "starfusion": "star_fusion",
 }
 
+# 工具包名，好几条流程都用它（GATK 体细胞、胚系联合分型、WES 配对……）：单独出现不算点名，
+# 交给模型按上下文判断。不然「对胚系样本做 GATK 联合分型」会被锁到体细胞那条 gatk 上。
+AMBIGUOUS_NAMES = {"gatk"}
+
 # 平台上有、本系统没有对应流程（没有知识卡片）的名字：点名时如实说不支持，
 # 不许落到「意思相近」的别的流程上（09-28 测试里 WGS 单样本就被换成了 Manta）。
 PLATFORM_ONLY = {
@@ -224,6 +228,8 @@ def load(bindings_dir=None):
     for a, label in PLATFORM_ONLY.items():
         names[_norm(a)] = ("platform_only", label)
         names[_norm(label)] = ("platform_only", label)
+    for a in AMBIGUOUS_NAMES:
+        names.pop(_norm(a), None)
     _ALIASES[:] = [(_pattern(a), g) for a, g in sorted(names.items(), key=lambda x: -len(x[0]))]
 
     terms = {}
