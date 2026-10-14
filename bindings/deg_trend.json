@@ -72,7 +72,14 @@
         ]
       },
       "tumor_type": "malignant glioma",
-      "verification": null
+      "verification": {
+        "status": "passed",
+        "workflow_id": "abc6304b-f2c9-4471-a3af-ef67183eaf29",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:29:37+00:00",
+        "ended_at": "2026-10-14T08:32:38+00:00",
+        "duration_s": 181
+      }
     },
     {
       "study": "HRA000122",
@@ -137,7 +144,14 @@
         ]
       },
       "tumor_type": "acute myeloid leukemia",
-      "verification": null
+      "verification": {
+        "status": "passed",
+        "workflow_id": "5a13119e-ae2d-4b6c-bfab-ca379b95c0cf",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:27:36+00:00",
+        "ended_at": "2026-10-14T08:30:37+00:00",
+        "duration_s": 181
+      }
     },
     {
       "study": "HRA003107",
@@ -206,7 +220,14 @@
         ]
       },
       "tumor_type": "esophageal cancer",
-      "verification": null
+      "verification": {
+        "status": "passed",
+        "workflow_id": "469f4172-e6ce-4644-8f6e-743eb2515210",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:24:34+00:00",
+        "ended_at": "2026-10-14T08:28:36+00:00",
+        "duration_s": 242
+      }
     },
     {
       "study": "HRA006117",
@@ -235,7 +256,14 @@
         ]
       },
       "tumor_type": "acute myeloid leukemia",
-      "verification": null
+      "verification": {
+        "status": "passed",
+        "workflow_id": "b89a2782-3d4f-4e94-8b04-12e066f3b5f9",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:28:36+00:00",
+        "ended_at": "2026-10-14T08:31:38+00:00",
+        "duration_s": 182
+      }
     },
     {
       "study": "HRA007167",

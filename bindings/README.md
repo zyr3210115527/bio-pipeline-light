@@ -44,6 +44,8 @@ HRA 队列号的路径）的运行。以下不收，原因写进 `index.json` �
 
 - 测试数据 / 只有参考文件的运行
 - 冒烟测试（`smoke_test=true`，抽样跑的，不代表完整分析能跑通）
+- 两组对照参数里有相同样本（如 `group_a_samples` 与 `group_b_samples` 重叠：能跑通，但比较无意义）
+- `scripts/verify_bindings.py` 自己提交的复跑（重放，不算新证据）
 - 一次运行混用多个队列
 - 缺知识卡片必填参数
 

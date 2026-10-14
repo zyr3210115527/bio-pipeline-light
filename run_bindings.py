@@ -130,7 +130,14 @@ _PLATFORM_INPUT = re.compile(
     r"|mem(ory)?(_gb|_mb)?|\w+_mem(ory)?(_gb|_mb)?|disks?|disk_gb|disk_size(_gb)?|\w+_disk(_gb|_size(_gb)?)?"
     r"|boot_disk_size_gb|preemptible(_tries)?|max_retries|runtime_\w+)$", re.I)
 
+# 两组对照参数：同一个样本出现在两组里，运行照样 Succeeded，但比较没有意义
+GROUP_PAIRS = (("group_a_samples", "group_b_samples"), ("group1_bams", "group2_bams"),
+               ("tumor_bams", "normal_bams"))
+
 _DATA_ROOTS = ("/hpcdisk1/cbb_group/data/", "/cbb-data/")
+# 宿主机共享存储：这些路径下的才是「文件资产」。/opt/... 这类是容器内路径（脚本、内置参考），
+# 原样当参数值下发，不能当成要用户提供的数据文件列进 assets。
+_HOST_ROOTS = ("/hpcdisk1/", "/cbb-data/", "/cromwell-share/", "/mnt/")
 _REFERENCE_DIRS = ("/hpcdisk1/cbb_group/data/reference/",)
 _HRA = re.compile(r"HRA\d{6}", re.I)
 _RUN = re.compile(r"(?<![A-Za-z0-9])(HRR\d+)")
@@ -441,10 +448,13 @@ def _binding_payload(gid, b, query, rank, source):
         return {"asset_id": by_path[p]["asset_id"]}
 
     inputs = {}
+    def _host(x):
+        return isinstance(x, str) and x.startswith(_HOST_ROOTS)
+
     for k, v in params.items():
-        if isinstance(v, str) and v.startswith("/"):
+        if _host(v):
             inputs[k] = _asset(v)
-        elif isinstance(v, list) and v and all(isinstance(x, str) and x.startswith("/") for x in v):
+        elif isinstance(v, list) and v and all(_host(x) for x in v):
             inputs[k] = [_asset(x) for x in v]
         else:
             inputs[k] = {"value": v}

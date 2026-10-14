@@ -79,7 +79,14 @@
         ]
       },
       "tumor_type": "malignant glioma",
-      "verification": null
+      "verification": {
+        "status": "passed",
+        "workflow_id": "b0b9785a-7790-4b94-91ea-5cb8a4910dcd",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:23:33+00:00",
+        "ended_at": "2026-10-14T08:25:34+00:00",
+        "duration_s": 121
+      }
     },
     {
       "study": "HRA000122",

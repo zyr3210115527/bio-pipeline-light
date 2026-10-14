@@ -51,7 +51,14 @@
         ]
       },
       "tumor_type": "hepatocellular carcinoma",
-      "verification": null
+      "verification": {
+        "status": "passed",
+        "workflow_id": "c662a398-1342-4245-8e41-0b0d0f320cc9",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:30:38+00:00",
+        "ended_at": "2026-10-14T08:34:40+00:00",
+        "duration_s": 242
+      }
     }
   ]
 }

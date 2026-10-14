@@ -1,11 +1,12 @@
 {
   "batch": "20261014-short",
   "cromwell": "http://192.168.121.231:8088",
-  "updated_at": "2026-10-14T08:24:34+00:00",
+  "updated_at": "2026-10-14T08:36:03+00:00",
+  "note": "2026-10-14 按用户要求中途停止：规划不依赖复跑，已跑完的结果保留",
   "summary": {
-    "passed": 17,
-    "pending": 78,
-    "running": 8
+    "aborted": 7,
+    "not_run": 52,
+    "passed": 44
   },
   "results": [
     {
@@ -13,160 +14,168 @@
       "study": "HRA000074",
       "batch": "20261014-short",
       "source_id": "9e4c8ec3-9d2f-4727-87e0-9bfe92757436",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "cnvkit_cnv_clinical",
       "study": "HRA000021",
       "batch": "20261014-short",
       "source_id": "6a259681-7c08-4168-bc64-06d48db57761",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "cnvkit_cnv_clinical",
       "study": "HRA000071",
       "batch": "20261014-short",
       "source_id": "f69f50c8-93b8-4142-8d7f-772953f591c2",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "cnvkit_cnv_clinical",
       "study": "HRA000873",
       "batch": "20261014-short",
       "source_id": "d623a992-137e-431c-8aeb-8289ddaaf679",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "cnvkit_cnv_clinical",
       "study": "HRA001272",
       "batch": "20261014-short",
       "source_id": "705fc736-d2a7-4ff2-aee3-a1565f3f6332",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "cnvkit_cnv_clinical",
       "study": "HRA001749",
       "batch": "20261014-short",
       "source_id": "6cba553b-75d0-4063-b1b8-cd957ed419d4",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "cnvkit_cnv_clinical",
       "study": "HRA006499",
       "batch": "20261014-short",
       "source_id": "69d7ddda-0a6d-4aba-b4a9-ae0eedf935e4",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "cnvkit_cnv_clinical",
       "study": "HRA007169",
       "batch": "20261014-short",
       "source_id": "ce0c1a9d-9f1e-4cb4-b948-03c2da32dd07",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "cox_model",
       "study": "HRA000073",
       "batch": "20261014-short",
       "source_id": "cd0f5249-f739-4aef-a955-029b94570abe",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "cox_model",
       "study": "HRA000074",
       "batch": "20261014-short",
       "source_id": "b79e50fb-84fb-4d69-9378-29493fa20c8c",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "cox_model",
       "study": "HRA002693",
       "batch": "20261014-short",
       "source_id": "4728f714-7728-47e1-b6ce-3f23173d4f5b",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "cox_model",
       "study": "HRA003107",
       "batch": "20261014-short",
       "source_id": "03b2f303-499b-436d-8a21-6a2afe774f17",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "cox_model",
       "study": "HRA006117",
       "batch": "20261014-short",
       "source_id": "3590227e-80b8-478e-92a7-8e8bf0c3f292",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "dataset_downstream",
       "study": "HRA000087",
       "batch": "20261014-short",
       "source_id": "2795c943-0468-4027-9bec-0b8f7a000cff",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "dataset_matrix_annotation",
       "study": "HRA000087",
       "batch": "20261014-short",
       "source_id": "fdb073a9-8ad6-4489-8ea8-f91108752fd4",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "dataset_matrix_annotation",
       "study": "HRA000321",
       "batch": "20261014-short",
       "source_id": "48023f19-b625-4c80-a9e4-cf5460e71534",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "de_enrichment",
       "study": "HRA000073",
       "batch": "20261014-short",
       "source_id": "f6d9c254-0d65-42cd-ab2c-652ad9744ffd",
-      "status": "pending",
-      "failure": null
+      "status": "aborted",
+      "failure": "复跑按用户要求中途停止（未完成，不代表失败）",
+      "workflow_id": "7e96e208-b01a-4f3c-bfce-3120db70e618",
+      "submitted_at": "2026-10-14T08:34:40+00:00",
+      "cromwell_status": "Aborted",
+      "ended_at": "2026-10-14T08:36:03+00:00"
     },
     {
       "tool_id": "de_enrichment",
       "study": "HRA003107",
       "batch": "20261014-short",
       "source_id": "b2fec7b9-8e07-4c5e-a10f-213fc31e878c",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "deg_enrichment",
       "study": "HRA000073",
       "batch": "20261014-short",
       "source_id": "833d8d29-b7ec-46d5-9790-068134e0ac5d",
-      "status": "pending",
-      "failure": null
+      "status": "aborted",
+      "failure": "复跑按用户要求中途停止（未完成，不代表失败）",
+      "workflow_id": "a86a2c17-0c90-4a7f-8f02-587c7145e02e",
+      "submitted_at": "2026-10-14T08:32:39+00:00",
+      "cromwell_status": "Aborted",
+      "ended_at": "2026-10-14T08:36:03+00:00"
     },
     {
       "tool_id": "deg_enrichment",
       "study": "HRA003107",
       "batch": "20261014-short",
       "source_id": "0b703b49-c466-44cd-bf34-fa5b32acbabb",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "deg_trend",
@@ -186,8 +195,13 @@
       "study": "HRA000074",
       "batch": "20261014-short",
       "source_id": "be12de23-e623-4ea1-92a0-88a140c95198",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "abc6304b-f2c9-4471-a3af-ef67183eaf29",
+      "submitted_at": "2026-10-14T08:29:37+00:00",
+      "ended_at": "2026-10-14T08:32:38+00:00",
+      "duration_s": 181,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "deg_trend",
@@ -207,26 +221,39 @@
       "study": "HRA002693",
       "batch": "20261014-short",
       "source_id": "ebb54175-740d-4f87-a885-f272473bd109",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "5a13119e-ae2d-4b6c-bfab-ca379b95c0cf",
+      "submitted_at": "2026-10-14T08:27:36+00:00",
+      "ended_at": "2026-10-14T08:30:37+00:00",
+      "duration_s": 181,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "deg_trend",
       "study": "HRA003107",
       "batch": "20261014-short",
       "source_id": "723fda10-5e69-4690-b374-7fe09ceae48d",
-      "status": "running",
+      "status": "passed",
       "failure": null,
       "workflow_id": "469f4172-e6ce-4644-8f6e-743eb2515210",
-      "submitted_at": "2026-10-14T08:24:34+00:00"
+      "submitted_at": "2026-10-14T08:24:34+00:00",
+      "ended_at": "2026-10-14T08:28:36+00:00",
+      "duration_s": 242,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "deg_trend",
       "study": "HRA006117",
       "batch": "20261014-short",
       "source_id": "7460b3d6-321a-4e1c-9e9e-c6b3b8a0b7f8",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "b89a2782-3d4f-4e94-8b04-12e066f3b5f9",
+      "submitted_at": "2026-10-14T08:28:36+00:00",
+      "ended_at": "2026-10-14T08:31:38+00:00",
+      "duration_s": 182,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "deg_trend",
@@ -246,24 +273,28 @@
       "study": "HRA000074",
       "batch": "20261014-short",
       "source_id": "295d6064-1570-46ff-ada1-e1771dfa4ed0",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "diff_expr_go",
       "study": "HRA003107",
       "batch": "20261014-short",
       "source_id": "7150619c-bdaf-4cc3-9e33-1fc991f6e679",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "diff_expr_kegg",
       "study": "HRA000074",
       "batch": "20261014-short",
       "source_id": "e075121b-5b92-4095-8f34-47c406e028d3",
-      "status": "pending",
-      "failure": null
+      "status": "aborted",
+      "failure": "复跑按用户要求中途停止（未完成，不代表失败）",
+      "workflow_id": "bde7ffa2-8cbf-4f74-bedf-214c1e07e9ee",
+      "submitted_at": "2026-10-14T08:34:40+00:00",
+      "cromwell_status": "Aborted",
+      "ended_at": "2026-10-14T08:36:03+00:00"
     },
     {
       "tool_id": "driver_gene_gender_analysis",
@@ -283,98 +314,116 @@
       "study": "HRA000873",
       "batch": "20261014-short",
       "source_id": "fbfc2e89-288f-494a-8929-bf17db8d5df4",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "driver_gene_gender_analysis",
       "study": "HRA001272",
       "batch": "20261014-short",
       "source_id": "996810da-8a74-4f0e-ac64-c82929dd8a90",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "driver_gene_gender_analysis",
       "study": "HRA001749",
       "batch": "20261014-short",
       "source_id": "a9c652a6-4c7a-4ec5-b0c4-e5cfb97ab483",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "b8929f0a-190a-4291-8478-233ca5495b73",
+      "submitted_at": "2026-10-14T08:26:35+00:00",
+      "ended_at": "2026-10-14T08:28:36+00:00",
+      "duration_s": 121,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "driver_gene_gender_analysis",
       "study": "HRA007169",
       "batch": "20261014-short",
       "source_id": "22f0c149-6c96-47ea-b713-9f9a53f12bc3",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "0a38d77f-2bbc-4e1e-bb3e-ef77442c4c87",
+      "submitted_at": "2026-10-14T08:29:37+00:00",
+      "ended_at": "2026-10-14T08:31:38+00:00",
+      "duration_s": 121,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "driver_gene_gender_analysis",
       "study": "HRA016026",
       "batch": "20261014-short",
       "source_id": "307bf758-8008-4e7e-b940-6174ab9660d5",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "fastp",
       "study": "HRA000873",
       "batch": "20261014-short",
       "source_id": "4259a173-f177-4376-9510-ce9388738b2b",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "fastp",
       "study": "HRA001272",
       "batch": "20261014-short",
       "source_id": "b8ed35bb-4ee4-4222-9bd3-1a269a24674b",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "fastp",
       "study": "HRA001749",
       "batch": "20261014-short",
       "source_id": "275b43bf-91ef-4e23-b1fd-3133c25079b1",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "fastqc",
       "study": "HRA001748",
       "batch": "20261014-short",
       "source_id": "b0aa1efc-a938-4364-a39f-ff4b824cd166",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "fastqc",
       "study": "HRA003107",
       "batch": "20261014-short",
       "source_id": "0f86a932-a869-4440-8a24-0ecd9e8d5f54",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "gene_boxplot",
       "study": "HRA000073",
       "batch": "20261014-short",
       "source_id": "f107b2f7-2453-4922-a43f-b9a4f379c6da",
-      "status": "running",
+      "status": "passed",
       "failure": null,
       "workflow_id": "f30442b0-1faa-40a4-b382-55961d8863a7",
-      "submitted_at": "2026-10-14T08:24:34+00:00"
+      "submitted_at": "2026-10-14T08:24:34+00:00",
+      "ended_at": "2026-10-14T08:28:36+00:00",
+      "duration_s": 242,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "gene_boxplot",
       "study": "HRA000074",
       "batch": "20261014-short",
       "source_id": "e440043f-7bb1-4f39-836d-7736597de6dc",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "8d86b789-dafe-4107-bb8d-37f15211cc74",
+      "submitted_at": "2026-10-14T08:29:37+00:00",
+      "ended_at": "2026-10-14T08:33:39+00:00",
+      "duration_s": 242,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "gene_boxplot",
@@ -394,26 +443,39 @@
       "study": "HRA002693",
       "batch": "20261014-short",
       "source_id": "a6f5bd83-e92a-47bb-9aea-24981d131a3a",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "3c64d7be-2651-48a6-a62a-853ccca84674",
+      "submitted_at": "2026-10-14T08:26:35+00:00",
+      "ended_at": "2026-10-14T08:29:36+00:00",
+      "duration_s": 181,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "gene_boxplot",
       "study": "HRA003107",
       "batch": "20261014-short",
       "source_id": "8ce0dcb4-11b3-42e3-a4bf-45835bf54864",
-      "status": "running",
+      "status": "passed",
       "failure": null,
       "workflow_id": "0f75eb56-72aa-4141-8552-ebbae18c98a3",
-      "submitted_at": "2026-10-14T08:24:34+00:00"
+      "submitted_at": "2026-10-14T08:24:34+00:00",
+      "ended_at": "2026-10-14T08:27:35+00:00",
+      "duration_s": 181,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "gene_boxplot",
       "study": "HRA006117",
       "batch": "20261014-short",
       "source_id": "0269eacd-9d93-4104-a69e-151d3ab8c180",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "278a6fea-6b31-4c82-bd15-246fc75b2347",
+      "submitted_at": "2026-10-14T08:28:36+00:00",
+      "ended_at": "2026-10-14T08:31:38+00:00",
+      "duration_s": 182,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "gene_boxplot",
@@ -433,8 +495,13 @@
       "study": "HRA001272",
       "batch": "20261014-short",
       "source_id": "bf9f32b0-653d-4411-9e21-347095d1cb06",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "c662a398-1342-4245-8e41-0b0d0f320cc9",
+      "submitted_at": "2026-10-14T08:30:38+00:00",
+      "ended_at": "2026-10-14T08:34:40+00:00",
+      "duration_s": 242,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "her2_pfs_survival",
@@ -454,10 +521,13 @@
       "study": "HRA000074",
       "batch": "20261014-short",
       "source_id": "43b433d1-f217-4103-9043-0b661eafee31",
-      "status": "running",
+      "status": "passed",
       "failure": null,
       "workflow_id": "b0b9785a-7790-4b94-91ea-5cb8a4910dcd",
-      "submitted_at": "2026-10-14T08:23:33+00:00"
+      "submitted_at": "2026-10-14T08:23:33+00:00",
+      "ended_at": "2026-10-14T08:25:34+00:00",
+      "duration_s": 121,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "her2_pfs_survival",
@@ -542,8 +612,8 @@
       "study": "HRA003107",
       "batch": "20261014-short",
       "source_id": "106df864-3b55-4574-bfe1-f0ad2bd5ca58",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "immune_infiltration_iobr",
@@ -576,242 +646,295 @@
       "study": "HRA000087",
       "batch": "20261014-short",
       "source_id": "22d9ef0e-58e5-4b64-a68a-fc0cb56b04be",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "km_survival",
       "study": "HRA000073",
       "batch": "20261014-short",
       "source_id": "92c2ff2d-c306-4461-81f4-05d4e55f1a49",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "km_survival",
       "study": "HRA000074",
       "batch": "20261014-short",
       "source_id": "73b7ea89-6868-41fb-81ef-a9566506befe",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "km_survival",
       "study": "HRA002693",
       "batch": "20261014-short",
       "source_id": "b938e80b-c04b-4185-bbfe-3f44a2543b6c",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "km_survival",
       "study": "HRA003107",
       "batch": "20261014-short",
       "source_id": "d9bb5c93-0d6d-4432-860f-1d9d1aac335a",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "km_survival",
       "study": "HRA006117",
       "batch": "20261014-short",
       "source_id": "1bd1e70f-f78d-4c98-a4f9-33f594c2d892",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "lung_tme_annotation_cnv",
       "study": "HRA000087",
       "batch": "20261014-short",
       "source_id": "e8d27a31-80a6-43e6-8633-b8c4c1b9bfd5",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "manta_structural_variants",
       "study": "HRA000873",
       "batch": "20261014-short",
       "source_id": "57c4a71b-22e9-499f-b2a1-d70275919b42",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "manta_structural_variants",
       "study": "HRA001272",
       "batch": "20261014-short",
       "source_id": "74cc3606-90fa-41e7-a3f0-0a5d9269c2c2",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "manta_structural_variants",
       "study": "HRA006499",
       "batch": "20261014-short",
       "source_id": "f282d492-4893-402b-8bda-491ef3ebe500",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "manta_structural_variants",
       "study": "HRA016026",
       "batch": "20261014-short",
       "source_id": "7e03f06c-b188-44f6-8d16-c99df602c5ba",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "preprocess_counts",
       "study": "HRA006117",
       "batch": "20261014-short",
       "source_id": "ec0347bc-a0fd-4294-afb1-cee8118f55c3",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "ef7a0bea-39d0-4cbd-8514-61c7a8df6d50",
+      "submitted_at": "2026-10-14T08:31:38+00:00",
+      "ended_at": "2026-10-14T08:34:40+00:00",
+      "duration_s": 182,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "rnaseq_unsupervised_cluster",
       "study": "HRA000073",
       "batch": "20261014-short",
       "source_id": "6cbd04e9-3174-4bd3-8c24-40e9c0da6722",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "rnaseq_unsupervised_cluster",
       "study": "HRA001272",
       "batch": "20261014-short",
       "source_id": "fbb7562a-817d-4e95-acf8-3d9a4a419fc6",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "scrna_cell_communication",
       "study": "HRA000087",
       "batch": "20261014-short",
       "source_id": "e192f3aa-5bb5-490c-abfc-e0ebdb16d99f",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "stage_heatmap",
       "study": "HRA003107",
       "batch": "20261014-short",
       "source_id": "37248ef8-8c1e-4a2d-bddc-0c86718af6ad",
-      "status": "pending",
-      "failure": null
+      "status": "aborted",
+      "failure": "复跑按用户要求中途停止（未完成，不代表失败）",
+      "workflow_id": "27697d57-3b6f-43ec-a16d-fb5180d83bf6",
+      "submitted_at": "2026-10-14T08:33:39+00:00",
+      "cromwell_status": "Aborted",
+      "ended_at": "2026-10-14T08:36:03+00:00"
     },
     {
       "tool_id": "stage_heatmap",
       "study": "HRA007167",
       "batch": "20261014-short",
       "source_id": "7cb54a73-e920-486b-8155-cdeabb9209de",
-      "status": "pending",
-      "failure": null
+      "status": "aborted",
+      "failure": "复跑按用户要求中途停止（未完成，不代表失败）",
+      "workflow_id": "6f4204f7-74ff-43c2-842c-bf714db543a1",
+      "submitted_at": "2026-10-14T08:32:39+00:00",
+      "cromwell_status": "Aborting",
+      "ended_at": "2026-10-14T08:36:03+00:00"
     },
     {
       "tool_id": "survival_analysis",
       "study": "HRA001272",
       "batch": "20261014-short",
       "source_id": "147ccaf2-dbab-46d3-8679-bcab76ac0298",
-      "status": "pending",
-      "failure": null
+      "status": "aborted",
+      "failure": "复跑按用户要求中途停止（未完成，不代表失败）",
+      "workflow_id": "6e81777c-2468-4495-bb02-1dbc4a54bc1d",
+      "submitted_at": "2026-10-14T08:33:40+00:00",
+      "cromwell_status": "Aborted",
+      "ended_at": "2026-10-14T08:36:03+00:00"
     },
     {
       "tool_id": "survival_analysis",
       "study": "HRA001749",
       "batch": "20261014-short",
       "source_id": "8164d3b1-0d41-4fcf-b8f4-8bcb7afae73a",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "d3c36011-e98f-43cd-9cd9-002403704344",
+      "submitted_at": "2026-10-14T08:33:40+00:00",
+      "cromwell_status": "Succeeded",
+      "ended_at": "2026-10-14T08:36:03+00:00"
     },
     {
       "tool_id": "survival_analysis",
       "study": "HRA007169",
       "batch": "20261014-short",
       "source_id": "847e4a7f-a561-4731-b8a2-83672e32401b",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "fdf79127-610a-4668-b9dc-643d3c016559",
+      "submitted_at": "2026-10-14T08:31:38+00:00",
+      "ended_at": "2026-10-14T08:33:39+00:00",
+      "duration_s": 121,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "survival_analysis",
       "study": "HRA016026",
       "batch": "20261014-short",
       "source_id": "7e229fcc-ddda-44e9-bf99-e32b38575395",
-      "status": "pending",
-      "failure": null
+      "status": "aborted",
+      "failure": "复跑按用户要求中途停止（未完成，不代表失败）",
+      "workflow_id": "647a4c57-6d06-407f-8d76-1da32f69396b",
+      "submitted_at": "2026-10-14T08:34:40+00:00",
+      "cromwell_status": "Aborting",
+      "ended_at": "2026-10-14T08:36:03+00:00"
     },
     {
       "tool_id": "tmb_survival_analysis",
       "study": "HRA000071",
       "batch": "20261014-short",
       "source_id": "8aed0192-8935-44cb-9b17-bad0ead6a95d",
-      "status": "running",
+      "status": "passed",
       "failure": null,
       "workflow_id": "ad73ac19-4c71-4761-a58c-07c147c593b6",
-      "submitted_at": "2026-10-14T08:22:33+00:00"
+      "submitted_at": "2026-10-14T08:22:33+00:00",
+      "ended_at": "2026-10-14T08:25:34+00:00",
+      "duration_s": 181,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "tmb_survival_analysis",
       "study": "HRA000873",
       "batch": "20261014-short",
       "source_id": "06d96872-e776-4ff2-b2b1-152666746543",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "tmb_survival_analysis",
       "study": "HRA001272",
       "batch": "20261014-short",
       "source_id": "2e687e99-3695-4bc2-b07e-2ff7fb0f9cec",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "tmb_survival_analysis",
       "study": "HRA001749",
       "batch": "20261014-short",
       "source_id": "94cacbfc-a44c-4846-b128-968d3e6189a0",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "6dbc7daf-ae04-4865-a8cf-6b90a06eed01",
+      "submitted_at": "2026-10-14T08:28:36+00:00",
+      "ended_at": "2026-10-14T08:30:37+00:00",
+      "duration_s": 121,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "tmb_survival_analysis",
       "study": "HRA006499",
       "batch": "20261014-short",
       "source_id": "93f71acf-72fc-4be6-9f3a-74ed7ad2c74f",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "tmb_survival_analysis",
       "study": "HRA007169",
       "batch": "20261014-short",
       "source_id": "39921563-f4ae-486f-8807-53b44c73b391",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "b5b80053-7274-4665-92a2-0b6d2609823f",
+      "submitted_at": "2026-10-14T08:26:35+00:00",
+      "ended_at": "2026-10-14T08:29:37+00:00",
+      "duration_s": 182,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "tmb_survival_analysis",
       "study": "HRA016026",
       "batch": "20261014-short",
       "source_id": "3937fdd8-62f1-4c18-9189-819b3464f07a",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "umap",
       "study": "HRA000073",
       "batch": "20261014-short",
       "source_id": "5befa536-48ee-4048-979c-eadf75a9c8a5",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "4a8fe873-9ad7-424b-8053-ce64213ae077",
+      "submitted_at": "2026-10-14T08:29:37+00:00",
+      "ended_at": "2026-10-14T08:32:39+00:00",
+      "duration_s": 182,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "umap",
       "study": "HRA000074",
       "batch": "20261014-short",
       "source_id": "c24253e7-e94e-4391-9be1-127f068eb93f",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "310e774e-ac32-4843-8985-79dadd4b6fd1",
+      "submitted_at": "2026-10-14T08:31:38+00:00",
+      "ended_at": "2026-10-14T08:34:40+00:00",
+      "duration_s": 182,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "umap",
@@ -831,94 +954,118 @@
       "study": "HRA002693",
       "batch": "20261014-short",
       "source_id": "3a99a852-c2b2-45a6-ad3b-803d0bd95fe4",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "98ea19fd-0b6a-44e9-a76c-cb5a22752801",
+      "submitted_at": "2026-10-14T08:25:34+00:00",
+      "ended_at": "2026-10-14T08:29:36+00:00",
+      "duration_s": 242,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "umap",
       "study": "HRA003107",
       "batch": "20261014-short",
       "source_id": "12b34c11-f68a-415e-be02-51bc54f8a268",
-      "status": "running",
+      "status": "passed",
       "failure": null,
       "workflow_id": "ef601d18-b26c-4868-ae3e-0f2dd92d70fc",
-      "submitted_at": "2026-10-14T08:23:33+00:00"
+      "submitted_at": "2026-10-14T08:23:33+00:00",
+      "ended_at": "2026-10-14T08:26:35+00:00",
+      "duration_s": 182,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "umap",
       "study": "HRA006117",
       "batch": "20261014-short",
       "source_id": "e26e9c9c-fbd7-46da-9155-14db430568ab",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "6bcee136-ae52-4dee-9b21-2e0f3c2b405e",
+      "submitted_at": "2026-10-14T08:25:34+00:00",
+      "ended_at": "2026-10-14T08:29:36+00:00",
+      "duration_s": 242,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "umap",
       "study": "HRA007167",
       "batch": "20261014-short",
       "source_id": "174afc03-be76-4287-b150-be0b679b5c6d",
-      "status": "running",
+      "status": "passed",
       "failure": null,
       "workflow_id": "2b3d6dbe-957b-4265-a407-c3a09f4c675e",
-      "submitted_at": "2026-10-14T08:23:33+00:00"
+      "submitted_at": "2026-10-14T08:23:33+00:00",
+      "ended_at": "2026-10-14T08:26:35+00:00",
+      "duration_s": 182,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "wes_somatic_maf_landscape",
       "study": "HRA000873",
       "batch": "20261014-short",
       "source_id": "7b4a7038-8e5f-4da2-ac47-74512e0596e0",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "wes_somatic_maf_landscape",
       "study": "HRA001272",
       "batch": "20261014-short",
       "source_id": "9f35e53a-8cfa-4f13-958b-51656425f19f",
-      "status": "pending",
-      "failure": null
+      "status": "passed",
+      "failure": null,
+      "workflow_id": "1c121890-a131-48fe-9428-aa9a69c7d9d1",
+      "submitted_at": "2026-10-14T08:30:38+00:00",
+      "ended_at": "2026-10-14T08:33:39+00:00",
+      "duration_s": 181,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "wgcna",
       "study": "HRA000073",
       "batch": "20261014-short",
       "source_id": "9e6254a4-822f-4ed7-a0bd-8b9bafb5dd3e",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "wgcna",
       "study": "HRA000074",
       "batch": "20261014-short",
       "source_id": "39ca58e8-d63b-497b-b3b2-97c306b6de9b",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "wgcna_hub",
       "study": "HRA003107",
       "batch": "20261014-short",
       "source_id": "caa14405-7da2-49fc-8bca-2c86a5212371",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "wgcna_hub",
       "study": "HRA007167",
       "batch": "20261014-short",
       "source_id": "07ee1dec-1bb1-4603-899a-dd58fb640b55",
-      "status": "running",
+      "status": "passed",
       "failure": null,
       "workflow_id": "eca27b61-4da8-4dee-8809-c60b90f3187a",
-      "submitted_at": "2026-10-14T08:24:34+00:00"
+      "submitted_at": "2026-10-14T08:24:34+00:00",
+      "ended_at": "2026-10-14T08:26:35+00:00",
+      "duration_s": 121,
+      "cromwell_status": "Succeeded"
     },
     {
       "tool_id": "wgcna_module_trait",
       "study": "HRA003107",
       "batch": "20261014-short",
       "source_id": "ad70c580-299f-42c9-ac33-b45a1ac35283",
-      "status": "pending",
-      "failure": null
+      "status": "not_run",
+      "failure": "复跑按用户要求中途停止，未提交"
     },
     {
       "tool_id": "wgcna_module_trait",

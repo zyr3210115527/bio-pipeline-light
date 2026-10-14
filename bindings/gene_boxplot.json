@@ -36,7 +36,14 @@
         ]
       },
       "tumor_type": "malignant glioma",
-      "verification": null
+      "verification": {
+        "status": "passed",
+        "workflow_id": "f30442b0-1faa-40a4-b382-55961d8863a7",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:24:34+00:00",
+        "ended_at": "2026-10-14T08:28:36+00:00",
+        "duration_s": 242
+      }
     },
     {
       "study": "HRA000074",
@@ -65,7 +72,14 @@
         ]
       },
       "tumor_type": "malignant glioma",
-      "verification": null
+      "verification": {
+        "status": "passed",
+        "workflow_id": "8d86b789-dafe-4107-bb8d-37f15211cc74",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:29:37+00:00",
+        "ended_at": "2026-10-14T08:33:39+00:00",
+        "duration_s": 242
+      }
     },
     {
       "study": "HRA000122",
@@ -130,7 +144,14 @@
         ]
       },
       "tumor_type": "acute myeloid leukemia",
-      "verification": null
+      "verification": {
+        "status": "passed",
+        "workflow_id": "3c64d7be-2651-48a6-a62a-853ccca84674",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:26:35+00:00",
+        "ended_at": "2026-10-14T08:29:36+00:00",
+        "duration_s": 181
+      }
     },
     {
       "study": "HRA003107",
@@ -199,7 +220,14 @@
         ]
       },
       "tumor_type": "esophageal cancer",
-      "verification": null
+      "verification": {
+        "status": "passed",
+        "workflow_id": "0f75eb56-72aa-4141-8552-ebbae18c98a3",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:24:34+00:00",
+        "ended_at": "2026-10-14T08:27:35+00:00",
+        "duration_s": 181
+      }
     },
     {
       "study": "HRA006117",
@@ -228,7 +256,14 @@
         ]
       },
       "tumor_type": "acute myeloid leukemia",
-      "verification": null
+      "verification": {
+        "status": "passed",
+        "workflow_id": "278a6fea-6b31-4c82-bd15-246fc75b2347",
+        "batch": "20261014-short",
+        "submitted_at": "2026-10-14T08:28:36+00:00",
+        "ended_at": "2026-10-14T08:31:38+00:00",
+        "duration_s": 182
+      }
     },
     {
       "study": "HRA007167",
