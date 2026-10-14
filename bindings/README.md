@@ -47,6 +47,7 @@ HRA 队列号的路径）的运行。以下不收，原因写进 `index.json` �
 - 两组对照参数里有相同样本（如 `group_a_samples` 与 `group_b_samples` 重叠：能跑通，但比较无意义）
 - `scripts/verify_bindings.py` 自己提交的复跑（重放，不算新证据）
 - 一次运行混用多个队列
+- 队列在 `studies.json` 里标了 `excluded`（如图谱侧因数据问题删除的 HRA000321）
 - 缺知识卡片必填参数
 
 同一「流程 × 队列」有多次成功时，优先平台提交的，再取最近一次。

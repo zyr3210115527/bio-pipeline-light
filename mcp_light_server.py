@@ -2384,13 +2384,12 @@ load_legacy5_runs()
 
 
 def _failed_run(gid, acc):
-    """该「流程 × 队列」的绑定被人工停用了吗？停用返回原因，否则 None。"""
+    """该「流程 × 队列」不可用的明确原因：绑定被人工停用，或队列被整体排除（如图谱侧因
+    数据问题删除）。都不是返回 None。"""
     if not gid or not acc:
         return None
     b = _rb.get(gid, acc)
-    if b and b.get("disabled"):
-        return b["disabled"].get("reason") or "已停用"
-    return None
+    return _rb.disabled_reason(b) if b else _rb.excluded_reason(acc)
 
 
 def _unproven_combo(gid, acc):

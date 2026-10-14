@@ -128,6 +128,8 @@ def classify(gid, meta):
         return None, "数据路径里解析不出 HRA 队列号"
     if len(studies) > 1:
         return None, f"一次运行混用了多个队列：{'/'.join(studies)}"
+    if rb.excluded_reason(studies[0]):
+        return None, f"队列 {studies[0]} 已排除：{rb.excluded_reason(studies[0])}"
     missing = [i["name"] for i in card.get("inputs") or []
                if i.get("required") and i["name"] not in params
                and not rb.is_reference_resource(gid, i["name"])]

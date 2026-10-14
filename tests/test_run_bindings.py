@@ -62,6 +62,15 @@ class RegistryIntegrityTests(unittest.TestCase):
                         with self.subTest(tool=gid, study=b["study"], pair=a):
                             self.assertEqual(set(p[a]) & set(p[c]), set())
 
+    def test_excluded_cohorts_are_never_usable(self):
+        """图谱侧因数据问题删掉的队列：绑定表里不收，路由与闸门也不放行。"""
+        excluded = [s for s, i in rb.studies().items() if i.get("excluded")]
+        for gid in rb.bound_tools():
+            with self.subTest(tool=gid):
+                self.assertFalse({b["study"] for b in rb.bindings_for(gid)} & set(excluded))
+        for s in excluded:
+            self.assertTrue(srv._failed_run("dataset_matrix_annotation", s))
+
     def test_default_study_is_usable(self):
         for gid, doc in rb.registry().items():
             if not rb.bindings_for(gid):
