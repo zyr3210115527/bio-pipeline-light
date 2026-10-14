@@ -73,7 +73,7 @@
       "tumor_type": null,
       "label_cn": null,
       "labels": [],
-      "_todo": "癌种待从图谱 study 节点补（SKILL.md §12.2 的 20 个队列里没有它）"
+      "_todo": "图谱里没有这个队列（2026-10-14 查过，53 个 study 节点里不含 HRA000321）。绑定文件名是 HRA000321-BC-merge.rds，BC 可能指乳腺癌，未核实，故不设癌种标签"
     },
     "HRA000873": {
       "tumor_type": "colorectal adenocarcinoma",

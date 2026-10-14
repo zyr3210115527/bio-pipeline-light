@@ -139,6 +139,61 @@ class DeckRegressionTests(unittest.TestCase):
         r = self.route("我想用恶性胶质瘤数据进行wgcna分析")
         self.assertEqual(rb.studies()[r["candidates"][0]["study_accession"]]["tumor_type"], "malignant glioma")
 
+    def test_every_tool_resolves_by_id_and_chinese_name(self):
+        """55 个流程逐个点名：认对流程；有绑定的出合同，没绑定的如实拒绝。"""
+        for gid in rb.all_tool_ids():
+            ids = [rb.card(gid)["meta_id"]] if gid in rb.AMBIGUOUS_NAMES else [gid]
+            for q in [f"我想用癌症数据进行{x}分析" for x in ids] + [f"我想用癌症数据进行{rb.name_cn(gid)}分析"]:
+                with self.subTest(q=q):
+                    r = self.route(q)
+                    self.assertEqual(r["intent"].get("tool_id"), gid)
+                    self.assertEqual(r["selection_status"], "ready" if rb.bindings_for(gid) else "unsupported",
+                                     r.get("unsupported_reason"))
+
+    def test_colloquial_software_names(self):
+        cases = {"用 manta 做结构变异检测": "manta_structural_variants",
+                 "跑一下 CNVkit 拷贝数分析": "cnvkit_cnv_clinical",
+                 "肝癌数据做 GSEA": "gsea_pathway_enrichment",
+                 "CIBERSORT 免疫细胞比例": "immune_infiltration_iobr",
+                 "use STAR for alignment on HRA003107": "star",
+                 "我想用癌症数据进行FASTQ转uBAM分析": "paired_fastq_to_unmapped_bam",
+                 "我想用 食管 鳞癌 数据进行 hvg_pca_gmm 分析": "hvg_pca_gmm"}
+        for q, gid in cases.items():
+            with self.subTest(q=q):
+                self.assertEqual(self.route(q)["intent"].get("tool_id"), gid)
+
+    def test_toolkit_name_alone_is_not_a_pick(self):
+        """GATK 是好几条流程共用的工具包：单说 GATK 交给模型，说全了（平台展示名）才锁定。"""
+        self.assertEqual(rb.resolve_tool("对一批胚系样本做 GATK 联合分型"), (None, None))
+        self.assertEqual(rb.resolve_tool("我想用癌症数据进行GATK 胚系队列分析"), ("tool", "gatk_germline_cohort"))
+        self.assertEqual(rb.resolve_tool("我想用 gatk_wes_somatic 做配对体细胞"), ("tool", "gatk"))
+
+    def test_word_boundary_keeps_short_names_from_matching_inside_words(self):
+        self.assertEqual(rb.resolve_tool("start the analysis please"), (None, None))
+        self.assertEqual(rb.resolve_tool("please restart"), (None, None))
+
+    def test_cancer_word_inside_tool_name_is_not_a_data_filter(self):
+        gid = "lung_tme_annotation_cnv"
+        if not rb.bindings_for(gid):
+            self.skipTest(f"{gid} 没有绑定")
+        r = self.route(f"我想用癌症数据进行{rb.name_cn(gid)}分析")       # 名字里有「肺癌」
+        self.assertEqual(r["selection_status"], "ready", r.get("unsupported_reason"))
+
+    def test_every_bound_cohort_reachable_by_accession_and_cancer_type(self):
+        for gid in rb.bound_tools():
+            for b in rb.bindings_for(gid):
+                with self.subTest(tool=gid, study=b["study"]):
+                    r = self.route(f"用 {b['study']} 跑 {gid}")
+                    self.assertEqual(r["candidates"][0]["study_accession"], b["study"])
+                    tumor = rb.studies()[b["study"]].get("tumor_type")
+                    lab = rb.studies()[b["study"]].get("label_cn")
+                    if lab:
+                        r = self.route(f"我想用{lab}数据进行{gid}分析")
+                        self.assertEqual(r["selection_status"], "ready", r.get("unsupported_reason"))
+                        got = r["candidates"][0]["study_accession"]
+                        self.assertIn(rb.studies()[got].get("tumor_type"),
+                                      {tumor, "hepatocellular carcinoma", "liver cancer"} if lab == "肝癌" else {tumor})
+
     def test_unbound_disease_is_not_substituted(self):
         """点名的癌种没有绑定：说清楚有哪些可选，不换成别的癌种。"""
         gid = "diff_expr_kegg"
