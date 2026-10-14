@@ -292,9 +292,22 @@ def is_reference_resource(gid, name):
 
 # ------------------------------------------------------------- 绑定查询 ----
 
+def excluded_reason(study):
+    """队列被整体排除（如图谱侧因数据问题删除）时返回原因，否则 None。"""
+    ex = (_STUDIES.get(str(study or "").upper()) or {}).get("excluded")
+    return (ex.get("reason") or "队列已排除") if ex else None
+
+
+def disabled_reason(b):
+    """一条绑定不可用的原因：人工停用，或所在队列被排除。可用返回 None。"""
+    if b.get("disabled"):
+        return b["disabled"].get("reason") or "已停用"
+    return excluded_reason(b.get("study"))
+
+
 def bindings_for(gid, include_disabled=False):
     doc = _REGISTRY.get(gid) or {}
-    return [b for b in doc.get("bindings") or [] if include_disabled or not b.get("disabled")]
+    return [b for b in doc.get("bindings") or [] if include_disabled or not disabled_reason(b)]
 
 
 def bound_tools():
@@ -318,7 +331,7 @@ def block_reason(gid, study):
     if not usable:
         dis = bindings_for(gid, include_disabled=True)
         if dis:
-            return f"{who}的已绑定队列当前全部停用（{dis[0]['disabled'].get('reason', '')}）"
+            return f"{who}的已绑定队列当前全部停用（{disabled_reason(dis[0])}）"
         return f"{who}暂无已验证可运行的数据（Cromwell 上没有该流程用真实队列数据跑通的记录）"
     if not study:
         return None
@@ -326,8 +339,8 @@ def block_reason(gid, study):
     if b is None:
         return (f"{who}在 {study} 上没有已验证可运行的数据；"
                 f"已绑定队列：{'/'.join(x['study'] for x in usable)}")
-    if b.get("disabled"):
-        return f"{who} × {study} 已停用：{b['disabled'].get('reason', '')}"
+    if disabled_reason(b):
+        return f"{who} × {study} 已停用：{disabled_reason(b)}"
     return None
 
 

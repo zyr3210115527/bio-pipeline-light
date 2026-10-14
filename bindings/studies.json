@@ -1,5 +1,5 @@
 {
-  "_comment": "队列 → 癌种。tumor_type 取自图谱 study 节点（0826 交付，见 skill/SKILL.md §12.2）；labels 是用户问句里常见的中文/英文叫法，用来把「用食管鳞癌数据」这类说法落到队列上。同一个词可以对应多个队列，由流程的绑定再筛一次。",
+  "_comment": "队列 → 癌种。tumor_type 取自图谱 study 节点（0826 交付，见 skill/SKILL.md §12.2）；labels 是用户问句里常见的中文/英文叫法，用来把「用食管鳞癌数据」这类说法落到队列上。同一个词可以对应多个队列，由流程的绑定再筛一次。 带 excluded 的队列（如图谱侧因数据问题删除的）不收绑定、也不推荐。",
   "studies": {
     "HRA000001": {
       "tumor_type": null,
@@ -78,7 +78,10 @@
         "pan-cancer"
       ],
       "source": "NGDC GSA-Human 公开页面（2026-10-14 查）：Comprehensive Characterization of Tumor Infiltrating Lymphocyte of Multiple Cancer Types，多癌种肿瘤浸润淋巴细胞单细胞测序，2022-03-31 发布。当前图谱里没有这个队列（study/project/sample/T1/T2/患者节点逐字段查过）",
-      "_todo": "绑定用的文件是 HRA000321-BC-merge.rds，BC 可能是其中的乳腺癌子集，未核实"
+      "excluded": {
+        "reason": "图谱侧因数据问题已把该队列从图谱删除，不再用于规划与执行",
+        "since": "2026-10-14"
+      }
     },
     "HRA000873": {
       "tumor_type": "colorectal adenocarcinoma",

@@ -1,9 +1,9 @@
 {
   "schema_version": "run-bindings/v1",
-  "generated_at": "2026-10-14T08:36:41+00:00",
+  "generated_at": "2026-10-14T09:02:45+00:00",
   "source": {
     "cromwell": "http://192.168.121.231:8088",
-    "succeeded_runs_considered": 605
+    "succeeded_runs_considered": 609
   },
   "bound_tools": {
     "bootstrap_stability": {
@@ -48,10 +48,9 @@
     },
     "dataset_matrix_annotation": {
       "bound_studies": [
-        "HRA000087",
-        "HRA000321"
+        "HRA000087"
       ],
-      "default_study": "HRA000321"
+      "default_study": "HRA000087"
     },
     "de_enrichment": {
       "bound_studies": [
@@ -428,6 +427,13 @@
       "reason": "一次运行混用了多个队列：HRA000087/HRA000321"
     },
     {
+      "tool_id": "dataset_matrix_annotation",
+      "cromwell_id": "48023f19-b625-4c80-a9e4-cf5460e71534",
+      "workflow_name": "task403_dataset_matrix_annotation",
+      "submitted_at": "2026-09-18T06:50:44.833Z",
+      "reason": "队列 HRA000321 已排除：图谱侧因数据问题已把该队列从图谱删除，不再用于规划与执行"
+    },
+    {
       "tool_id": "de_enrichment",
       "cromwell_id": "10f96d84-3429-4b77-be94-77f3a33c434d",
       "workflow_name": "de_enrichment",
@@ -439,6 +445,13 @@
       "cromwell_id": "5a667865-c36f-417d-aa3d-4d5f7bccae42",
       "workflow_name": "de_enrichment",
       "submitted_at": "2026-10-14T05:13:56.922Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "de_enrichment",
+      "cromwell_id": "eba1b1b0-c5f3-4814-91b8-b1ede16379b7",
+      "workflow_name": "de_enrichment",
+      "submitted_at": "2026-10-14T08:51:23.978Z",
       "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
     },
     {
@@ -537,6 +550,13 @@
       "cromwell_id": "d1d60dfb-e75d-4a4a-aed0-0092d2c237df",
       "workflow_name": "GseaPathwayEnrichment",
       "submitted_at": "2026-10-14T05:12:15.126Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "gsea_pathway_enrichment",
+      "cromwell_id": "cd2fbf98-eb7d-4228-b67b-3f23ada3b592",
+      "workflow_name": "GseaPathwayEnrichment",
+      "submitted_at": "2026-10-14T08:49:16.857Z",
       "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
     },
     {
@@ -967,6 +987,13 @@
       "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
     },
     {
+      "tool_id": "umap",
+      "cromwell_id": "588b97b5-23a7-4d5e-b4fc-51d0189c8788",
+      "workflow_name": "umap",
+      "submitted_at": "2026-10-14T08:47:34.671Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
       "tool_id": "wgcna_hub",
       "cromwell_id": "9da39e0f-86a5-4fe1-88a4-d4e4258e8021",
       "workflow_name": "wgcna_hub",
@@ -1013,6 +1040,13 @@
       "cromwell_id": "3d540262-7225-47db-80f0-a2d415fc004a",
       "workflow_name": "wgcna_hub",
       "submitted_at": "2026-10-14T06:06:35.285Z",
+      "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
+    },
+    {
+      "tool_id": "wgcna_hub",
+      "cromwell_id": "666b64fe-e87f-40ab-affd-10ace806b34f",
+      "workflow_name": "wgcna_hub",
+      "submitted_at": "2026-10-14T08:34:03.393Z",
       "reason": "输入里没有真实队列数据路径（测试数据或参考文件）"
     },
     {
